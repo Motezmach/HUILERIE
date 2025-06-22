@@ -1,0 +1,581 @@
+{
+  "info": {
+    "name": "Olive Oil Factory - Dashboard APIs (Enhanced)",
+    "description": "Complete collection of dashboard APIs for the olive oil factory management system with real-time updates, detailed statistics, comprehensive metrics, and enhanced box utilization tracking.",
+    "version": "2.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Dashboard APIs",
+      "item": [
+        {
+          "name": "Get Main Dashboard Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard"]
+            },
+            "description": "Fetches comprehensive dashboard data including metrics, recent activity, box utilization, and trends. This is the main endpoint for dashboard display."
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/dashboard",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "dashboard"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"metrics\": {\n      \"totalFarmers\": 25,\n      \"totalBoxes\": 600,\n      \"activeBoxes\": 450,\n      \"pendingExtractions\": 5,\n      \"todayRevenue\": 1250.75,\n      \"totalRevenue\": 45000.25,\n      \"averageOilExtraction\": 18.5,\n      \"metricDate\": \"2025-06-22T00:00:00.000Z\"\n    },\n    \"recentActivity\": [\n      {\n        \"id\": \"session-123\",\n        \"type\": \"session_created\",\n        \"description\": \"Session créée pour Ahmed Ben Ali (5 boîtes)\",\n        \"timestamp\": \"2025-06-22T09:30:00.000Z\",\n        \"amount\": 125.50,\n        \"metadata\": {\n          \"farmerId\": \"farmer-123\",\n          \"sessionId\": \"session-123\",\n          \"boxCount\": 5\n        }\n      }\n    ],\n    \"boxUtilization\": {\n      \"used\": 150,\n      \"total\": 600,\n      \"percentage\": 25\n    },\n    \"trends\": {\n      \"farmersChange\": 2,\n      \"revenueChange\": 150.25\n    },\n    \"lastUpdated\": \"2025-06-22T09:45:00.000Z\",\n    \"fromCache\": false,\n    \"dataTimestamp\": 1719058500000\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Dashboard Data (Force Refresh)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard?refresh=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard"],
+              "query": [
+                {
+                  "key": "refresh",
+                  "value": "true",
+                  "description": "Force refresh of dashboard data, bypass cache"
+                }
+              ]
+            },
+            "description": "Forces a fresh calculation of dashboard metrics, bypassing any cached data. Use for real-time updates or when data accuracy is critical."
+          }
+        },
+        {
+          "name": "Get Real-Time Dashboard Updates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/real-time",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard", "real-time"]
+            },
+            "description": "Lightweight endpoint for real-time dashboard updates. Returns essential metrics and latest activity for frequent polling (every 3-5 seconds)."
+          },
+          "response": [
+            {
+              "name": "Real-Time Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/dashboard/real-time",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "dashboard", "real-time"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"metrics\": {\n      \"totalFarmers\": 25,\n      \"availableBoxes\": 450,\n      \"inUseBoxes\": 150,\n      \"boxUtilization\": 25,\n      \"todaySessionsCount\": 8,\n      \"todayRevenue\": 1250.75\n    },\n    \"latestActivity\": [\n      {\n        \"id\": \"session-456\",\n        \"type\": \"created\",\n        \"description\": \"Session créée - Ahmed Ben Ali\",\n        \"timestamp\": \"2025-06-22T09:30:00.000Z\",\n        \"amount\": 125.50\n      }\n    ],\n    \"systemStatus\": {\n      \"boxSystemOperational\": true,\n      \"lastDataUpdate\": \"2025-06-22T09:45:00.000Z\",\n      \"totalCapacity\": 600,\n      \"utilizationStatus\": \"low\"\n    },\n    \"timestamp\": 1719058500000\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Detailed Dashboard Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard", "stats"]
+            },
+            "description": "Returns detailed statistics for charts, reports, and advanced dashboard views. Includes box type distribution, revenue trends, top farmers, and session analytics."
+          },
+          "response": [
+            {
+              "name": "Stats Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/dashboard/stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "dashboard", "stats"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"boxStats\": {\n      \"typeDistribution\": [\n        { \"type\": \"NORMAL\", \"count\": 100 },\n        { \"type\": \"NCHIRA\", \"count\": 30 },\n        { \"type\": \"CHKARA\", \"count\": 20 }\n      ],\n      \"utilizationByType\": [\n        {\n          \"type\": \"NORMAL\",\n          \"available\": 350,\n          \"inUse\": 100,\n          \"total\": 450,\n          \"utilizationRate\": 22\n        }\n      ]\n    },\n    \"revenueStats\": {\n      \"daily\": [\n        { \"date\": \"2025-06-16\", \"revenue\": 890.25 },\n        { \"date\": \"2025-06-17\", \"revenue\": 1150.75 },\n        { \"date\": \"2025-06-18\", \"revenue\": 980.50 },\n        { \"date\": \"2025-06-19\", \"revenue\": 1340.25 },\n        { \"date\": \"2025-06-20\", \"revenue\": 1120.00 },\n        { \"date\": \"2025-06-21\", \"revenue\": 1250.75 },\n        { \"date\": \"2025-06-22\", \"revenue\": 750.25 }\n      ],\n      \"topFarmers\": [\n        {\n          \"id\": \"farmer-1\",\n          \"name\": \"Ahmed Ben Ali\",\n          \"type\": \"LARGE\",\n          \"totalRevenue\": 5250.75,\n          \"sessionCount\": 15\n        }\n      ]\n    },\n    \"farmerStats\": {\n      \"typeDistribution\": [\n        { \"type\": \"SMALL\", \"count\": 18 },\n        { \"type\": \"LARGE\", \"count\": 7 }\n      ]\n    },\n    \"sessionStats\": {\n      \"processingStatus\": [\n        { \"status\": \"PENDING\", \"count\": 5 },\n        { \"status\": \"PROCESSED\", \"count\": 45 }\n      ],\n      \"paymentStatus\": [\n        { \"status\": \"PAID\", \"count\": 40 },\n        { \"status\": \"UNPAID\", \"count\": 8 },\n        { \"status\": \"PENDING\", \"count\": 2 }\n      ],\n      \"recent\": [\n        {\n          \"id\": \"session-123\",\n          \"date\": \"2025-06-22T09:30:00.000Z\",\n          \"farmer\": {\n            \"name\": \"Ahmed Ben Ali\",\n            \"type\": \"LARGE\",\n            \"phone\": \"+216 98 123 456\"\n          },\n          \"boxCount\": 5,\n          \"totalWeight\": 125.5,\n          \"oilWeight\": 22.8,\n          \"totalPrice\": 1250.75,\n          \"processingStatus\": \"PROCESSED\",\n          \"paymentStatus\": \"PAID\",\n          \"extractionRate\": \"18.17\"\n        }\n      ]\n    },\n    \"lastUpdated\": \"2025-06-22T09:45:00.000Z\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Box Management APIs (Enhanced)",
+      "item": [
+        {
+          "name": "Get All Boxes (Basic)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"]
+            },
+            "description": "Get all boxes in the system with current status and assignments."
+          }
+        },
+        {
+          "name": "Get In-Use Boxes with Farmer Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes?status=IN_USE&includeCurrentFarmer=true&limit=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "IN_USE",
+                  "description": "Filter for boxes currently in use"
+                },
+                {
+                  "key": "includeCurrentFarmer",
+                  "value": "true",
+                  "description": "Include current farmer details in response"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Maximum number of boxes to return"
+                }
+              ]
+            },
+            "description": "Fetches all boxes currently in use with their assigned farmer details. Used by the enhanced dashboard for detailed box utilization table."
+          },
+          "response": [
+            {
+              "name": "In-Use Boxes Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/boxes?status=IN_USE&includeCurrentFarmer=true&limit=100",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "boxes"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "IN_USE"
+                    },
+                    {
+                      "key": "includeCurrentFarmer",
+                      "value": "true"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "100"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"1\",\n        \"type\": \"normal\",\n        \"status\": \"in_use\",\n        \"currentFarmerId\": \"farmer-123\",\n        \"currentWeight\": 25.5,\n        \"assignedAt\": \"2025-06-22T08:30:00.000Z\",\n        \"isSelected\": false,\n        \"createdAt\": \"2025-06-20T00:00:00.000Z\",\n        \"updatedAt\": \"2025-06-22T08:30:00.000Z\",\n        \"currentFarmer\": {\n          \"id\": \"farmer-123\",\n          \"name\": \"Ahmed Ben Ali\",\n          \"type\": \"large\",\n          \"pricePerKg\": 0.25,\n          \"phone\": \"+216 98 123 456\"\n        }\n      }\n    ],\n    \"pagination\": {\n      \"total\": 25,\n      \"page\": 1,\n      \"limit\": 100,\n      \"totalPages\": 1\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Available Boxes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes?status=AVAILABLE&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "AVAILABLE",
+                  "description": "Filter for available boxes"
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of boxes to return"
+                }
+              ]
+            },
+            "description": "Get all available boxes that can be assigned to farmers."
+          }
+        },
+        {
+          "name": "Get Boxes by Type (Normal)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes?type=normal&status=IN_USE&includeCurrentFarmer=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "normal",
+                  "description": "Filter by box type: normal, nchira, chkara"
+                },
+                {
+                  "key": "status",
+                  "value": "IN_USE",
+                  "description": "Only in-use boxes"
+                },
+                {
+                  "key": "includeCurrentFarmer",
+                  "value": "true",
+                  "description": "Include farmer details"
+                }
+              ]
+            },
+            "description": "Filter boxes by type with farmer details. Used by dashboard filtering."
+          }
+        },
+        {
+          "name": "Get Boxes by Type (Nchira)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes?type=nchira&status=IN_USE&includeCurrentFarmer=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "nchira",
+                  "description": "Nchira type boxes"
+                },
+                {
+                  "key": "status",
+                  "value": "IN_USE",
+                  "description": "Only in-use boxes"
+                },
+                {
+                  "key": "includeCurrentFarmer",
+                  "value": "true",
+                  "description": "Include farmer details"
+                }
+              ]
+            },
+            "description": "Get Nchira type boxes currently in use."
+          }
+        },
+        {
+          "name": "Get Boxes by Type (Chkara)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes?type=chkara&status=IN_USE&includeCurrentFarmer=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "chkara",
+                  "description": "Chkara type boxes"
+                },
+                {
+                  "key": "status",
+                  "value": "IN_USE",
+                  "description": "Only in-use boxes"
+                },
+                {
+                  "key": "includeCurrentFarmer",
+                  "value": "true",
+                  "description": "Include farmer details"
+                }
+              ]
+            },
+            "description": "Get Chkara type boxes currently in use."
+          }
+        },
+        {
+          "name": "Assign Box to Farmer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"1\",\n  \"type\": \"normal\",\n  \"weight\": 25.5,\n  \"farmerId\": \"farmer-123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/boxes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "boxes"]
+            },
+            "description": "Assigns an available box to a farmer with specified weight and type."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Supporting APIs",
+      "item": [
+        {
+          "name": "Get All Farmers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/farmers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "farmers"]
+            },
+            "description": "Get all farmers with pagination and filtering options."
+          }
+        },
+        {
+          "name": "Get Farmers with Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/farmers?page=1&limit=10&type=large&paymentStatus=paid&includeBoxes=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "farmers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of items per page"
+                },
+                {
+                  "key": "type",
+                  "value": "large",
+                  "description": "Filter by farmer type: all, small, large"
+                },
+                {
+                  "key": "paymentStatus",
+                  "value": "paid",
+                  "description": "Filter by payment status: all, paid, pending, unpaid"
+                },
+                {
+                  "key": "includeBoxes",
+                  "value": "true",
+                  "description": "Include current boxes in response"
+                }
+              ]
+            },
+            "description": "Get farmers with various filters and include related data."
+          }
+        },
+        {
+          "name": "Create New Farmer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mohamed Ben Salah\",\n  \"phone\": \"+216 98 765 432\",\n  \"type\": \"large\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/farmers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "farmers"]
+            },
+            "description": "Create a new farmer in the system. This will trigger dashboard updates."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "API Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Check if the API server is running and database is accessible."
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set timestamp for requests",
+          "pm.globals.set('timestamp', Date.now());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test for all requests",
+          "pm.test('Status code is 200', function () {",
+          "    pm.response.to.have.status(200);",
+          "});",
+          "",
+          "pm.test('Response has success field', function () {",
+          "    const jsonData = pm.response.json();",
+          "    pm.expect(jsonData).to.have.property('success');",
+          "});",
+          "",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "// Enhanced dashboard specific tests",
+          "if (pm.request.url.toString().includes('/api/dashboard')) {",
+          "    pm.test('Dashboard has required data structure', function () {",
+          "        const jsonData = pm.response.json();",
+          "        if (jsonData.success) {",
+          "            pm.expect(jsonData.data).to.have.property('metrics');",
+          "            pm.expect(jsonData.data).to.have.property('boxUtilization');",
+          "            pm.expect(jsonData.data).to.have.property('recentActivity');",
+          "            pm.expect(jsonData.data).to.have.property('trends');",
+          "        }",
+          "    });",
+          "}",
+          "",
+          "if (pm.request.url.toString().includes('/api/boxes')) {",
+          "    pm.test('Boxes API has pagination', function () {",
+          "        const jsonData = pm.response.json();",
+          "        if (jsonData.success && jsonData.data) {",
+          "            pm.expect(jsonData.data).to.have.property('pagination');",
+          "            pm.expect(jsonData.data).to.have.property('items');",
+          "        }",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Base URL for the API (development)"
+    },
+    {
+      "key": "prodUrl",
+      "value": "https://your-production-domain.com",
+      "type": "string",
+      "description": "Base URL for production API"
+    }
+  ]
+} 

@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Farmer {
+  id                   String             @id @default(uuid())
+  name                 String
+  phone                String?
+  type                 FarmerType         @default(SMALL)
+  pricePerKg           Decimal            @default(0.15)
+  dateAdded            DateTime           @default(now())
+  totalAmountDue       Decimal            @default(0)
+  totalAmountPaid      Decimal            @default(0)
+  paymentStatus        PaymentStatus      @default(PENDING)
+  lastProcessingDate   DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  // Temporary assignments (current active boxes)
+  currentBoxes         Box[]              @relation("CurrentFarmerBoxes")
+  processingSessions   ProcessingSession[]
+  
+  @@map("farmers")
+}
+
+model Box {
+  id                   String             @id  // Fixed IDs from "1" to "600"
+  type                 BoxType            @default(NORMAL)
+  status               BoxStatus          @default(AVAILABLE)
+  
+  // Current assignment (nullable - box can be unassigned)
+  currentFarmerId      String?
+  currentWeight        Decimal?
+  assignedAt           DateTime?
+  isSelected           Boolean            @default(false)
+  
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  // Relationships
+  currentFarmer        Farmer?            @relation("CurrentFarmerBoxes", fields: [currentFarmerId], references: [id], onDelete: SetNull)
+  sessionBoxes         SessionBox[]
+  
+  @@map("boxes")
+}
+
+model ProcessingSession {
+  id                   String             @id @default(uuid())
+  farmerId             String
+  sessionNumber        String             @unique
+  processingDate       DateTime?
+  oilWeight            Decimal            @default(0)
+  totalBoxWeight       Decimal
+  boxCount             Int
+  totalPrice           Decimal
+  pricePerKg           Decimal            @default(0.15)
+  processingStatus     ProcessingStatus   @default(PENDING)
+  paymentStatus        PaymentStatus      @default(UNPAID)
+  paymentDate          DateTime?
+  notes                String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  farmer               Farmer             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  sessionBoxes         SessionBox[]
+  
+  @@map("processing_sessions")
+}
+
+model SessionBox {
+  id                   String             @id @default(uuid())
+  sessionId            String
+  boxId                String             // Always populated with actual box ID (1-600)
+  boxWeight            Decimal
+  boxType              BoxType
+  farmerId             String             // Track which farmer used this box
+  createdAt            DateTime           @default(now())
+  
+  session              ProcessingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  box                  Box                @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  
+  @@unique([sessionId, boxId])
+  @@map("session_boxes")
+}
+
+model DashboardMetrics {
+  id                   String             @id @default(uuid())
+  metricDate           DateTime           @unique
+  totalFarmers         Int                @default(0)
+  totalBoxes           Int                @default(0)
+  activeBoxes          Int                @default(0)
+  pendingExtractions   Int                @default(0)
+  todayRevenue         Decimal            @default(0)
+  totalRevenue         Decimal            @default(0)
+  averageOilExtraction Decimal            @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  @@map("dashboard_metrics")
+}
+
+enum FarmerType {
+  SMALL
+  LARGE
+}
+
+enum BoxType {
+  NCHIRA
+  CHKARA
+  NORMAL
+}
+
+enum BoxStatus {
+  AVAILABLE       // Box is free and can be assigned to any farmer
+  IN_USE         // Box is currently assigned to a farmer with olives
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  PENDING
+}
