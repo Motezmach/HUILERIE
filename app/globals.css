@@ -343,14 +343,80 @@ html {
 .stagger-4 { animation-delay: 400ms; }
 .stagger-5 { animation-delay: 500ms; }
 
-/* Enhanced Card Animations */
+/* Modern Dashboard Card Enhancements */
 @keyframes cardGlow {
   0%, 100% {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   }
   50% {
-    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(59, 130, 246, 0.1);
   }
+}
+
+.metric-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  pointer-events: none;
+}
+
+.metric-card:hover {
+  animation: cardGlow 2s ease-in-out infinite;
+}
+
+.metric-value {
+  background: linear-gradient(135deg, #2C3E50 0%, #3498DB 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+.metric-icon {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.metric-icon:hover {
+  transform: scale(1.1) rotate(5deg);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+}
+
+.metric-border {
+  background: linear-gradient(90deg, currentColor 0%, transparent 100%);
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.group:hover .metric-border {
+  opacity: 1;
+  background: linear-gradient(90deg, currentColor 0%, currentColor 50%, transparent 100%);
+}
+
+.status-dot {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px rgba(currentColor, 0.3);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.metric-text {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-feature-settings: 'tnum' 1;
 }
 
 @keyframes numberCount {
@@ -364,154 +430,62 @@ html {
   }
 }
 
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+.count-animation {
+  animation: numberCount 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes iconBounce {
-  0%, 20%, 50%, 80%, 100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-3px);
-  }
-  60% {
-    transform: translateY(-1px);
-  }
+/* Dialog Text Visibility Fixes */
+[data-radix-dialog-content] {
+  background: white !important;
+  color: #1f2937 !important;
 }
 
-@keyframes statusPulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.9;
-  }
+[data-radix-dialog-content] * {
+  color: inherit;
 }
 
-/* Animation Classes for Enhanced Cards */
-.animate-cardGlow {
-  animation: cardGlow 3s ease-in-out infinite;
+[data-radix-dialog-content] h1,
+[data-radix-dialog-content] h2,
+[data-radix-dialog-content] h3,
+[data-radix-dialog-content] h4,
+[data-radix-dialog-content] h5,
+[data-radix-dialog-content] h6 {
+  color: #111827 !important;
 }
 
-.animate-numberCount {
-  animation: numberCount 0.6s ease-out;
+[data-radix-dialog-content] label {
+  color: #374151 !important;
 }
 
-.animate-gradientShift {
-  background-size: 200% 200%;
-  animation: gradientShift 4s ease infinite;
+[data-radix-dialog-content] input,
+[data-radix-dialog-content] select,
+[data-radix-dialog-content] textarea {
+  background: white !important;
+  color: #1f2937 !important;
+  border-color: #d1d5db !important;
 }
 
-.animate-iconBounce {
-  animation: iconBounce 2s ease-in-out infinite;
+[data-radix-dialog-content] button[data-variant="outline"] {
+  background: white !important;
+  color: #374151 !important;
+  border-color: #d1d5db !important;
 }
 
-.animate-statusPulse {
-  animation: statusPulse 2s ease-in-out infinite;
+[data-radix-dialog-content] button[data-variant="outline"]:hover {
+  background: #f9fafb !important;
+  color: #111827 !important;
 }
 
-/* Micro-interactions */
-.card-micro-interaction {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* Ensure all modal/dialog text is visible */
+.modal-content,
+.dialog-content,
+[role="dialog"] {
+  background: white !important;
+  color: #1f2937 !important;
 }
 
-.card-micro-interaction:hover {
-  transform: translateY(-1px) scale(1.01);
-}
-
-/* Number counter animation */
-.number-animate {
-  display: inline-block;
-  animation: numberCount 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-/* Floating card effect */
-.card-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-/* Gradient text effect */
-.gradient-text {
-  background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Status badge animations */
-.status-badge {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.status-badge::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.status-badge:hover::before {
-  left: 100%;
-}
-
-/* Enhanced hover effects */
-.enhanced-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.enhanced-hover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(45deg, transparent, rgba(59, 130, 246, 0.1), transparent);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: xor;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.enhanced-hover:hover::after {
-  opacity: 1;
-}
-
-/* Card content slide in animation */
-@keyframes slideInContent {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slideInContent {
-  animation: slideInContent 0.4s ease-out forwards;
+.modal-content *,
+.dialog-content *,
+[role="dialog"] * {
+  color: inherit !important;
 }

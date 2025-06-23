@@ -190,18 +190,51 @@ export default function OliveManagement() {
 
   // Handle rebuild farmer selection
   useEffect(() => {
+    console.log('=== OLIVE MANAGEMENT REBUILD CHECK ===')
     const rebuildFarmerId = localStorage.getItem("rebuildFarmerId")
-    if (rebuildFarmerId) {
+    const rebuildFarmerName = localStorage.getItem("rebuildFarmerName")
+    
+    console.log('Rebuild data from localStorage:', { rebuildFarmerId, rebuildFarmerName })
+    console.log('Current state:', { farmersCount: farmers.length, loading, selectedFarmer: selectedFarmer?.name })
+    
+    if (rebuildFarmerId && farmers.length > 0 && !loading) {
+      console.log('Attempting to rebuild farmer:', { rebuildFarmerId, rebuildFarmerName, farmersCount: farmers.length })
+      console.log('Available farmers:', farmers.map(f => ({ id: f.id, name: f.name })))
+      
       const farmer = farmers.find((f) => f.id === rebuildFarmerId)
       if (farmer) {
+        console.log('✅ Found farmer for rebuild:', farmer.name)
         setSelectedFarmer(farmer)
         showNotification(`Agriculteur ${farmer.name} sélectionné pour reconstruction`, "success")
+        
+        // Clear localStorage after successful selection
+        localStorage.removeItem("rebuildFarmerId")
+        localStorage.removeItem("rebuildFarmerName")
+        console.log('✅ Cleared localStorage after successful rebuild')
       } else {
-        showNotification("L'agriculteur a été supprimé. Vous devez créer l'agriculteur à nouveau.", "warning")
+        console.log('❌ Farmer not found in current farmers list:', { 
+          rebuildFarmerId, 
+          availableFarmers: farmers.map(f => ({ id: f.id, name: f.name }))
+        })
+        
+        // If we have the farmer name from localStorage, show it in the error message
+        const farmerDisplayName = rebuildFarmerName || "cet agriculteur"
+        showNotification(`${farmerDisplayName} a été supprimé. Vous devez créer l'agriculteur à nouveau.`, "warning")
+        
+        // Clear localStorage after showing error
+        localStorage.removeItem("rebuildFarmerId")
+        localStorage.removeItem("rebuildFarmerName")
+        console.log('❌ Cleared localStorage after rebuild error')
       }
-      localStorage.removeItem("rebuildFarmerId")
+    } else {
+      console.log('Rebuild conditions not met:', {
+        hasRebuildId: !!rebuildFarmerId,
+        hasFarmers: farmers.length > 0,
+        notLoading: !loading
+      })
     }
-  }, [farmers])
+    console.log('=== OLIVE MANAGEMENT REBUILD CHECK END ===')
+  }, [farmers, loading])
 
   const showNotification = (message: string, type: "error" | "success" | "warning") => {
     setNotification({ message, type })

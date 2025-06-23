@@ -195,11 +195,10 @@ export async function GET() {
           totalPrice: Number(session.totalPrice),
           processingStatus: session.processingStatus,
           paymentStatus: session.paymentStatus,
-          extractionRate: session.totalBoxWeight > 0 ? 
+          extractionRate: Number(session.totalBoxWeight) > 0 ? 
             Number((Number(session.oilWeight) / Number(session.totalBoxWeight)) * 100).toFixed(2) : 0
         }))
       },
-      
       lastUpdated: now.toISOString()
     }
 

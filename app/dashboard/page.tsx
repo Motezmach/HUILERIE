@@ -325,14 +325,28 @@ export default function Dashboard() {
               <Skeleton className="h-4 w-96" />
             </div>
 
-            {/* Metrics Cards Loading */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Ultra Modern Themed Loading Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {[1, 2, 3, 4].map((i) => (
-                <Card key={i} className="border-0 shadow-lg animate-pulse hover:shadow-xl transition-all duration-300">
-                  <CardContent className="p-6">
-                    <Skeleton className="h-4 w-32 mb-2" />
-                    <Skeleton className="h-8 w-24 mb-2" />
-                    <Skeleton className="h-4 w-16" />
+                <Card key={i} className={`group relative overflow-hidden border-0 bg-white shadow-lg animate-pulse stagger-${i}`}>
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#6B8E4B] to-[#F4D03F] opacity-75"></div>
+                  <CardContent className="p-5 relative">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#6B8E4B]/20 to-[#6B8E4B]/30" />
+                        <Skeleton className="h-4 w-4 rounded bg-gray-200" />
+                      </div>
+                      <Skeleton className="h-3 w-28 bg-[#6B8E4B]/20 rounded" />
+                      <Skeleton className="h-8 w-20 bg-gradient-to-r from-[#2C3E50]/30 to-[#6B8E4B]/30 rounded" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-6 w-full bg-gradient-to-r from-[#6B8E4B]/10 to-[#F4D03F]/10 rounded-lg" />
+                        <div className="space-y-1.5">
+                          <Skeleton className="h-6 w-full bg-orange-100 rounded-md" />
+                          <Skeleton className="h-6 w-full bg-green-100 rounded-md" />
+                          <Skeleton className="h-6 w-full bg-red-100 rounded-md" />
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -522,89 +536,90 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Enhanced Metrics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Ultra Modern Themed Dashboard Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {metrics.map((metric, index) => (
-              <Card key={index} className="relative border-0 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02] hover:-translate-y-1 animate-slideInUp bg-gradient-to-br from-white to-gray-50/50 overflow-hidden group card-float enhanced-hover" style={{ animationDelay: `${index * 100}ms` }}>
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-500" />
-                <CardContent className="relative p-4">
-                  <div className="space-y-3 animate-slideInContent">
-                    {/* Compact Header */}
+              <Card key={index} className="group relative overflow-hidden border-0 bg-white shadow-lg hover:shadow-xl transition-all duration-500 transform hover:scale-[1.02] hover:-translate-y-1 animate-slideInUp" style={{ animationDelay: `${index * 100}ms` }}>
+                {/* Themed top border */}
+                <div className={`absolute top-0 left-0 right-0 h-1.5 ${metric.color.replace('text-', 'bg-').replace('-600', '-500')} opacity-90 group-hover:opacity-100 transition-all duration-300`}></div>
+                
+                <CardContent className="p-5 relative">
+                  <div className="space-y-3">
+                    {/* Header with Icon and Change Indicator */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className={`p-1.5 rounded-md bg-gradient-to-br ${metric.color.replace('text-', 'from-').replace('-600', '-100')} ${metric.color.replace('text-', 'to-').replace('-600', '-200')} shadow-sm group-hover:shadow-md transition-all duration-300 card-micro-interaction`}>
-                          <metric.icon className={`w-3.5 h-3.5 ${metric.color} group-hover:animate-iconBounce`} />
+                      <div className={`flex items-center justify-center w-12 h-12 rounded-xl ${metric.color.replace('text-', 'bg-').replace('-600', '-50')} border border-opacity-20 ${metric.color.replace('text-', 'border-').replace('-600', '-200')} group-hover:scale-110 transition-transform duration-300`}>
+                        <metric.icon className={`w-6 h-6 ${metric.color} drop-shadow-sm`} />
+                      </div>
+                      {!metric.enhanced && metric.changeIcon && (
+                        <div className="flex items-center space-x-1">
+                          <metric.changeIcon className={`w-4 h-4 ${metric.changeColor} opacity-75 group-hover:opacity-100 transition-all duration-300`} />
                         </div>
-                        <h3 className="text-xs font-semibold text-gray-700 leading-tight tracking-wide uppercase group-hover:text-gray-900 transition-colors duration-300">{metric.title}</h3>
-                      </div>
-                    </div>
-                    
-                    {/* Main Value with Animation */}
-                    <div className="space-y-1">
-                      <div className="flex items-baseline space-x-2">
-                        <span className="text-2xl font-black text-gray-900 tracking-tight group-hover:text-[#2C3E50] transition-colors duration-300 number-animate">
-                          {metric.value}
-                        </span>
-                        {!metric.enhanced && metric.changeIcon && (
-                          <metric.changeIcon className={`w-3.5 h-3.5 ${metric.changeColor} animate-pulse`} />
-                        )}
-                      </div>
-                      
-                      {!metric.enhanced && (
-                        <p className={`text-xs font-medium ${metric.changeColor || 'text-gray-500'} tracking-wide group-hover:text-opacity-80 transition-all duration-300`}>
-                          {metric.changeText}
-                        </p>
                       )}
                     </div>
                     
-                    {/* Enhanced Revenue Details - Ultra Compact */}
+                    {/* Title with Application Theme */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-[#6B8E4B] uppercase tracking-widest leading-tight">
+                        {metric.title}
+                      </p>
+                    </div>
+                    
+                    {/* Main Value with Enhanced Styling */}
+                    <div className="flex items-baseline space-x-1">
+                      <p className="text-2xl font-black text-[#2C3E50] group-hover:text-[#6B8E4B] transition-colors duration-300">
+                        {metric.value}
+                      </p>
+                    </div>
+                    
+                    {/* Enhanced Revenue Details with Theme Colors */}
                     {metric.enhanced && metric.subtitle && (
-                      <div className="flex items-center justify-between py-1.5 px-2 bg-green-50/70 rounded-md border border-green-100/50 group-hover:bg-green-50 transition-all duration-300 card-micro-interaction enhanced-hover">
-                        <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">{metric.subtitle}</span>
-                        <span className="text-xs font-bold text-green-800 gradient-text">{metric.subtitleValue}</span>
+                      <div className="flex items-center justify-between py-2.5 px-3 bg-gradient-to-r from-[#6B8E4B]/5 to-[#F4D03F]/5 rounded-lg border border-[#6B8E4B]/10 mt-3">
+                        <span className="text-xs font-bold text-[#6B8E4B] uppercase tracking-wider">{metric.subtitle}</span>
+                        <span className="text-sm font-black text-[#2C3E50]">{metric.subtitleValue}</span>
                       </div>
                     )}
 
-                    {/* Enhanced Session Status Details - Super Compact */}
+                    {/* Session Stats - Vertical Compact Layout */}
                     {metric.enhanced && metric.sessionStats && (
-                      <div className="space-y-1 pt-1">
-                        <div className="grid grid-cols-1 gap-1">
-                          <div className="flex items-center justify-between py-1 px-2 bg-orange-50/70 rounded-sm border border-orange-100/50 hover:bg-orange-50 transition-all duration-200 card-micro-interaction enhanced-hover">
-                            <div className="flex items-center space-x-1.5">
-                              <Timer className="w-3 h-3 text-orange-600 group-hover:animate-iconBounce" />
-                              <span className="text-[10px] font-semibold text-orange-700 uppercase tracking-wider">Attente</span>
-                            </div>
-                            <span className="text-xs font-bold text-orange-800 bg-orange-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center status-badge animate-statusPulse">
-                              {metric.sessionStats.pending}
-                            </span>
+                      <div className="space-y-1.5 pt-2 mt-2 border-t border-[#6B8E4B]/10">
+                        {/* En Attente */}
+                        <div className="flex items-center justify-between py-1.5 px-2 bg-orange-50 rounded-md border border-orange-100">
+                          <div className="flex items-center space-x-1.5">
+                            <div className="w-2 h-2 rounded-full bg-orange-400 shadow-sm"></div>
+                            <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">En Attente</span>
                           </div>
-                          
-                          <div className="flex items-center justify-between py-1 px-2 bg-red-50/70 rounded-sm border border-red-100/50 hover:bg-red-50 transition-all duration-200 card-micro-interaction enhanced-hover">
-                            <div className="flex items-center space-x-1.5">
-                              <CreditCard className="w-3 h-3 text-red-600 group-hover:animate-iconBounce" />
-                              <span className="text-[10px] font-semibold text-red-700 uppercase tracking-wider">Non traité</span>
-                            </div>
-                            <span className="text-xs font-bold text-red-800 bg-red-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center status-badge animate-statusPulse">
-                              {metric.sessionStats.unpaidProcessed}
-                            </span>
+                          <span className="text-xs font-black text-orange-600">{metric.sessionStats.pending}</span>
+                        </div>
+                        
+                        {/* Payé */}
+                        <div className="flex items-center justify-between py-1.5 px-2 bg-green-50 rounded-md border border-green-100">
+                          <div className="flex items-center space-x-1.5">
+                            <div className="w-2 h-2 rounded-full bg-green-400 shadow-sm"></div>
+                            <span className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Payé</span>
                           </div>
-                          
-                          <div className="flex items-center justify-between py-1 px-2 bg-green-50/70 rounded-sm border border-green-100/50 hover:bg-green-50 transition-all duration-200 card-micro-interaction enhanced-hover">
-                            <div className="flex items-center space-x-1.5">
-                              <CheckCircle className="w-3 h-3 text-green-600 group-hover:animate-iconBounce" />
-                              <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wider">Payé</span>
-                            </div>
-                            <span className="text-xs font-bold text-green-800 bg-green-100 px-1.5 py-0.5 rounded-full min-w-[20px] text-center status-badge animate-statusPulse">
-                              {metric.sessionStats.paid}
-                            </span>
+                          <span className="text-xs font-black text-green-600">{metric.sessionStats.paid}</span>
+                        </div>
+                        
+                        {/* Non payé */}
+                        <div className="flex items-center justify-between py-1.5 px-2 bg-red-50 rounded-md border border-red-100">
+                          <div className="flex items-center space-x-1.5">
+                            <div className="w-2 h-2 rounded-full bg-red-400 shadow-sm"></div>
+                            <span className="text-[10px] font-bold text-red-700 uppercase tracking-wide">Non payé</span>
                           </div>
+                          <span className="text-xs font-black text-red-600">{metric.sessionStats.unpaidProcessed}</span>
                         </div>
                       </div>
                     )}
+
+                    {/* Regular Change Text with Theme Colors */}
+                    {!metric.enhanced && (
+                      <div className="flex items-center space-x-1 pt-1">
+                        <p className={`text-xs font-bold ${metric.changeColor || 'text-[#6B8E4B]'} uppercase tracking-wider`}>
+                          {metric.changeText}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Subtle bottom accent line */}
-                  <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${metric.color.replace('text-', 'from-').replace('-600', '-400')} ${metric.color.replace('text-', 'to-').replace('-600', '-600')} transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out animate-gradientShift`} />
                 </CardContent>
               </Card>
             ))}

@@ -609,20 +609,74 @@ export default function OilManagement() {
 
   const handleRebuild = async (farmerId: string) => {
     try {
+      console.log('=== REBUILD DEBUG START ===')
+      console.log('Rebuilding farmer with ID:', farmerId)
+      console.log('Current processed farmers:', processedFarmers.map(f => ({ id: f.id, name: f.name })))
+      
+      // Validate the farmer ID format
+      if (!farmerId || typeof farmerId !== 'string') {
+        console.error('Invalid farmer ID provided:', farmerId)
+        showNotification("ID d'agriculteur invalide", "error")
+        return
+      }
+      
       // First check if farmer still exists
+      console.log('Calling farmersApi.getById with:', farmerId)
       const response = await farmersApi.getById(farmerId)
       
+      console.log('Farmer API response:', response)
+      
       if (response.success && response.data) {
+        console.log('Farmer found:', response.data)
+        
         // Farmer exists, redirect to olive management with farmer selected
-    localStorage.setItem("rebuildFarmerId", farmerId)
-        router.push('/olive-management')
+        localStorage.setItem("rebuildFarmerId", farmerId)
+        localStorage.setItem("rebuildFarmerName", response.data.name)
+        
+        console.log('Stored in localStorage:', {
+          rebuildFarmerId: localStorage.getItem("rebuildFarmerId"),
+          rebuildFarmerName: localStorage.getItem("rebuildFarmerName")
+        })
+        
+        console.log('Redirecting to olive management for farmer:', response.data.name)
         showNotification(`Redirection vers la gestion des olives pour ${response.data.name}`, "success")
+        
+        // Use a small delay to ensure notification is shown before redirect
+        setTimeout(() => {
+          console.log('Executing redirect to /olive-management')
+          router.push('/olive-management')
+        }, 500)
       } else {
         // Farmer doesn't exist anymore
-        showNotification("Cet agriculteur a été supprimé. Vous devez le créer à nouveau.", "error")
+        console.error('Farmer not found in API response:', response)
+        
+        // Check if the farmer exists in our current processed farmers list as a fallback
+        const localFarmer = processedFarmers.find(f => f.id === farmerId)
+        if (localFarmer) {
+          console.log('Found farmer in local processed farmers list:', localFarmer.name)
+          localStorage.setItem("rebuildFarmerId", farmerId)
+          localStorage.setItem("rebuildFarmerName", localFarmer.name)
+          
+          showNotification(`Redirection vers la gestion des olives pour ${localFarmer.name} (mode hors ligne)`, "warning")
+          
+          setTimeout(() => {
+            console.log('Executing fallback redirect to /olive-management')
+            router.push('/olive-management')
+          }, 500)
+        } else {
+          showNotification("Cet agriculteur a été supprimé. Vous devez le créer à nouveau.", "error")
+        }
       }
+      console.log('=== REBUILD DEBUG END ===')
     } catch (error) {
+      console.error('=== REBUILD ERROR ===')
       console.error('Error checking farmer:', error)
+      console.error('Farmer ID that failed:', farmerId)
+      console.error('Error details:', {
+        name: (error as Error)?.name,
+        message: (error as Error)?.message,
+        stack: (error as Error)?.stack
+      })
       showNotification("Erreur lors de la vérification de l'agriculteur", "error")
     }
   }
@@ -1296,9 +1350,9 @@ export default function OilManagement() {
       {/* Edit Session Modal */}
       {editingSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[500px] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-[500px] max-w-2xl max-h-[90vh] overflow-y-auto text-gray-900">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">
+              <h3 className="text-lg font-semibold text-gray-900">
                 {editingSession.oilWeight > 0 ? "Modifier les détails de traitement" : "Saisir les détails de traitement"}
               </h3>
               {editingSession.oilWeight > 0 && (
@@ -1346,7 +1400,7 @@ export default function OilManagement() {
                     ) : (
                       // Fallback to basic box IDs
                       editingSession.boxIds.map((boxId, index) => (
-                        <Badge key={index} variant="outline" className="text-xs bg-blue-50 border-blue-200">
+                        <Badge key={index} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
                           {boxId}
                         </Badge>
                       ))
@@ -1354,7 +1408,7 @@ export default function OilManagement() {
                 </div>
                   {editingSession.boxDetails && editingSession.boxDetails.length > 0 && (
                     <div className="mt-2 text-sm text-gray-600">
-                      <strong>Détails:</strong> {editingSession.boxDetails.map(box => 
+                      <strong className="text-gray-700">Détails:</strong> {editingSession.boxDetails.map(box => 
                         `${box.id} (${box.type}, ${box.weight}kg)`
                       ).join(', ')}
               </div>
@@ -1365,7 +1419,7 @@ export default function OilManagement() {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="oilWeight">
+                <Label htmlFor="oilWeight" className="text-gray-700">
                   Poids d'huile extraite (kg) *
                   {editingSession.oilWeight > 0 && (
                     <span className="text-sm text-gray-500 ml-2">
@@ -1380,34 +1434,36 @@ export default function OilManagement() {
                   value={sessionForm.oilWeight}
                   onChange={(e) => setSessionForm((prev) => ({ ...prev, oilWeight: e.target.value }))}
                   placeholder={editingSession.oilWeight > 0 ? `Modifier: ${editingSession.oilWeight}` : "Ex: 12.5"}
+                  className="bg-white text-gray-900"
                 />
               </div>
               <div>
-                <Label htmlFor="date">Date de traitement *</Label>
+                <Label htmlFor="date" className="text-gray-700">Date de traitement *</Label>
                 <Input
                   id="date"
                   type="date"
                   value={sessionForm.date}
                   onChange={(e) => setSessionForm((prev) => ({ ...prev, date: e.target.value }))}
-                  className="bg-white"
+                  className="bg-white text-gray-900"
                   title="Date de traitement de la session"
                 />
               </div>
               <div>
-                <Label htmlFor="paymentDate">Date de paiement (optionnel)</Label>
+                <Label htmlFor="paymentDate" className="text-gray-700">Date de paiement (optionnel)</Label>
                 <Input
                   id="paymentDate"
                   type="date"
                   value={sessionForm.paymentDate}
                   onChange={(e) => setSessionForm((prev) => ({ ...prev, paymentDate: e.target.value }))}
                   placeholder="Laisser vide si non payé"
+                  className="bg-white text-gray-900"
                 />
               </div>
               <div className="flex space-x-2">
                 <Button
                   onClick={handleSaveSession}
                   disabled={saving}
-                  className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
+                  className="bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white"
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1416,7 +1472,7 @@ export default function OilManagement() {
                   )}
                   {saving ? 'Enregistrement...' : 'Enregistrer'}
                 </Button>
-                <Button variant="outline" onClick={() => setEditingSession(null)} disabled={saving}>
+                <Button variant="outline" onClick={() => setEditingSession(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
                   <X className="w-4 h-4 mr-2" />
                   Annuler
                 </Button>
@@ -1429,14 +1485,14 @@ export default function OilManagement() {
       {/* Payment Confirmation Modal */}
       {showPaymentConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h3 className="text-lg font-semibold mb-4">Confirmer le paiement</h3>
+          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">Confirmer le paiement</h3>
             <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir marquer cette session comme payée ?</p>
               <div className="flex space-x-2">
                 <Button
                   onClick={() => handleMarkAsPaid(showPaymentConfirm)}
                 disabled={saving}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 text-white"
                 >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1445,7 +1501,7 @@ export default function OilManagement() {
                 )}
                 {saving ? 'Traitement...' : 'Confirmer'}
                 </Button>
-              <Button variant="outline" onClick={() => setShowPaymentConfirm(null)} disabled={saving}>
+              <Button variant="outline" onClick={() => setShowPaymentConfirm(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
                   Annuler
                 </Button>
               </div>
@@ -1456,15 +1512,15 @@ export default function OilManagement() {
       {/* Delete Farmer Confirmation Modal */}
       {showDeleteFarmerConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h3 className="text-lg font-semibold mb-4">Supprimer l'agriculteur</h3>
+          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">Supprimer l'agriculteur</h3>
             <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir supprimer cet agriculteur et toutes ses sessions ?</p>
               <div className="flex space-x-2">
-              <Button onClick={() => handleDeleteFarmer(showDeleteFarmerConfirm)} variant="destructive">
+              <Button onClick={() => handleDeleteFarmer(showDeleteFarmerConfirm)} variant="destructive" className="bg-red-600 hover:bg-red-700 text-white">
                   <Trash2 className="w-4 h-4 mr-2" />
                 Supprimer
                 </Button>
-                <Button variant="outline" onClick={() => setShowDeleteFarmerConfirm(null)}>
+              <Button variant="outline" onClick={() => setShowDeleteFarmerConfirm(null)} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
                   Annuler
                 </Button>
               </div>
@@ -1475,15 +1531,16 @@ export default function OilManagement() {
       {/* Delete Session Confirmation Modal */}
       {showDeleteSessionConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <h3 className="text-lg font-semibold mb-4">Supprimer la session</h3>
+          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900">Supprimer la session</h3>
             <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir supprimer cette session de traitement ?</p>
               <div className="flex space-x-2">
                 <Button
                 onClick={() => handleDeleteSession(showDeleteSessionConfirm!)}
                 disabled={saving}
                 variant="destructive"
-                >
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
@@ -1491,7 +1548,7 @@ export default function OilManagement() {
                 )}
                 {saving ? 'Suppression...' : 'Supprimer'}
                 </Button>
-              <Button variant="outline" onClick={() => setShowDeleteSessionConfirm(null)} disabled={saving}>
+              <Button variant="outline" onClick={() => setShowDeleteSessionConfirm(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
                   Annuler
                 </Button>
               </div>
