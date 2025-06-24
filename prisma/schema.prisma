@@ -10,6 +10,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  password      String
+  email         String?   @unique
+  firstName     String?
+  lastName      String?
+  role          UserRole  @default(ADMIN)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("users")
+}
+
 model Farmer {
   id                   String             @id @default(uuid())
   name                 String
@@ -132,4 +148,10 @@ enum PaymentStatus {
   UNPAID
   PAID
   PENDING
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  MANAGER
 }

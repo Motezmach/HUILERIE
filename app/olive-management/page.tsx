@@ -32,11 +32,14 @@ import {
   Loader2,
   Grid3X3,
   List,
+  LogOut,
+  Calendar,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { farmersApi, boxesApi, sessionsApi } from "@/lib/api"
 import { transformFarmerFromDb, transformBoxFromDb, generateSessionNumber, calculatePricePerKg } from "@/lib/utils"
+import { logout, getCurrentUser } from '@/lib/auth-client'
 
 interface Farmer {
   id: string
@@ -81,6 +84,7 @@ export default function OliveManagement() {
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
+  const [showTodayOnly, setShowTodayOnly] = useState(false)
   const [isAddFarmerOpen, setIsAddFarmerOpen] = useState(false)
   const [isEditFarmerOpen, setIsEditFarmerOpen] = useState(false)
   const [isAddBoxOpen, setIsAddBoxOpen] = useState(false)
@@ -92,6 +96,7 @@ export default function OliveManagement() {
   const [bulkStep, setBulkStep] = useState(1)
   const [bulkCount, setBulkCount] = useState("")
   const [bulkBoxes, setBulkBoxes] = useState<BulkBoxEntry[]>([])
+  const [user, setUser] = useState<any>(null)
 
   // Form states
   const [farmerForm, setFarmerForm] = useState({
@@ -109,6 +114,35 @@ export default function OliveManagement() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [boxViewMode, setBoxViewMode] = useState<"grid" | "list">("grid")
+
+  // Initialize user
+  useEffect(() => {
+    const currentUser = getCurrentUser()
+    setUser(currentUser)
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      console.log('🔄 Starting logout process...')
+      
+      // Clear authentication immediately
+      await logout()
+      
+      console.log('✅ Logout completed, redirecting...')
+      
+      // Force hard redirect to ensure clean state
+      window.location.href = '/login'
+    } catch (error) {
+      console.error('❌ Logout error:', error)
+      
+      // Force clear everything even if logout fails
+      localStorage.clear()
+      document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;'
+      
+      // Force redirect
+      window.location.href = '/login'
+    }
+  }
 
   // Load farmers from API
   const loadFarmers = async () => {
@@ -313,11 +347,45 @@ export default function OliveManagement() {
     return null
   }
 
+  // Helper function to check if a date is today
+  const isToday = (dateString: string) => {
+    const today = new Date()
+    const date = new Date(dateString)
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    )
+  }
+
   const filteredFarmers = farmers.filter((farmer) => {
     const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = filterType === "all" || farmer.type === filterType
-    return matchesSearch && matchesFilter
+    
+    // Check if farmer was added today
+    const matchesToday = !showTodayOnly || isToday(farmer.dateAdded)
+    
+    return matchesSearch && matchesFilter && matchesToday
   })
+
+  // Auto-select first farmer when today filter is activated
+  const handleTodayFilterToggle = () => {
+    const newShowTodayOnly = !showTodayOnly
+    setShowTodayOnly(newShowTodayOnly)
+    
+    // If activating today filter, auto-select first today's farmer
+    if (newShowTodayOnly) {
+      const todaysFarmers = farmers.filter(farmer => 
+        farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        (filterType === "all" || farmer.type === filterType) &&
+        isToday(farmer.dateAdded)
+      )
+      
+      if (todaysFarmers.length > 0) {
+        setSelectedFarmer(todaysFarmers[0])
+      }
+    }
+  }
 
   // Farmer CRUD operations
   const handleAddFarmer = async () => {
@@ -955,7 +1023,28 @@ export default function OliveManagement() {
           <div className="w-1/3 p-6 border-r border-gray-200">
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-[#2C3E50]">Agriculteurs</h2>
+                <div className="flex items-center space-x-3">
+                  <h2 className="text-2xl font-bold text-[#2C3E50]">Agriculteurs</h2>
+                  <Button
+                    size="sm"
+                    variant={showTodayOnly ? "default" : "outline"}
+                    onClick={handleTodayFilterToggle}
+                    className={`transition-all ${
+                      showTodayOnly 
+                        ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500" 
+                        : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300"
+                    }`}
+                    title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
+                  >
+                    <Calendar className="w-4 h-4 mr-1" />
+                    Aujourd'hui
+                    {showTodayOnly && (
+                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                        {filteredFarmers.length}
+                      </span>
+                    )}
+                  </Button>
+                </div>
                 <Dialog open={isAddFarmerOpen} onOpenChange={setIsAddFarmerOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">

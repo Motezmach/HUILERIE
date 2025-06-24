@@ -1,6 +1,7 @@
 # HUILERIE MASMOUDI - Système de Gestion d'Usine d'Huile d'Olive
-
+to create admin account --> node scripts/create-admin-user.js
 ## 📋 Vue d'ensemble
+
 
 HUILERIE MASMOUDI est un système de gestion complet pour une usine d'extraction d'huile d'olive. Cette application Next.js permet de gérer efficacement les agriculteurs, leurs boîtes d'olives, les sessions de traitement et les paiements.
 
