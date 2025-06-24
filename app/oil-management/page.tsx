@@ -22,10 +22,13 @@ import {
   RotateCcw,
   Trash2,
   Edit,
+  LogOut,
+  Calendar,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { sessionsApi, farmersApi } from "@/lib/api"
+import { logout, getCurrentUser } from '@/lib/auth-client'
 
 interface ProcessedFarmer {
   id: string
@@ -69,6 +72,7 @@ export default function OilManagement() {
   const [editingSession, setEditingSession] = useState<ProcessingSession | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [paymentFilter, setPaymentFilter] = useState("all")
+  const [showTodayOnly, setShowTodayOnly] = useState(false)
   const [sessionForm, setSessionForm] = useState({
     oilWeight: "",
     date: "",
@@ -83,8 +87,38 @@ export default function OilManagement() {
   const [printingSession, setPrintingSession] = useState<ProcessingSession | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [user, setUser] = useState<any>(null)
 
   const [processedFarmers, setProcessedFarmers] = useState<ProcessedFarmer[]>([])
+
+  // Initialize user
+  useEffect(() => {
+    const currentUser = getCurrentUser()
+    setUser(currentUser)
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      console.log('🔄 Starting logout process...')
+      
+      // Clear authentication immediately
+      await logout()
+      
+      console.log('✅ Logout completed, redirecting...')
+      
+      // Force hard redirect to ensure clean state
+      window.location.href = '/login'
+    } catch (error) {
+      console.error('❌ Logout error:', error)
+      
+      // Force clear everything even if logout fails
+      localStorage.clear()
+      document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;'
+      
+      // Force redirect
+      window.location.href = '/login'
+    }
+  }
 
   // Load sessions and group by farmers
   const loadSessions = async () => {
@@ -370,8 +404,28 @@ export default function OilManagement() {
   const filteredFarmers = processedFarmers.filter((farmer) => {
     const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesPayment = paymentFilter === "all" || farmer.paymentStatus === paymentFilter
-    return matchesSearch && matchesPayment
+    const matchesToday = showTodayOnly ? new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0] : true
+    return matchesSearch && matchesPayment && matchesToday
   })
+
+  // Auto-select first farmer when today filter is activated
+  const handleTodayFilterToggle = () => {
+    const newShowTodayOnly = !showTodayOnly
+    setShowTodayOnly(newShowTodayOnly)
+    
+    // If activating today filter, auto-select first today's farmer
+    if (newShowTodayOnly) {
+      const todaysFarmers = processedFarmers.filter(farmer => 
+        farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        (paymentFilter === "all" || farmer.paymentStatus === paymentFilter) &&
+        new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]
+      )
+      
+      if (todaysFarmers.length > 0) {
+        setSelectedFarmer(todaysFarmers[0])
+      }
+    }
+  }
 
   const showNotification = (message: string, type: "error" | "success" | "warning") => {
     setNotification({ message, type })
@@ -392,11 +446,6 @@ export default function OilManagement() {
     const oilWeight = parseFloat(sessionForm.oilWeight)
     if (isNaN(oilWeight) || oilWeight <= 0) {
       showNotification("Veuillez saisir un poids d'huile valide supérieur à 0", "error")
-      return
-    }
-
-    if (oilWeight > 1000) {
-      showNotification("Le poids d'huile ne peut pas dépasser 1000 kg", "error")
       return
     }
 
@@ -734,126 +783,213 @@ export default function OilManagement() {
       <style dangerouslySetInnerHTML={{
         __html: `
         @media print {
-            .print-invoice {
-              width: 210mm;
-              min-height: 297mm;
-              margin: 0;
-              padding: 15mm;
-              box-sizing: border-box;
-              font-size: 11px;
-              line-height: 1.3;
-            }
-            
-            @page {
-              size: A4;
-              margin: 0;
-            }
-            
-            body {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            
-            .no-print {
-              display: none !important;
-            }
-            
-            .print-table {
-              font-size: 10px;
-            }
-            
-            .print-header {
-              font-size: 14px;
-            }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-invoice, .print-invoice * {
+            visibility: visible;
           }
           
           .print-invoice {
-            background: white;
-            max-width: 210mm;
-            margin: 0 auto;
-            padding: 20px;
-            font-family: Arial, sans-serif;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 210mm !important;
+            height: 297mm !important;
+            max-height: 297mm !important;
+            margin: 0 !important;
+            padding: 15mm !important;
+            box-sizing: border-box !important;
+            font-size: 11px !important;
+            line-height: 1.3 !important;
+            font-family: Arial, sans-serif !important;
+            background: white !important;
+            overflow: hidden !important;
+            page-break-after: avoid !important;
           }
+          
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+          
+          .print-table {
+            font-size: 10px !important;
+            border-collapse: collapse !important;
+          }
+          
+          .print-table th,
+          .print-table td {
+            border: 1px solid #333 !important;
+            padding: 6px 4px !important;
+            text-align: center !important;
+          }
+          
+          .print-table th {
+            background-color: #6B8E4B !important;
+            color: white !important;
+            font-weight: bold !important;
+          }
+          
+          .print-header {
+            font-size: 14px !important;
+            margin-bottom: 15px !important;
+          }
+          
+          .company-name {
+            font-size: 22px !important;
+            font-weight: bold !important;
+            color: #2C3E50 !important;
+          }
+          
+          .invoice-title {
+            font-size: 18px !important;
+            font-weight: bold !important;
+            color: #2C3E50 !important;
+          }
+          
+          .total-section {
+            background-color: #F4D03F !important;
+            padding: 8px !important;
+            border-radius: 3px !important;
+            font-weight: bold !important;
+          }
+          
+          .section-spacing {
+            margin-bottom: 12px !important;
+          }
+        }
+        
+        .print-invoice {
+          background: white;
+          max-width: 210mm;
+          margin: 0 auto;
+          padding: 20px;
+          font-family: Arial, sans-serif;
+          color: #000;
+        }
+        
+        .print-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 10px 0;
+        }
+        
+        .print-table th,
+        .print-table td {
+          border: 1px solid #333;
+          padding: 8px 6px;
+          text-align: center;
+        }
+        
+        .print-table th {
+          background-color: #6B8E4B;
+          color: white;
+          font-weight: bold;
+        }
+        
+        .print-table .description-cell {
+          text-align: left !important;
+        }
         `
       }} />
 
       {/* Header */}
-      <div className="border-b-2 border-[#6B8E4B] pb-4 mb-6 print-header">
+      <div className="border-b-2 border-[#6B8E4B] pb-3 mb-4 print-header section-spacing">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-bold text-[#2C3E50] mb-1">HUILERIE MASMOUDI</h1>
-            <div className="text-sm text-gray-600">
-              <p>Tunis, Mahdia</p>
-              <p>Tél: 27408877</p>
+            <h1 className="company-name text-2xl font-bold text-[#2C3E50] mb-2">HUILERIE MASMOUDI</h1>
+            <div className="text-sm text-gray-700">
+              <p><strong>Adresse:</strong> Tunis, Mahdia</p>
+              <p><strong>Téléphone:</strong> 27408877</p>
             </div>
           </div>
           <div className="text-right">
-            <h2 className="text-xl font-bold text-[#2C3E50] mb-1">FACTURE</h2>
-            <div className="bg-[#F4D03F] px-3 py-1 rounded">
-              <p className="font-semibold text-sm">N° {session.sessionNumber}</p>
-              <p className="text-xs">Date: {session.date || "Non spécifiée"}</p>
+            <h2 className="invoice-title text-xl font-bold text-[#2C3E50] mb-2">FACTURE</h2>
+            <div className="bg-[#F4D03F] px-4 py-2 rounded border">
+              <p className="font-semibold">N° {session.sessionNumber}</p>
+              <p className="text-sm">Date: {session.date || new Date().toLocaleDateString('fr-FR')}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Client Info */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-2 gap-6 mb-4 section-spacing">
         <div>
-          <h3 className="text-base font-semibold text-[#2C3E50] mb-2">Facturé à:</h3>
-          <div className="bg-gray-50 p-3 rounded">
-            <p className="font-semibold">{farmer.name}</p>
-            {farmer.phone && <p className="text-gray-600 text-sm">{farmer.phone}</p>}
-            <p className="text-xs text-gray-500">Tarif: {session.pricePerKg} DT/kg</p>
+          <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Facturé à:</h3>
+          <div className="bg-gray-50 p-3 rounded border">
+            <p className="font-semibold text-lg">{farmer.name}</p>
+            {farmer.phone && <p className="text-gray-600">{farmer.phone}</p>}
+            <p className="text-sm text-gray-600 mt-2">
+              <strong>Tarif:</strong> {session.pricePerKg.toFixed(2)} DT/kg
+            </p>
           </div>
         </div>
         <div>
-          <h3 className="text-base font-semibold text-[#2C3E50] mb-2">Détails de la session:</h3>
-          <div className="bg-gray-50 p-3 rounded">
-            <p className="text-sm">
-              <span className="font-medium">Session:</span> {session.sessionNumber}
+          <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Détails de la session:</h3>
+          <div className="bg-gray-50 p-3 rounded border">
+            <p className="mb-1">
+              <strong>Session:</strong> {session.sessionNumber}
             </p>
-            <p className="text-sm">
-              <span className="font-medium">Date de traitement:</span> {session.date || "Non spécifiée"}
+            <p className="mb-1">
+              <strong>Date de traitement:</strong> {session.date || "Non spécifiée"}
             </p>
-            <p className="text-sm">
-              <span className="font-medium">Statut:</span>{" "}
-              <span className="text-green-600 font-medium">
-                {session.paymentStatus === "paid" ? "Payé" : "En attente"}
+            <p className="mb-1">
+              <strong>Statut paiement:</strong>{" "}
+              <span className={session.paymentStatus === "paid" ? "text-green-600 font-semibold" : "text-orange-600 font-semibold"}>
+                {session.paymentStatus === "paid" ? "✓ Payé" : "En attente"}
               </span>
             </p>
+            {session.paymentDate && (
+              <p className="text-sm text-gray-600">
+                <strong>Date de paiement:</strong> {new Date(session.paymentDate).toLocaleDateString('fr-FR')}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
       {/* Box Details */}
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-[#2C3E50] mb-2">Boîtes traitées</h3>
+      <div className="mb-4 section-spacing">
+        <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Boîtes traitées</h3>
         <div className="border border-gray-300 p-3 bg-gray-50 rounded">
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="font-medium text-gray-700 mb-1">IDs des boîtes ({session.boxCount} boîtes):</p>
+              <p className="font-semibold text-gray-700 mb-2">
+                IDs des boîtes ({session.boxCount} boîte{session.boxCount > 1 ? 's' : ''}):
+              </p>
               <div className="flex flex-wrap gap-1">
                 {session.boxIds && session.boxIds.length > 0 ? (
                   session.boxIds.map((boxId, index) => (
-                    <span key={index} className="inline-block bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">
+                    <span key={index} className="inline-block bg-blue-100 border border-blue-300 text-blue-800 px-2 py-1 rounded text-sm font-medium">
                       {boxId}
                     </span>
                   ))
                 ) : (
-                  <span className="text-gray-500 text-xs">Aucune boîte</span>
+                  <span className="text-gray-500">Aucune boîte enregistrée</span>
                 )}
               </div>
             </div>
             
             {session.boxDetails && session.boxDetails.length > 0 && (
               <div>
-                <p className="font-medium text-gray-700 mb-1">Détails:</p>
-                <div className="text-xs space-y-0.5 max-h-20 overflow-y-auto">
+                <p className="font-semibold text-gray-700 mb-2">Détail des poids:</p>
+                <div className="text-sm space-y-1 max-h-20 overflow-y-auto">
                   {session.boxDetails.map((box, index) => (
-                    <div key={index} className="flex justify-between">
-                      <span>{box.id} ({box.type}):</span>
-                      <span className="font-medium">{box.weight} kg</span>
+                    <div key={index} className="flex justify-between bg-white px-2 py-1 rounded border">
+                      <span><strong>{box.id}</strong> ({box.type}):</span>
+                      <span className="font-semibold">{box.weight} kg</span>
                     </div>
                   ))}
                 </div>
@@ -864,57 +1000,100 @@ export default function OilManagement() {
       </div>
 
       {/* Services Table */}
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-[#2C3E50] mb-2">Détails du service</h3>
-        <table className="w-full border-collapse border border-gray-300 print-table text-sm">
+      <div className="mb-4 section-spacing">
+        <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Détails du service</h3>
+        <table className="print-table w-full">
           <thead>
-            <tr className="bg-[#6B8E4B] text-white">
-              <th className="border border-gray-300 p-2 text-left">Description</th>
-              <th className="border border-gray-300 p-2 text-center">Quantité</th>
-              <th className="border border-gray-300 p-2 text-center">Poids (kg)</th>
-              <th className="border border-gray-300 p-2 text-center">Prix unitaire</th>
-              <th className="border border-gray-300 p-2 text-center">Total</th>
+            <tr>
+              <th className="description-cell">Description</th>
+              <th>Quantité<br/>(boîtes)</th>
+              <th>Poids total<br/>(kg)</th>
+              <th>Prix unitaire<br/>(DT/kg)</th>
+              <th>Total<br/>(DT)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="border border-gray-300 p-2">
-                <div>
-                  <p className="font-medium">Extraction d'huile d'olive</p>
+              <td className="description-cell">
+                <div className="text-left">
+                  <p className="font-semibold">Extraction d'huile d'olive</p>
                   <p className="text-xs text-gray-600">Session: {session.sessionNumber}</p>
                   {session.oilWeight > 0 && (
-                    <p className="text-xs text-gray-600">Huile extraite: {session.oilWeight} kg</p>
+                    <p className="text-xs text-green-600 font-medium">
+                      ✓ Huile extraite: {session.oilWeight} kg
+                    </p>
+                  )}
+                  {session.date && (
+                    <p className="text-xs text-gray-600">Date: {session.date}</p>
                   )}
                 </div>
               </td>
-              <td className="border border-gray-300 p-2 text-center">{session.boxCount}</td>
-              <td className="border border-gray-300 p-2 text-center">{session.totalBoxWeight}</td>
-              <td className="border border-gray-300 p-2 text-center">{session.pricePerKg} DT</td>
-              <td className="border border-gray-300 p-2 text-center font-semibold">
-                {session.totalPrice.toFixed(2)} DT
-              </td>
+              <td className="font-semibold">{session.boxCount}</td>
+              <td className="font-semibold">{session.totalBoxWeight.toFixed(1)}</td>
+              <td className="font-semibold">{session.pricePerKg.toFixed(2)}</td>
+              <td className="font-bold text-lg">{session.totalPrice.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      {/* Total */}
-      <div className="flex justify-end mb-4">
-        <div className="w-48">
-          <div className="bg-[#F4D03F] p-3 rounded">
-            <div className="flex justify-between items-center">
-              <span className="font-semibold">TOTAL À PAYER:</span>
-              <span className="text-xl font-bold text-[#2C3E50]">{session.totalPrice.toFixed(2)} DT</span>
+      {/* Summary */}
+      <div className="mb-4 section-spacing">
+        <div className="flex justify-end">
+          <div className="w-64">
+            <div className="border border-gray-300 rounded">
+              <div className="bg-gray-100 p-2 border-b border-gray-300">
+                <div className="flex justify-between">
+                  <span className="font-medium">Sous-total:</span>
+                  <span className="font-semibold">{session.totalPrice.toFixed(2)} DT</span>
+                </div>
+              </div>
+              <div className="total-section bg-[#F4D03F] p-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-lg">TOTAL À PAYER:</span>
+                  <span className="text-xl font-bold text-[#2C3E50]">{session.totalPrice.toFixed(2)} DT</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Processing Summary - Only if oil weight exists */}
+      {session.oilWeight > 0 && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded p-3 section-spacing">
+          <h4 className="font-semibold text-green-800 mb-2">Résumé du traitement</h4>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-gray-600">Poids olives:</p>
+              <p className="font-semibold">{session.totalBoxWeight.toFixed(1)} kg</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Huile extraite:</p>
+              <p className="font-semibold text-green-700">{session.oilWeight.toFixed(1)} kg</p>
+            </div>
+            <div>
+              <p className="text-gray-600">Rendement:</p>
+              <p className="font-semibold">{((session.oilWeight / session.totalBoxWeight) * 100).toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="border-t pt-4 text-center text-xs text-gray-600">
-        <p className="mb-1">Merci pour votre confiance!</p>
-        <p>Cette facture est générée électroniquement et ne nécessite pas de signature.</p>
-        <p className="mt-2 font-medium">HUILERIE MASMOUDI - Votre partenaire pour une huile d'olive de qualité</p>
+      <div className="border-t-2 border-[#6B8E4B] pt-3 text-center">
+        <p className="text-sm text-gray-600 mb-1">
+          <strong>Merci pour votre confiance!</strong>
+        </p>
+        <p className="text-xs text-gray-500 mb-1">
+          Cette facture est générée électroniquement et ne nécessite pas de signature.
+        </p>
+        <p className="text-sm font-semibold text-[#2C3E50]">
+          HUILERIE MASMOUDI - Votre partenaire pour une huile d'olive de qualité
+        </p>
+        <div className="mt-2 text-xs text-gray-400">
+          <p>Facture générée le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR')}</p>
+        </div>
       </div>
     </div>
   )
@@ -950,10 +1129,23 @@ export default function OilManagement() {
           </div>
           <div className="flex items-center space-x-4">
             <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F]">
-              Gestionnaire d'usine
+              {user?.role || 'Gestionnaire d\'usine'}
             </Badge>
-            <div className="w-8 h-8 bg-[#6B8E4B] rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">AM</span>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-[#6B8E4B] rounded-full flex items-center justify-center">
+                <span className="text-white text-sm font-medium">
+                  {user?.username ? user.username.substring(0, 2).toUpperCase() : 'AM'}
+                </span>
+              </div>
+              <Button
+                onClick={handleLogout}
+                variant="ghost"
+                size="sm"
+                className="text-gray-600 hover:text-red-600 hover:bg-red-50"
+                title="Se déconnecter"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -992,7 +1184,30 @@ export default function OilManagement() {
           {/* Left Panel - Processed Farmers */}
           <div className="w-1/3 p-6 border-r border-gray-200">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-[#2C3E50] mb-4">Agriculteurs traités</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <h2 className="text-2xl font-bold text-[#2C3E50]">Agriculteurs traités</h2>
+                  <Button
+                    size="sm"
+                    variant={showTodayOnly ? "default" : "outline"}
+                    onClick={handleTodayFilterToggle}
+                    className={`transition-all ${
+                      showTodayOnly 
+                        ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500" 
+                        : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300"
+                    }`}
+                    title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs traités aujourd'hui"}
+                  >
+                    <Calendar className="w-4 h-4 mr-1" />
+                    Aujourd'hui
+                    {showTodayOnly && (
+                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                        {filteredFarmers.length}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
 
               {/* Search & Filter */}
               <div className="space-y-3 mb-6">

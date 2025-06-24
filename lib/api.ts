@@ -23,7 +23,7 @@ export interface PaginatedResponse<T> {
   }
 }
 
-// Generic API request handler
+// Generic API request handler with authentication handling
 async function apiRequest<T>(
   endpoint: string, 
   options: RequestInit = {}
@@ -40,10 +40,27 @@ async function apiRequest<T>(
 
   try {
     const response = await fetch(url, defaultOptions)
+    
+    // Handle authentication errors
+    if (response.status === 401) {
+      console.log('🔒 Authentication required, redirecting to login...')
+      
+      // Clear any stored authentication data
+      if (typeof window !== 'undefined') {
+        localStorage.clear()
+        document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;'
+        
+        // Redirect to login page
+        window.location.href = '/login'
+      }
+      
+      throw new Error('Authentication required')
+    }
+
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`)
+      throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`)
     }
 
     return data

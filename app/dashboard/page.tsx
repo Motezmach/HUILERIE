@@ -36,8 +36,11 @@ import {
   CreditCard,
   Banknote,
   Timer,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
+import { logout, getCurrentUser, isAuthenticated } from '@/lib/auth-client'
+import { useRouter } from 'next/navigation'
 
 interface DashboardMetrics {
   totalFarmers: number
@@ -102,16 +105,56 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [user, setUser] = useState<any>(null)
   
   // Box table states
   const [boxDetails, setBoxDetails] = useState<BoxDetail[]>([])
   const [boxFilter, setBoxFilter] = useState<string>('all')
   const [loadingBoxes, setLoadingBoxes] = useState(true)
+
+  // Initialize user and check authentication
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login')
+      return
+    }
+    
+    const currentUser = getCurrentUser()
+    setUser(currentUser)
+    
+    if (!currentUser) {
+      router.push('/login')
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      console.log('🔄 Starting logout process...')
+      
+      // Clear authentication immediately
+      await logout()
+      
+      console.log('✅ Logout completed, redirecting...')
+      
+      // Force hard redirect to ensure clean state
+      window.location.href = '/login'
+    } catch (error) {
+      console.error('❌ Logout error:', error)
+      
+      // Force clear everything even if logout fails
+      localStorage.clear()
+      document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;'
+      
+      // Force redirect
+      window.location.href = '/login'
+    }
+  }
 
   const fetchDashboardData = async (refresh = false) => {
     try {
@@ -470,10 +513,23 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center space-x-4">
             <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F] animate-pulse">
-              Gestionnaire d'usine
+              {user?.role || 'Gestionnaire d\'usine'}
             </Badge>
-            <div className="w-8 h-8 bg-[#6B8E4B] rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-110">
-              <span className="text-white text-sm font-medium">AM</span>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-[#6B8E4B] rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-110">
+                <span className="text-white text-sm font-medium">
+                  {user?.username ? user.username.substring(0, 2).toUpperCase() : 'AM'}
+                </span>
+              </div>
+              <Button
+                onClick={handleLogout}
+                variant="ghost"
+                size="sm"
+                className="text-gray-600 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
+                title="Se déconnecter"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>

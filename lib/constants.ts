@@ -131,7 +131,6 @@ export const VALIDATION = {
   session: {
     oilWeight: {
       min: 0,
-      max: 1000,
       required: true,
     },
   },
