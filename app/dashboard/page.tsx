@@ -37,6 +37,8 @@ import {
   Banknote,
   Timer,
   LogOut,
+  RotateCcw,
+  ArrowRight,
 } from "lucide-react"
 import Link from "next/link"
 import { logout, getCurrentUser, isAuthenticated } from '@/lib/auth-client'
@@ -117,6 +119,7 @@ export default function Dashboard() {
   const [boxDetails, setBoxDetails] = useState<BoxDetail[]>([])
   const [boxFilter, setBoxFilter] = useState<string>('all')
   const [loadingBoxes, setLoadingBoxes] = useState(true)
+  const [resettingBoxes, setResettingBoxes] = useState(false)
 
   // Initialize user and check authentication
   useEffect(() => {
@@ -132,6 +135,14 @@ export default function Dashboard() {
       router.push('/login')
     }
   }, [])
+
+  // Fetch dashboard data and box details on mount
+  useEffect(() => {
+    if (user) {
+      fetchDashboardData()
+      fetchBoxDetails()
+    }
+  }, [user])
 
   const handleLogout = async () => {
     try {
@@ -230,6 +241,51 @@ export default function Dashboard() {
       fetchDashboardData(true), // Force refresh
       fetchBoxDetails()
     ])
+  }
+
+  const resetBoxes = async () => {
+    const confirmationMessage = `Êtes-vous sûr de vouloir réinitialiser toutes les boîtes en cours d'utilisation ?\n\nCette action va :\n• Libérer toutes les boîtes actuellement utilisées\n• Les rendre disponibles pour d'autres agriculteurs\n• Mettre à jour le tableau de bord immédiatement\n\nCette action est irréversible.`
+
+    if (!confirm(confirmationMessage)) {
+      return
+    }
+
+    setResettingBoxes(true)
+    try {
+      const response = await fetch('/api/boxes/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to reset boxes')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Show success message
+        console.log('✅ Boxes reset successfully:', result.message)
+        
+        // Refresh dashboard data immediately
+        await fetchDashboardData(true)
+        
+        // Refresh box details
+        await fetchBoxDetails()
+        
+        // Show success notification (you can implement a toast system here)
+        alert(result.message)
+      } else {
+        throw new Error(result.message || 'Failed to reset boxes')
+      }
+    } catch (error) {
+      console.error('❌ Error resetting boxes:', error)
+      alert('Erreur lors de la réinitialisation des boîtes')
+    } finally {
+      setResettingBoxes(false)
+    }
   }
 
   const formatCurrency = (amount: number) => {
@@ -459,6 +515,7 @@ export default function Dashboard() {
       changeText: `${data.boxUtilization.used}/${data.boxUtilization.total} utilisées`,
       icon: Package,
       color: "text-yellow-600",
+      hasResetButton: true, // Add this flag to identify the box card
     },
     // Enhanced Revenue Card
     {
@@ -675,6 +732,31 @@ export default function Dashboard() {
                         </p>
                       </div>
                     )}
+
+                    {/* Reset Button for Boxes Card */}
+                    {metric.hasResetButton && data.boxUtilization.used > 0 && (
+                      <div className="pt-2 mt-2 border-t border-[#6B8E4B]/10">
+                        <Button
+                          onClick={resetBoxes}
+                          disabled={resettingBoxes}
+                          size="sm"
+                          variant="outline"
+                          className="w-full h-8 text-xs font-bold border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white transition-all duration-200 transform hover:scale-105"
+                        >
+                          {resettingBoxes ? (
+                            <>
+                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                              Réinitialisation...
+                            </>
+                          ) : (
+                            <>
+                              <RotateCcw className="w-3 h-3 mr-1" />
+                              Réinitialiser toutes les boîtes
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -741,9 +823,14 @@ export default function Dashboard() {
                 {/* Detailed Box Table */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-[#2C3E50]">
-                      Détail des Boîtes Utilisées ({filteredBoxDetails.length})
-                    </h4>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="text-sm font-semibold text-[#2C3E50]">
+                        Détail des Boîtes Utilisées ({filteredBoxDetails.length})
+                      </h4>
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        💡 Cliquez sur un nom d'agriculteur pour le voir dans la gestion des olives
+                      </Badge>
+                    </div>
                     {loadingBoxes && (
                       <RefreshCw className="w-4 h-4 animate-spin text-[#6B8E4B]" />
                     )}
@@ -757,7 +844,14 @@ export default function Dashboard() {
                             <TableRow>
                               <TableHead className="w-20 text-xs font-semibold">ID Boîte</TableHead>
                               <TableHead className="w-24 text-xs font-semibold">Type</TableHead>
-                              <TableHead className="flex-1 text-xs font-semibold">Agriculteur</TableHead>
+                              <TableHead className="flex-1 text-xs font-semibold">
+                                <div className="flex items-center space-x-1">
+                                  <span>Agriculteur</span>
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-100 text-blue-700">
+                                    Cliquable
+                                  </Badge>
+                                </div>
+                              </TableHead>
                               <TableHead className="w-24 text-xs font-semibold">Poids</TableHead>
                               <TableHead className="w-32 text-xs font-semibold">Assignée le</TableHead>
                             </TableRow>
@@ -781,13 +875,20 @@ export default function Dashboard() {
                                 </TableCell>
                                 <TableCell>
                                   {box.currentFarmer ? (
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-center space-x-2 group">
                                       <div className="w-6 h-6 bg-[#6B8E4B] rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-110">
                                         <User className="w-3 h-3 text-white" />
                                       </div>
-                                      <span className="text-xs font-medium text-[#2C3E50] truncate">
-                                        {box.currentFarmer.name}
-                                      </span>
+                                      <Link 
+                                        href={`/olive-management?farmerId=${box.currentFarmerId}`}
+                                        className="text-xs font-medium text-[#2C3E50] truncate hover:text-[#6B8E4B] hover:underline transition-all duration-200 cursor-pointer group-hover:bg-[#6B8E4B]/5 px-2 py-1 rounded-md -mx-2"
+                                        title={`Cliquer pour voir ${box.currentFarmer.name} dans la gestion des olives`}
+                                      >
+                                        <div className="flex items-center space-x-1">
+                                          <span>{box.currentFarmer.name}</span>
+                                          <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                        </div>
+                                      </Link>
                                     </div>
                                   ) : (
                                     <span className="text-xs text-gray-400 italic">Non assignée</span>

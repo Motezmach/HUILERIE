@@ -7,6 +7,7 @@ import {
   transformFarmerFromDb,
   calculatePricePerKg
 } from '@/lib/utils'
+import { triggerDashboardUpdate } from '@/lib/dashboard-cache'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -169,13 +170,28 @@ export async function DELETE(
       )
     }
 
-    // Delete farmer (cascade will handle boxes and sessions)
+    // Make farmer's boxes available for other farmers
+    await prisma.box.updateMany({
+      where: { currentFarmerId: farmerId },
+      data: { 
+        currentFarmerId: null,
+        currentWeight: null,
+        assignedAt: null,
+        status: 'AVAILABLE',
+        isSelected: false
+      }
+    })
+
+    // Delete farmer (cascade will handle sessions)
     await prisma.farmer.delete({
       where: { id: farmerId }
     })
 
+    // Trigger dashboard update
+    await triggerDashboardUpdate(`Farmer ${existingFarmer.name} deleted - ${existingFarmer.currentBoxes.length} boxes made available`)
+
     return NextResponse.json(
-      createSuccessResponse(null, 'Agriculteur supprimé avec succès')
+      createSuccessResponse(null, `Agriculteur supprimé avec succès. ${existingFarmer.currentBoxes.length} boîtes sont maintenant disponibles.`)
     )
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {

@@ -13,6 +13,26 @@ CREATE TYPE "ProcessingStatus" AS ENUM ('PENDING', 'PROCESSED');
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('UNPAID', 'PAID', 'PENDING');
 
+-- CreateEnum
+CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'USER', 'MANAGER');
+
+-- CreateTable
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "email" TEXT,
+    "firstName" TEXT,
+    "lastName" TEXT,
+    "role" "UserRole" NOT NULL DEFAULT 'ADMIN',
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "lastLoginAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateTable
 CREATE TABLE "farmers" (
     "id" TEXT NOT NULL,
@@ -96,6 +116,12 @@ CREATE TABLE "dashboard_metrics" (
 
     CONSTRAINT "dashboard_metrics_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "processing_sessions_sessionNumber_key" ON "processing_sessions"("sessionNumber");

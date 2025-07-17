@@ -36,7 +36,7 @@ import {
   Calendar,
 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { farmersApi, boxesApi, sessionsApi } from "@/lib/api"
 import { transformFarmerFromDb, transformBoxFromDb, generateSessionNumber, calculatePricePerKg } from "@/lib/utils"
 import { logout, getCurrentUser } from '@/lib/auth-client'
@@ -81,6 +81,7 @@ interface ProcessingSession {
 
 export default function OliveManagement() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
@@ -97,6 +98,8 @@ export default function OliveManagement() {
   const [bulkCount, setBulkCount] = useState("")
   const [bulkBoxes, setBulkBoxes] = useState<BulkBoxEntry[]>([])
   const [user, setUser] = useState<any>(null)
+  const [deletingFarmerId, setDeletingFarmerId] = useState<string | null>(null)
+  const [boxViewMode, setBoxViewMode] = useState<"grid" | "list">("grid")
 
   // Form states
   const [farmerForm, setFarmerForm] = useState({
@@ -113,13 +116,23 @@ export default function OliveManagement() {
   const [farmers, setFarmers] = useState<Farmer[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [boxViewMode, setBoxViewMode] = useState<"grid" | "list">("grid")
 
   // Initialize user
   useEffect(() => {
     const currentUser = getCurrentUser()
     setUser(currentUser)
   }, [])
+
+  // Handle URL parameters for pre-selecting a farmer
+  useEffect(() => {
+    const farmerId = searchParams.get('farmerId')
+    if (farmerId && farmers.length > 0) {
+      const farmer = farmers.find(f => f.id === farmerId)
+      if (farmer) {
+        handleFarmerSelection(farmer)
+      }
+    }
+  }, [searchParams, farmers])
 
   const handleLogout = async () => {
     try {
@@ -469,25 +482,48 @@ export default function OliveManagement() {
   }
 
   const handleDeleteFarmer = async (farmerId: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cet agriculteur?")) {
+    const farmerToDelete = farmers.find(f => f.id === farmerId)
+    if (!farmerToDelete) return
+
+    const boxCount = farmerToDelete.boxes.length
+    const confirmationMessage = boxCount > 0 
+      ? `Êtes-vous sûr de vouloir supprimer "${farmerToDelete.name}" ?\n\nCette action va :\n• Supprimer l'agriculteur de la base de données\n• Libérer ${boxCount} boîte(s) pour d'autres agriculteurs\n• Supprimer toutes les sessions de traitement associées`
+      : `Êtes-vous sûr de vouloir supprimer "${farmerToDelete.name}" ?`
+
+    if (!confirm(confirmationMessage)) {
       return
     }
 
+    setDeletingFarmerId(farmerId)
     try {
       const response = await farmersApi.delete(farmerId)
 
       if (response.success) {
-      setFarmers((prev) => prev.filter((farmer) => farmer.id !== farmerId))
-      if (selectedFarmer?.id === farmerId) {
-        setSelectedFarmer(null)
-      }
-      showNotification("Agriculteur supprimé avec succès!", "success")
+        // Immediate UI updates
+        setFarmers((prev) => prev.filter((farmer) => farmer.id !== farmerId))
+        
+        // Clear selected farmer if it was the deleted one
+        if (selectedFarmer?.id === farmerId) {
+          setSelectedFarmer(null)
+        }
+
+        // Show success message with box count
+        const successMessage = response.message || "Agriculteur supprimé avec succès!"
+        showNotification(successMessage, "success")
+
+        // Reload farmers list to get fresh data (including updated box counts)
+        setTimeout(() => {
+          loadFarmers().catch(console.error)
+        }, 500)
+
       } else {
         showNotification(response.error || 'Erreur lors de la suppression', 'error')
       }
     } catch (error) {
       console.error('Error deleting farmer:', error)
       showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setDeletingFarmerId(null)
     }
   }
 
@@ -778,7 +814,22 @@ export default function OliveManagement() {
             if (isNaN(numId) || numId < 1 || numId > 600) {
               updated.error = "L'ID doit être entre 1 et 600"
             } else {
-              updated.error = validateBoxId(value.trim()) || undefined
+              // Check if this box is already used by this farmer
+              const isUsedByThisFarmer = selectedFarmer?.boxes.some(b => b.id === value.trim() && b.status === "in_use")
+              if (isUsedByThisFarmer) {
+                updated.error = "Cette boîte est déjà utilisée par cet agriculteur"
+              } else {
+                // Check if this box is used by another farmer
+                const isUsedByOtherFarmer = farmers.some(f => 
+                  f.id !== selectedFarmer?.id && 
+                  f.boxes.some(b => b.id === value.trim() && b.status === "in_use")
+                )
+                if (isUsedByOtherFarmer) {
+                  updated.error = "Cette boîte est utilisée par un autre agriculteur"
+                } else {
+                  updated.error = undefined
+                }
+              }
             }
           } else if (field === "id" && !value.trim()) {
             updated.error = "L'ID est requis"
@@ -786,6 +837,8 @@ export default function OliveManagement() {
             const weight = parseFloat(value.trim())
             if (isNaN(weight) || weight <= 0) {
               updated.error = "Le poids doit être supérieur à 0"
+            } else if (weight > 1000) {
+              updated.error = "Le poids semble trop élevé (max 1000 kg)"
             } else {
               updated.error = undefined
             }
@@ -806,12 +859,20 @@ export default function OliveManagement() {
       return
     }
 
+    // Check for duplicate IDs within the bulk operation
+    const boxIds = validBoxes.map(box => box.id)
+    const duplicateIds = boxIds.filter((id, index) => boxIds.indexOf(id) !== index)
+    if (duplicateIds.length > 0) {
+      showNotification(`IDs en double détectés: ${duplicateIds.join(', ')}`, "error")
+      return
+    }
+
     setCreating(true)
     try {
       const boxesToCreate = validBoxes.map((box) => ({
-      id: box.id,
+        id: box.id,
         type: "normal" as const,
-      weight: Number.parseFloat(box.weight),
+        weight: Number.parseFloat(box.weight),
       }))
 
       const response = await farmersApi.addBoxes(selectedFarmer.id, boxesToCreate)
@@ -820,17 +881,25 @@ export default function OliveManagement() {
         // Reload farmer to get fresh data with all boxes
         await reloadFarmer(selectedFarmer.id)
 
-    setBulkStep(1)
-    setBulkCount("")
-    setBulkBoxes([])
-    setIsBulkAddOpen(false)
+        setBulkStep(1)
+        setBulkCount("")
+        setBulkBoxes([])
+        setIsBulkAddOpen(false)
         showNotification(`${response.data.length} boîtes ajoutées avec succès!`, "success")
       } else {
         showNotification(response.error || 'Erreur lors de la création en lot', 'error')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error bulk creating boxes:', error)
-      showNotification('Erreur de connexion au serveur', 'error')
+      
+      // Handle specific error messages
+      if (error.message && error.message.includes("n'existe pas dans l'inventaire")) {
+        showNotification('Erreur: Certaines boîtes ne sont pas disponibles dans l\'inventaire de l\'usine. Veuillez vérifier les IDs.', 'error')
+      } else if (error.message && error.message.includes("n'est pas disponible")) {
+        showNotification('Erreur: Certaines boîtes sont déjà utilisées par d\'autres agriculteurs.', 'error')
+      } else {
+        showNotification('Erreur de connexion au serveur', 'error')
+      }
     } finally {
       setCreating(false)
     }
@@ -1022,40 +1091,24 @@ export default function OliveManagement() {
           {/* Left Panel - Farmers List */}
           <div className="w-1/3 p-6 border-r border-gray-200">
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
+              <div className="space-y-4 mb-4">
+                {/* Header with title and add button */}
+                <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-[#2C3E50]">Agriculteurs</h2>
-                  <Button
-                    size="sm"
-                    variant={showTodayOnly ? "default" : "outline"}
-                    onClick={handleTodayFilterToggle}
-                    className={`transition-all ${
-                      showTodayOnly 
-                        ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500" 
-                        : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300"
-                    }`}
-                    title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
-                  >
-                    <Calendar className="w-4 h-4 mr-1" />
-                    Aujourd'hui
-                    {showTodayOnly && (
-                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
-                        {filteredFarmers.length}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-                <Dialog open={isAddFarmerOpen} onOpenChange={setIsAddFarmerOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Ajouter agriculteur
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Ajouter un nouvel agriculteur</DialogTitle>
-                    </DialogHeader>
+                  <Dialog open={isAddFarmerOpen} onOpenChange={setIsAddFarmerOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        className="bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white shadow-md hover:shadow-lg transition-all duration-200 font-medium"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Ajouter agriculteur
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Ajouter un nouvel agriculteur</DialogTitle>
+                      </DialogHeader>
                     <div className="space-y-4">
                       <div>
                         <Label htmlFor="name">Nom *</Label>
@@ -1113,6 +1166,30 @@ export default function OliveManagement() {
                     </div>
                   </DialogContent>
                 </Dialog>
+                </div>
+
+                {/* Today filter button */}
+                <div className="flex items-center pt-2 border-t border-gray-100">
+                  <Button
+                    size="sm"
+                    variant={showTodayOnly ? "default" : "outline"}
+                    onClick={handleTodayFilterToggle}
+                    className={`transition-all duration-200 ${
+                      showTodayOnly 
+                        ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-sm" 
+                        : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 hover:shadow-sm"
+                    }`}
+                    title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
+                  >
+                    <Calendar className="w-4 h-4 mr-1" />
+                    Aujourd'hui
+                    {showTodayOnly && (
+                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                        {filteredFarmers.length}
+                      </span>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {/* Search & Filter */}
@@ -1201,8 +1278,13 @@ export default function OliveManagement() {
                             e.stopPropagation()
                             handleDeleteFarmer(farmer.id)
                           }}
+                          disabled={deletingFarmerId === farmer.id}
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                          {deletingFarmerId === farmer.id ? (
+                            <Loader2 className="w-4 h-4 text-red-500 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -1427,6 +1509,8 @@ export default function OliveManagement() {
                                   />
                                 </div>
 
+
+
                                 <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
                                   {bulkBoxes.map((box, index) => (
                                     <Card key={index} className={`p-4 ${box.error ? "border-red-300 bg-red-50" : ""}`}>
@@ -1459,6 +1543,23 @@ export default function OliveManagement() {
                                   ))}
                                 </div>
 
+                                {/* Validation summary */}
+                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-600">
+                                      Boîtes valides: <span className="font-medium text-green-600">{bulkBoxes.filter((b) => !b.error && b.id && b.weight).length}</span> / {bulkBoxes.length}
+                                    </span>
+                                    <span className="text-gray-600">
+                                      Poids total: <span className="font-medium text-blue-600">
+                                        {bulkBoxes
+                                          .filter((b) => !b.error && b.id && b.weight)
+                                          .reduce((sum, b) => sum + parseFloat(b.weight), 0)
+                                          .toFixed(1)} kg
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+
                                 <div className="flex space-x-2">
                                   <Button
                                     onClick={handleBulkAdd}
@@ -1466,7 +1567,7 @@ export default function OliveManagement() {
                                     className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
                                   >
                                     <Save className="w-4 h-4 mr-2" />
-                                    Ajouter toutes les boîtes
+                                    Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.error && b.id && b.weight).length})
                                   </Button>
                                   <Button variant="outline" onClick={() => setBulkStep(1)}>
                                     Retour
