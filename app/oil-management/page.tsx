@@ -24,7 +24,9 @@ import {
   Edit,
   LogOut,
   Calendar,
+  Crown,
 } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { sessionsApi, farmersApi } from "@/lib/api"
@@ -1175,6 +1177,17 @@ export default function OilManagement() {
             >
               <Archive className="w-5 h-5" />
               <span>Gestion de l'huile</span>
+            </Link>
+            <Separator className="my-2" />
+            <Link
+              href="/huilerie"
+              className="flex items-center space-x-3 px-3 py-2 text-[#8B4513] hover:bg-[#F4D03F]/10 rounded-lg transition-all duration-200 transform hover:scale-105 border border-[#F4D03F]/20"
+            >
+              <Crown className="w-5 h-5 text-[#F4D03F]" />
+              <span className="font-semibold">HUILERIE</span>
+              <Badge variant="secondary" className="ml-auto text-xs bg-[#F4D03F] text-[#8B4513]">
+                Propriétaire
+              </Badge>
             </Link>
           </nav>
         </aside>

@@ -17,29 +17,47 @@ import {
   Search,
   Filter,
   Plus,
+  Settings,
   BarChart3,
   Archive,
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  AlertCircle,
+  RefreshCw,
+  Activity,
+  Calendar,
+  Target,
+  User,
+  Box,
+  CheckCircle,
+  PauseCircle,
+  XCircle,
+  CreditCard,
+  Banknote,
+  Timer,
+  LogOut,
+  RotateCcw,
+  ArrowRight,
+  Crown,
   Edit,
   Trash2,
   ShoppingBag,
   Save,
   X,
-  AlertCircle,
-  PackagePlus,
-  CheckSquare,
-  SquareIcon,
-  ArrowRight,
   Loader2,
   Grid3X3,
   List,
-  LogOut,
-  Calendar,
+  SquareIcon,
+  CheckSquare,
+  PackagePlus,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { farmersApi, boxesApi, sessionsApi } from "@/lib/api"
 import { transformFarmerFromDb, transformBoxFromDb, generateSessionNumber, calculatePricePerKg } from "@/lib/utils"
 import { logout, getCurrentUser } from '@/lib/auth-client'
+import { Separator } from "@/components/ui/separator"
 
 interface Farmer {
   id: string
@@ -292,7 +310,7 @@ export default function OliveManagement() {
       case "nchira":
         return <Package className="w-6 h-6 text-red-500" />
       case "chkara":
-        return <ShoppingBag className="w-6 h-6 text-blue-500" />
+        return <Package className="w-6 h-6 text-blue-500" />
       case "normal":
         return <Package className="w-6 h-6 text-[#6B8E4B]" />
     }
@@ -1082,6 +1100,17 @@ export default function OliveManagement() {
             >
               <Archive className="w-5 h-5" />
               <span>Gestion de l'huile</span>
+            </Link>
+            <Separator className="my-2" />
+            <Link
+              href="/huilerie"
+              className="flex items-center space-x-3 px-3 py-2 text-[#8B4513] hover:bg-[#F4D03F]/10 rounded-lg transition-all duration-200 transform hover:scale-105 border border-[#F4D03F]/20"
+            >
+              <Crown className="w-5 h-5 text-[#F4D03F]" />
+              <span className="font-semibold">HUILERIE</span>
+              <Badge variant="secondary" className="ml-auto text-xs bg-[#F4D03F] text-[#8B4513]">
+                Propriétaire
+              </Badge>
             </Link>
           </nav>
         </aside>
