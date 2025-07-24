@@ -138,6 +138,11 @@ export default function OliveManagement() {
   // Initialize user
   useEffect(() => {
     const currentUser = getCurrentUser()
+    if (!currentUser) {
+      console.log('❌ No user found in olive management, redirecting to login')
+      window.location.href = '/login'
+      return
+    }
     setUser(currentUser)
   }, [])
 

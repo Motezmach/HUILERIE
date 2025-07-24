@@ -54,6 +54,7 @@ interface DashboardMetrics {
   totalRevenue: number
   averageOilExtraction: number
   metricDate: string
+  chkaraCount: number
 }
 
 interface RecentActivity {
@@ -124,18 +125,31 @@ export default function Dashboard() {
 
   // Initialize user and check authentication
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push('/login')
-      return
+    const checkAuth = () => {
+      if (!isAuthenticated()) {
+        console.log('❌ User not authenticated, redirecting to login')
+        router.push('/login')
+        return false
+      }
+      
+      const currentUser = getCurrentUser()
+      if (!currentUser) {
+        console.log('❌ No user data found, redirecting to login')
+        router.push('/login')
+        return false
+      }
+      
+      setUser(currentUser)
+      return true
     }
     
-    const currentUser = getCurrentUser()
-    setUser(currentUser)
+    // Add a small delay to prevent immediate redirects
+    const timer = setTimeout(() => {
+      checkAuth()
+    }, 100)
     
-    if (!currentUser) {
-      router.push('/login')
-    }
-  }, [])
+    return () => clearTimeout(timer)
+  }, [router])
 
   // Fetch dashboard data and box details on mount
   useEffect(() => {
@@ -245,7 +259,7 @@ export default function Dashboard() {
   }
 
   const resetBoxes = async () => {
-    const confirmationMessage = `Êtes-vous sûr de vouloir réinitialiser toutes les boîtes en cours d'utilisation ?\n\nCette action va :\n• Libérer toutes les boîtes actuellement utilisées\n• Les rendre disponibles pour d'autres agriculteurs\n• Mettre à jour le tableau de bord immédiatement\n\nCette action est irréversible.`
+    const confirmationMessage = `Êtes-vous sûr de vouloir réinitialiser toutes les boîtes d'usine en cours d'utilisation ?\n\nCette action va :\n• Libérer toutes les boîtes d'usine actuellement utilisées\n• Les rendre disponibles pour d'autres agriculteurs\n• Exclure les boîtes Chkara (sacs) qui ne seront pas affectées\n• Mettre à jour le tableau de bord immédiatement\n\nCette action est irréversible.`
 
     if (!confirm(confirmationMessage)) {
       return
@@ -333,12 +347,12 @@ export default function Dashboard() {
   const getBoxTypeColor = (type: string) => {
     switch (type?.toUpperCase()) {
       case 'CHKARA':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-blue-100 text-blue-800 border-blue-200'
       case 'NCHIRA':
         return 'bg-red-100 text-red-800 border-red-200'
       case 'NORMAL':
       default:
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'bg-green-100 text-green-800 border-green-200'
     }
   }
 
@@ -517,6 +531,7 @@ export default function Dashboard() {
       icon: Package,
       color: "text-yellow-600",
       hasResetButton: true, // Add this flag to identify the box card
+      chkaraCount: data.metrics.chkaraCount || 0, // Add Chkara count
     },
     // Enhanced Revenue Card
     {
@@ -696,6 +711,21 @@ export default function Dashboard() {
                       </p>
                     </div>
                     
+                    {/* Creative Chkara Count Display */}
+                    {metric.chkaraCount !== undefined && metric.chkaraCount > 0 && (
+                      <div className="flex items-center justify-center mt-2 mb-1">
+                        <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-full shadow-sm">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                          <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                            Chkara
+                          </span>
+                          <span className="text-xs font-black text-blue-800 bg-blue-200 px-1.5 py-0.5 rounded-full">
+                            {metric.chkaraCount}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Enhanced Revenue Details with Theme Colors */}
                     {metric.enhanced && metric.subtitle && (
                       <div className="flex items-center justify-between py-2.5 px-3 bg-gradient-to-r from-[#6B8E4B]/5 to-[#F4D03F]/5 rounded-lg border border-[#6B8E4B]/10 mt-3">
@@ -763,7 +793,7 @@ export default function Dashboard() {
                           ) : (
                             <>
                               <RotateCcw className="w-3 h-3 mr-1" />
-                              Réinitialiser toutes les boîtes
+                              Réinitialiser boîtes d'usine
                             </>
                           )}
                         </Button>

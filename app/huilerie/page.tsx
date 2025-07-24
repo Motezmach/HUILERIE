@@ -40,7 +40,6 @@ import {
   CreditCard,
   Banknote,
   Timer,
-  LogOut,
   RotateCcw,
   ArrowRight,
   Lock,
@@ -64,7 +63,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from 'next/navigation'
-import { logout, getCurrentUser } from '@/lib/auth-client'
+import { getCurrentUser } from '@/lib/auth-client'
 
 interface FactoryMetrics {
   totalOliveReceived: number
@@ -173,14 +172,8 @@ export default function HuileriePage() {
     }
   }
 
-  const handleLogout = async () => {
-    try {
-      await logout()
-      window.location.href = '/login'
-    } catch (error) {
-      localStorage.clear()
-      window.location.href = '/login'
-    }
+  const handleBackToDashboard = () => {
+    router.push('/dashboard')
   }
 
   const formatCurrency = (amount: number) => {
@@ -295,12 +288,13 @@ export default function HuileriePage() {
                 Propriétaire
               </Badge>
               <Button
-                onClick={handleLogout}
+                onClick={handleBackToDashboard}
                 variant="ghost"
                 size="sm"
                 className="text-white hover:bg-white/20"
+                title="Retour au tableau de bord"
               >
-                <LogOut className="w-4 h-4" />
+                <BarChart3 className="w-4 h-4" />
               </Button>
             </div>
           </div>

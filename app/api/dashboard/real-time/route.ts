@@ -23,10 +23,21 @@ export async function GET() {
       // Quick farmer count
       prisma.farmer.count(),
       
-      // Box status counts
+      // Box status counts - Only for factory boxes (1-600), exclude Chkara
       prisma.box.groupBy({
         by: ['status'],
-        _count: { status: true }
+        _count: { status: true },
+        where: {
+          // Only count factory boxes (1-600), exclude Chkara boxes
+          AND: [
+            { type: { not: 'CHKARA' } },
+            {
+              id: {
+                in: Array.from({ length: 600 }, (_, i) => (i + 1).toString())
+              }
+            }
+          ]
+        }
       }),
       
       // Today's sessions count
@@ -58,6 +69,14 @@ export async function GET() {
     const inUseBoxes = boxCounts.find(b => b.status === 'IN_USE')?._count.status || 0
     const availableBoxes = boxCounts.find(b => b.status === 'AVAILABLE')?._count.status || 0
 
+    // Get Chkara count separately
+    const chkaraCount = await prisma.box.count({
+      where: { 
+        type: 'CHKARA',
+        status: 'IN_USE'
+      }
+    })
+
     const realTimeData = {
       // Core metrics for dashboard cards
       metrics: {
@@ -66,7 +85,8 @@ export async function GET() {
         inUseBoxes,
         boxUtilization: Math.round((inUseBoxes / 600) * 100),
         todaySessionsCount,
-        todayRevenue: Number(todayRevenue._sum.totalPrice || 0)
+        todayRevenue: Number(todayRevenue._sum.totalPrice || 0),
+        chkaraCount: chkaraCount
       },
       
       // Latest activity for live feed
