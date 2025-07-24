@@ -24,7 +24,9 @@ import {
   Edit,
   LogOut,
   Calendar,
+  Crown,
 } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { sessionsApi, farmersApi } from "@/lib/api"
@@ -94,6 +96,11 @@ export default function OilManagement() {
   // Initialize user
   useEffect(() => {
     const currentUser = getCurrentUser()
+    if (!currentUser) {
+      console.log('❌ No user found in oil management, redirecting to login')
+      window.location.href = '/login'
+      return
+    }
     setUser(currentUser)
   }, [])
 
@@ -1176,6 +1183,17 @@ export default function OilManagement() {
               <Archive className="w-5 h-5" />
               <span>Gestion de l'huile</span>
             </Link>
+            <Separator className="my-2" />
+            <Link
+              href="/huilerie"
+              className="flex items-center space-x-3 px-3 py-2 text-[#8B4513] hover:bg-[#F4D03F]/10 rounded-lg transition-all duration-200 transform hover:scale-105 border border-[#F4D03F]/20"
+            >
+              <Crown className="w-5 h-5 text-[#F4D03F]" />
+              <span className="font-semibold">HUILERIE</span>
+              <Badge variant="secondary" className="ml-auto text-xs bg-[#F4D03F] text-[#8B4513]">
+                Propriétaire
+              </Badge>
+            </Link>
           </nav>
         </aside>
 
@@ -1463,14 +1481,14 @@ export default function OilManagement() {
                                   {session.boxDetails && session.boxDetails.length > 0 ? (
                                     session.boxDetails.map((box, index) => (
                                       <div key={index} className="group relative">
-                                        <Badge 
-                                          variant="outline" 
-                                          className={`text-xs cursor-help ${
-                                            box.type === 'nchira' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' :
-                                            box.type === 'chkara' ? 'bg-green-50 border-green-300 text-green-700' :
-                                            'bg-blue-50 border-blue-200 text-blue-700'
-                                          }`}
-                                        >
+                                                                  <Badge 
+                            variant="outline" 
+                            className={`text-xs cursor-help ${
+                              box.type === 'nchira' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' :
+                              box.type === 'chkara' ? 'bg-blue-50 border-blue-300 text-blue-700' :
+                              'bg-green-50 border-green-200 text-green-700'
+                            }`}
+                          >
                                           {box.id}
                                         </Badge>
                                         {/* Tooltip with detailed info */}
@@ -1600,8 +1618,8 @@ export default function OilManagement() {
                             variant="outline" 
                             className={`text-xs cursor-help ${
                               box.type === 'nchira' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' :
-                              box.type === 'chkara' ? 'bg-green-50 border-green-300 text-green-700' :
-                              'bg-blue-50 border-blue-200 text-blue-700'
+                              box.type === 'chkara' ? 'bg-blue-50 border-blue-300 text-blue-700' :
+                              'bg-green-50 border-green-200 text-green-700'
                             }`}
                           >
                             {box.id}
@@ -1615,7 +1633,7 @@ export default function OilManagement() {
                     ) : (
                       // Fallback to basic box IDs
                       editingSession.boxIds.map((boxId, index) => (
-                        <Badge key={index} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                        <Badge key={index} variant="outline" className="text-xs bg-green-50 border-green-200 text-green-700">
                           {boxId}
                         </Badge>
                       ))

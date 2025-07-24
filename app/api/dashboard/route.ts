@@ -56,10 +56,21 @@ export async function GET(request: NextRequest) {
       // Total boxes in database
       prisma.box.count(),
       
-      // Box status distribution
+      // Box status distribution - Only for factory boxes (1-600), exclude Chkara
       prisma.box.groupBy({
         by: ['status'],
-        _count: { status: true }
+        _count: { status: true },
+        where: {
+          // Only count factory boxes (1-600), exclude Chkara boxes
+          AND: [
+            { type: { not: 'CHKARA' } },
+            {
+              id: {
+                in: Array.from({ length: 600 }, (_, i) => (i + 1).toString())
+              }
+            }
+          ]
+        }
       }),
       
       // Session status counts (legacy for pendingExtractions)
@@ -153,6 +164,14 @@ export async function GET(request: NextRequest) {
     const availableBoxes = boxStatusCounts.find(b => b.status === 'AVAILABLE')?._count.status || 0
     const inUseBoxes = boxStatusCounts.find(b => b.status === 'IN_USE')?._count.status || 0
     
+    // Get Chkara count separately
+    const chkaraCount = await prisma.box.count({
+      where: { 
+        type: 'CHKARA',
+        status: 'IN_USE'
+      }
+    })
+    
     // Process session status counts (legacy)
     const pendingExtractions = sessionCounts.find(s => s.processingStatus === 'PENDING')?._count.processingStatus || 0
     
@@ -181,7 +200,8 @@ export async function GET(request: NextRequest) {
       todayRevenue: Number(todayRevenue._sum.totalPrice || 0),
       totalRevenue: Number(totalRevenue._sum.totalPrice || 0),
       averageOilExtraction: Number(avgOilExtraction._avg.oilWeight || 0),
-      metricDate: todayStart.toISOString()
+      metricDate: todayStart.toISOString(),
+      chkaraCount: chkaraCount // Add Chkara count
     }
 
     // Calculate box utilization

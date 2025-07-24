@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [notification, setNotification] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
 
   // Login form state
   const [loginForm, setLoginForm] = useState<LoginCredentials>({
@@ -22,13 +23,22 @@ export default function LoginPage() {
     password: ''
   })
 
-  // Check if user is already authenticated
+  // Check if user is already authenticated - only once on mount
   useEffect(() => {
-    if (isAuthenticated()) {
-      console.log('✅ User already authenticated, redirecting to dashboard...')
-      window.location.href = '/dashboard'
+    if (!authChecked) {
+      setAuthChecked(true)
+      
+      // Add a small delay to prevent immediate redirect
+      const timer = setTimeout(() => {
+        if (isAuthenticated()) {
+          console.log('✅ User already authenticated, redirecting to dashboard...')
+          router.push('/dashboard')
+        }
+      }, 100)
+      
+      return () => clearTimeout(timer)
     }
-  }, [])
+  }, [authChecked, router])
 
   // Auto-hide notifications
   useEffect(() => {
@@ -69,7 +79,7 @@ export default function LoginPage() {
         
         // Small delay to ensure state is saved, then redirect
         setTimeout(() => {
-          window.location.href = '/dashboard'
+          router.push('/dashboard')
         }, 100)
         
       } else {
