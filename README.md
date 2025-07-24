@@ -1,5 +1,31 @@
 # HUILERIE MASMOUDI - Système de Gestion d'Usine d'Huile d'Olive
-to create admin account --> node scripts/create-admin-user.js
+
+> **Note**: Pour créer un compte administrateur, exécutez : `node scripts/create-admin-user.js`
+
+## 🚀 Déploiement sur Vercel
+
+### Configuration Requise
+
+1. **Variables d'environnement** à configurer dans Vercel :
+   ```
+   DATABASE_URL=postgresql://username:password@host:port/database
+   JWT_SECRET=your-secure-jwt-secret-here
+   ```
+
+2. **Build Command** : `npm run build` (configuré automatiquement)
+
+3. **Install Command** : `npm install` (configuré automatiquement)
+
+### Étapes de Déploiement
+
+1. Connectez votre repository GitHub à Vercel
+2. Configurez les variables d'environnement dans les paramètres du projet
+3. Déployez automatiquement à chaque push
+
+### Résolution des Problèmes
+
+- **Erreur Prisma** : Assurez-vous que `DATABASE_URL` est correctement configuré
+- **Build échoue** : Vérifiez que toutes les variables d'environnement sont définies
 ## 📋 Vue d'ensemble
 
 

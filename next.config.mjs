@@ -10,6 +10,9 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: true,
   },
+  experimental: {
+    serverComponentsExternalPackages: ['@prisma/client'],
+  },
 }
 
 export default nextConfig
