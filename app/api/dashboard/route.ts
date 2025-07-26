@@ -131,12 +131,18 @@ export async function GET(request: NextRequest) {
         _avg: { oilWeight: true }
       }),
       
-      // Recent processing sessions (last 5)
+      // Recent processing sessions (last 5) with box details
       prisma.processingSession.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: {
-          farmer: { select: { name: true } }
+          farmer: { select: { name: true } },
+          sessionBoxes: {
+            select: {
+              boxId: true,
+              boxType: true
+            }
+          }
         }
       }),
       
@@ -236,6 +242,13 @@ export async function GET(request: NextRequest) {
 
     // Add session activities
     recentSessions.forEach((session: any) => {
+      // Extract box IDs and types from session boxes
+      const boxIds = session.sessionBoxes?.map((sb: any) => sb.boxId) || []
+      const boxDetails = session.sessionBoxes?.map((sb: any) => ({
+        id: sb.boxId,
+        type: sb.boxType?.toLowerCase() || 'normal'
+      })) || []
+      
       recentActivity.push({
         id: `session-${session.id}`,
         type: session.processingStatus === 'PROCESSED' ? 'session_completed' : 'session_created',
@@ -243,11 +256,13 @@ export async function GET(request: NextRequest) {
           ? `Traitement terminé pour ${session.farmer.name}` 
           : `Session créée pour ${session.farmer.name} (${session.boxCount} boîtes)`,
         timestamp: session.createdAt.toISOString(),
-        amount: Number(session.totalPrice),
+        amount: session.processingStatus === 'PROCESSED' ? Number(session.totalPrice) : undefined,
         metadata: {
           farmerId: session.farmerId,
           sessionId: session.id,
-          boxCount: session.boxCount
+          boxCount: session.boxCount,
+          boxIds: boxIds,
+          boxDetails: boxDetails
         }
       })
     })
@@ -266,7 +281,7 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    // Add payment activities
+    // Add payment activities (only show amount, no box IDs)
     recentPayments.forEach((payment: any) => {
       recentActivity.push({
         id: `payment-${payment.id}`,
@@ -276,7 +291,8 @@ export async function GET(request: NextRequest) {
         amount: Number(payment.totalPrice),
         metadata: {
           farmerId: payment.farmerId,
-          sessionId: payment.id
+          sessionId: payment.id,
+          // No box information for payments
         }
       })
     })

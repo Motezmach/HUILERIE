@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import {
   Users,
   Package,
@@ -40,6 +41,10 @@ import {
   RotateCcw,
   ArrowRight,
   Crown,
+  Search,
+  X,
+  Eye,
+  ExternalLink,
 } from "lucide-react"
 import Link from "next/link"
 import { logout, getCurrentUser, isAuthenticated } from '@/lib/auth-client'
@@ -120,8 +125,32 @@ export default function Dashboard() {
   // Box table states
   const [boxDetails, setBoxDetails] = useState<BoxDetail[]>([])
   const [boxFilter, setBoxFilter] = useState<string>('all')
+  const [boxSearchTerm, setBoxSearchTerm] = useState<string>('')
   const [loadingBoxes, setLoadingBoxes] = useState(true)
   const [resettingBoxes, setResettingBoxes] = useState(false)
+  
+  // Activity modal states
+  const [showAllActivities, setShowAllActivities] = useState(false)
+  const [activitySearchTerm, setActivitySearchTerm] = useState('')
+
+  // Handle escape key to close modal
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showAllActivities) {
+        setShowAllActivities(false)
+      }
+    }
+
+    if (showAllActivities) {
+      document.addEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'unset'
+    }
+  }, [showAllActivities])
 
   // Initialize user and check authentication
   useEffect(() => {
@@ -368,11 +397,67 @@ export default function Dashboard() {
     }
   }
 
-  // Filter box details based on selected filter
+  // Clear search when filter changes
+  useEffect(() => {
+    setBoxSearchTerm('')
+  }, [boxFilter])
+
+  // Clear activity search when modal closes
+  useEffect(() => {
+    if (!showAllActivities) {
+      setActivitySearchTerm('')
+    }
+  }, [showAllActivities])
+
+  // Filter box details based on selected filter and search term
   const filteredBoxDetails = boxDetails.filter(box => {
-    if (boxFilter === 'all') return true
-    return box.type?.toUpperCase() === boxFilter.toUpperCase()
+    // First filter by type
+    const typeMatch = boxFilter === 'all' || box.type?.toUpperCase() === boxFilter.toUpperCase()
+    
+    // Then filter by search term (box ID)
+    const searchMatch = !boxSearchTerm || 
+      box.id.toLowerCase().includes(boxSearchTerm.toLowerCase()) ||
+      box.id.toString().includes(boxSearchTerm)
+    
+    return typeMatch && searchMatch
   })
+
+  // Filter activities based on search term (enhanced with farmer name)
+  const filteredActivities = data?.recentActivity.filter(activity => {
+    if (!activitySearchTerm) return true
+    
+    const searchTerm = activitySearchTerm.toLowerCase()
+    
+    // Search in description
+    if (activity.description.toLowerCase().includes(searchTerm)) return true
+    
+    // Search in activity type
+    if (activity.type.toLowerCase().includes(searchTerm)) return true
+    
+    // Search in amount
+    if (activity.amount && activity.amount.toString().includes(searchTerm)) return true
+    
+    // Search in farmer name (extract from description)
+    const farmerNameMatch = activity.description.match(/pour (.+?)(?:\s|$|\(|:)/)
+    if (farmerNameMatch && farmerNameMatch[1].toLowerCase().includes(searchTerm)) return true
+    
+    // Search in box IDs (if available)
+    if (activity.metadata?.boxIds) {
+      const boxIds = Array.isArray(activity.metadata.boxIds) ? activity.metadata.boxIds : []
+      if (boxIds.some((boxId: string) => boxId.toLowerCase().includes(searchTerm))) return true
+    }
+    
+    // Search in box details (if available)
+    if (activity.metadata?.boxDetails) {
+      const boxDetails = Array.isArray(activity.metadata.boxDetails) ? activity.metadata.boxDetails : []
+      if (boxDetails.some((box: any) => 
+        box.id?.toLowerCase().includes(searchTerm) || 
+        box.type?.toLowerCase().includes(searchTerm)
+      )) return true
+    }
+    
+    return false
+  }) || []
 
   // Calculate box type statistics
   const boxTypeStats = ['NORMAL', 'NCHIRA', 'CHKARA'].map(type => {
@@ -810,40 +895,87 @@ export default function Dashboard() {
             {/* Enhanced Box Utilization with Table */}
             <Card className="border-0 shadow-lg lg:col-span-2 animate-fadeInUp transition-all duration-300 hover:shadow-xl">
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center space-x-2">
-                    <Package className="w-5 h-5 text-[#6B8E4B]" />
-                    <span>Utilisation des Boîtes</span>
-                  </CardTitle>
+                <div className="space-y-4">
+                  {/* Title and Controls Row */}
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center space-x-2">
+                      <Package className="w-5 h-5 text-[#6B8E4B]" />
+                      <span>Utilisation des Boîtes</span>
+                    </CardTitle>
+                    <div className="flex items-center space-x-3">
+                      {/* Box Type Stats */}
+                      <div className="flex items-center space-x-2">
+                        {boxTypeStats.map((stat, index) => (
+                          <Badge
+                            key={stat.type}
+                            variant="secondary"
+                            className={`text-xs ${getBoxTypeColor(stat.type)} animate-slideInRight transition-all duration-300 hover:scale-110`}
+                            style={{ animationDelay: `${index * 100}ms` }}
+                          >
+                            {stat.label}: {stat.count}
+                          </Badge>
+                        ))}
+                      </div>
+                      {/* Filter */}
+                      <div className="flex items-center space-x-2">
+                        <Filter className="w-4 h-4 text-gray-500" />
+                        <Select value={boxFilter} onValueChange={setBoxFilter}>
+                          <SelectTrigger className="w-36 h-8 transition-all duration-200 hover:shadow-md">
+                            <SelectValue placeholder="Filtrer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tous les types</SelectItem>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="nchira">Nchira</SelectItem>
+                            <SelectItem value="chkara">Chkara</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Modern Search Bar Row */}
                   <div className="flex items-center space-x-3">
-                    {/* Box Type Stats */}
-                    <div className="flex items-center space-x-2">
-                      {boxTypeStats.map((stat, index) => (
-                        <Badge
-                          key={stat.type}
-                          variant="secondary"
-                          className={`text-xs ${getBoxTypeColor(stat.type)} animate-slideInRight transition-all duration-300 hover:scale-110`}
-                          style={{ animationDelay: `${index * 100}ms` }}
+                    <div className="flex-1 relative group">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#6B8E4B] transition-colors duration-200" />
+                      </div>
+                      <Input
+                        type="text"
+                        placeholder="Rechercher par ID de boîte..."
+                        value={boxSearchTerm}
+                        onChange={(e) => setBoxSearchTerm(e.target.value)}
+                        className="pl-10 pr-10 h-10 bg-white border-gray-200 focus:border-[#6B8E4B] focus:ring-[#6B8E4B] transition-all duration-200 hover:shadow-sm focus:shadow-md"
+                      />
+                      {boxSearchTerm && (
+                        <button
+                          onClick={() => setBoxSearchTerm('')}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors duration-200"
                         >
-                          {stat.label}: {stat.count}
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Search Results Badge */}
+                    {boxSearchTerm && (
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          variant="outline" 
+                          className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-medium"
+                        >
+                          {filteredBoxDetails.length} résultat{filteredBoxDetails.length !== 1 ? 's' : ''}
                         </Badge>
-                      ))}
-                    </div>
-                    {/* Filter */}
-                    <div className="flex items-center space-x-2">
-                      <Filter className="w-4 h-4 text-gray-500" />
-                      <Select value={boxFilter} onValueChange={setBoxFilter}>
-                        <SelectTrigger className="w-36 h-8 transition-all duration-200 hover:shadow-md">
-                          <SelectValue placeholder="Filtrer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tous les types</SelectItem>
-                          <SelectItem value="normal">Normal</SelectItem>
-                          <SelectItem value="nchira">Nchira</SelectItem>
-                          <SelectItem value="chkara">Chkara</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        {filteredBoxDetails.length === 0 && (
+                          <Badge 
+                            variant="outline" 
+                            className="bg-orange-50 text-orange-700 border-orange-200 text-xs font-medium"
+                          >
+                            Aucun résultat
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -869,6 +1001,11 @@ export default function Dashboard() {
                       <h4 className="text-sm font-semibold text-[#2C3E50]">
                         Détail des Boîtes Utilisées ({filteredBoxDetails.length})
                       </h4>
+                      {boxSearchTerm && (
+                        <Badge variant="outline" className="text-xs bg-[#6B8E4B]/10 text-[#6B8E4B] border-[#6B8E4B]/20 animate-pulse">
+                          🔍 Recherche active
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                         💡 Cliquez sur un nom d'agriculteur pour le voir dans la gestion des olives
                       </Badge>
@@ -963,11 +1100,18 @@ export default function Dashboard() {
                     <div className="text-center py-8 text-gray-500 animate-fadeIn">
                       <Package className="w-12 h-12 mx-auto mb-2 text-gray-300 animate-bounce" />
                       <p className="text-sm">
-                        {boxFilter === 'all' 
-                          ? 'Aucune boîte utilisée pour le moment' 
-                          : `Aucune boîte de type ${getBoxTypeLabel(boxFilter)} utilisée`
+                        {boxSearchTerm 
+                          ? `Aucune boîte trouvée pour "${boxSearchTerm}"`
+                          : boxFilter === 'all' 
+                            ? 'Aucune boîte utilisée pour le moment' 
+                            : `Aucune boîte de type ${getBoxTypeLabel(boxFilter)} utilisée`
                         }
                       </p>
+                      {boxSearchTerm && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Essayez de modifier votre recherche ou de changer le filtre
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -977,10 +1121,25 @@ export default function Dashboard() {
             {/* Recent Activity */}
             <Card className="border-0 shadow-lg lg:col-span-2 animate-fadeInUp transition-all duration-300 hover:shadow-xl" style={{ animationDelay: '200ms' }}>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Activity className="w-5 h-5 text-[#6B8E4B]" />
-                  <span>Activité Récente</span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <Activity className="w-5 h-5 text-[#6B8E4B]" />
+                    <span>Activité Récente</span>
+                  </CardTitle>
+                  <Button
+                    onClick={() => setShowAllActivities(true)}
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center space-x-2 text-[#6B8E4B] hover:text-[#5A7A3F] hover:bg-[#6B8E4B]/10 transition-all duration-200 group"
+                    title="Voir toutes les activités"
+                  >
+                    <Eye className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
+                    <span className="text-sm font-medium">Voir tout</span>
+                    <Badge variant="outline" className="text-xs bg-[#6B8E4B]/10 text-[#6B8E4B] border-[#6B8E4B]/20">
+                      {data.recentActivity.length}
+                    </Badge>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -1054,6 +1213,305 @@ export default function Dashboard() {
           </Card>
         </main>
       </div>
+
+      {/* All Activities Modal */}
+      {showAllActivities && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn"
+          onClick={() => setShowAllActivities(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Historique Complet des Activités</h2>
+                    <p className="text-sm text-white/80">
+                      Toutes les activités de l'application ({data.recentActivity.length} activités)
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setShowAllActivities(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/20 transition-all duration-200"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 max-h-[calc(90vh-120px)] overflow-y-auto">
+              {data.recentActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Search Bar */}
+                  <div className="relative mb-6">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                                         <Input
+                       type="text"
+                       placeholder="Rechercher par nom d'agriculteur, boîte, montant..."
+                       value={activitySearchTerm}
+                       onChange={(e) => setActivitySearchTerm(e.target.value)}
+                       className="pl-10 pr-10 h-10 bg-white border-gray-200 focus:border-[#6B8E4B] focus:ring-[#6B8E4B] transition-all duration-200"
+                     />
+                    {activitySearchTerm && (
+                      <button
+                        onClick={() => setActivitySearchTerm('')}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                                         {activitySearchTerm && (
+                       <div className="absolute -bottom-8 left-0">
+                         <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                           {filteredActivities.length} résultat{filteredActivities.length !== 1 ? 's' : ''}
+                         </Badge>
+                       </div>
+                     )}
+                     
+                     {/* Search Tips */}
+                     {!activitySearchTerm && (
+                       <div className="absolute -bottom-8 left-0">
+                         <div className="flex items-center space-x-2 text-xs text-gray-500">
+                           <span>💡 Recherche intelligente:</span>
+                           <div className="flex items-center space-x-1">
+                             <Badge variant="outline" className="text-[10px] px-1 py-0 bg-gray-50 text-gray-600 border-gray-200">
+                               Nom agriculteur
+                             </Badge>
+                             <Badge variant="outline" className="text-[10px] px-1 py-0 bg-gray-50 text-gray-600 border-gray-200">
+                               ID boîte
+                             </Badge>
+                             <Badge variant="outline" className="text-[10px] px-1 py-0 bg-gray-50 text-gray-600 border-gray-200">
+                               Montant
+                             </Badge>
+                           </div>
+                         </div>
+                       </div>
+                     )}
+                  </div>
+
+                  {/* Activity Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                      <div className="flex items-center space-x-2">
+                        <Users className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-800">Agriculteurs</span>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-900 mt-1">
+                        {activitySearchTerm 
+                          ? filteredActivities.filter(a => a.type === 'farmer_added').length
+                          : data.recentActivity.filter(a => a.type === 'farmer_added').length
+                        }
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                      <div className="flex items-center space-x-2">
+                        <Archive className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800">Traitements</span>
+                      </div>
+                      <p className="text-2xl font-bold text-green-900 mt-1">
+                        {activitySearchTerm 
+                          ? filteredActivities.filter(a => a.type === 'session_completed').length
+                          : data.recentActivity.filter(a => a.type === 'session_completed').length
+                        }
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                      <div className="flex items-center space-x-2">
+                        <Package className="w-4 h-4 text-purple-600" />
+                        <span className="text-sm font-medium text-purple-800">Sessions</span>
+                      </div>
+                      <p className="text-2xl font-bold text-purple-900 mt-1">
+                        {activitySearchTerm 
+                          ? filteredActivities.filter(a => a.type === 'session_created').length
+                          : data.recentActivity.filter(a => a.type === 'session_created').length
+                        }
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                      <div className="flex items-center space-x-2">
+                        <DollarSign className="w-4 h-4 text-orange-600" />
+                        <span className="text-sm font-medium text-orange-800">Paiements</span>
+                      </div>
+                      <p className="text-2xl font-bold text-orange-900 mt-1">
+                        {activitySearchTerm 
+                          ? filteredActivities.filter(a => a.type === 'payment_received').length
+                          : data.recentActivity.filter(a => a.type === 'payment_received').length
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Activities List */}
+                  <div className="space-y-3">
+                    {filteredActivities.length > 0 ? (
+                      filteredActivities.map((activity, index) => (
+                      <div 
+                        key={activity.id} 
+                        className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200 animate-slideInUp"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <div className="flex items-start space-x-4">
+                          {/* Activity Icon */}
+                          <div className="flex-shrink-0">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#6B8E4B]/10 to-[#F4D03F]/10 border border-[#6B8E4B]/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                              {getActivityIcon(activity.type)}
+                            </div>
+                          </div>
+
+                          {/* Activity Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                                                 <p className="text-sm font-semibold text-[#2C3E50] group-hover:text-[#6B8E4B] transition-colors duration-200">
+                                   {activitySearchTerm ? 
+                                     // Highlight search matches in description
+                                     activity.description.split(new RegExp(`(${activitySearchTerm})`, 'gi')).map((part, index) => 
+                                       part.toLowerCase() === activitySearchTerm.toLowerCase() ? 
+                                         <span key={index} className="bg-yellow-200 text-yellow-900 px-1 rounded font-bold">
+                                           {part}
+                                         </span> : part
+                                     ) : 
+                                     activity.description
+                                   }
+                                 </p>
+                                <div className="flex items-center space-x-4 mt-2">
+                                  <div className="flex items-center space-x-1 text-xs text-gray-500">
+                                    <Clock className="w-3 h-3" />
+                                    <span>{getTimeAgo(activity.timestamp)}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1 text-xs text-gray-500">
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(activity.timestamp).toLocaleDateString('fr-FR', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                                                             {/* Amount Display - Only for payment activities */}
+                               {activity.type === 'payment_received' && activity.amount && (
+                                 <div className="flex-shrink-0 ml-4">
+                                   <div className="bg-gradient-to-r from-green-50 to-green-100 px-3 py-1 rounded-full border border-green-200">
+                                     <p className="text-sm font-bold text-green-700">
+                                       {formatCurrency(activity.amount)}
+                                     </p>
+                                   </div>
+                                 </div>
+                               )}
+                            </div>
+
+                                                         {/* Box IDs Display - Only for completed sessions */}
+                             {activity.type === 'session_completed' && (() => {
+                               const boxIds = activity.metadata?.boxIds || []
+                               const boxDetails = activity.metadata?.boxDetails || []
+                               const hasBoxes = (Array.isArray(boxIds) && boxIds.length > 0) || (Array.isArray(boxDetails) && boxDetails.length > 0)
+                               
+                               if (!hasBoxes) return null
+                               
+                               const displayBoxes = boxDetails.length > 0 ? boxDetails : boxIds
+                               const boxCount = displayBoxes.length
+                               
+                               return (
+                                 <div className="mt-3 pt-3 border-t border-gray-100">
+                                   <div className="flex items-center space-x-2 mb-2">
+                                     <Package className="w-3 h-3 text-gray-500" />
+                                     <span className="text-xs font-medium text-gray-600">Boîtes traitées:</span>
+                                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                       {boxCount} boîte{boxCount > 1 ? 's' : ''}
+                                     </Badge>
+                                   </div>
+                                   <div className="flex flex-wrap gap-1.5">
+                                     {displayBoxes.map((box: any, index: number) => {
+                                       // Handle both boxId strings and boxDetail objects
+                                       const boxId = typeof box === 'string' ? box : box.id || box.boxId
+                                       const boxType = typeof box === 'string' ? 
+                                         (box.toLowerCase().includes('chkara') ? 'chkara' : 
+                                          box.toLowerCase().includes('nchira') ? 'nchira' : 'normal') :
+                                         (box.type || 'normal')
+                                       
+                                       return (
+                                         <div key={index} className="group relative">
+                                           <Badge 
+                                             variant="outline" 
+                                             className={`text-xs cursor-help transition-all duration-200 hover:scale-110 ${
+                                               boxType === 'nchira' ? 'bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100' :
+                                               boxType === 'chkara' ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100' :
+                                               'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                                             }`}
+                                           >
+                                             {boxId}
+                                           </Badge>
+                                           {/* Tooltip with box type */}
+                                           <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-10">
+                                             {boxType.charAt(0).toUpperCase() + boxType.slice(1)}
+                                           </div>
+                                         </div>
+                                       )
+                                     })}
+                                   </div>
+                                 </div>
+                               )
+                             })()}
+                           </div>
+                         </div>
+                       </div>
+                     ))
+                   ) : (
+                     <div className="text-center py-8">
+                       <Search className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                       <p className="text-sm text-gray-500">
+                         Aucune activité trouvée pour "{activitySearchTerm}"
+                       </p>
+                     </div>
+                   )}
+                   </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Activity className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucune activité</h3>
+                  <p className="text-sm text-gray-500">
+                    Les activités apparaîtront ici au fur et à mesure de l'utilisation de l'application
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>Dernière mise à jour: {data.lastUpdated}</span>
+                </div>
+                <Button
+                  onClick={() => setShowAllActivities(false)}
+                  className="bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white"
+                >
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
