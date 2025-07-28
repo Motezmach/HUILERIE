@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -134,6 +134,7 @@ export default function OliveManagement() {
   const [farmers, setFarmers] = useState<Farmer[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const rebuildProcessedRef = useRef(false)
 
   // Initialize user
   useEffect(() => {
@@ -240,6 +241,13 @@ export default function OliveManagement() {
   // Load farmers on component mount
   useEffect(() => {
     loadFarmers()
+    // Reset rebuild processed flag on mount
+    rebuildProcessedRef.current = false
+    
+    // Cleanup function to reset ref on unmount
+    return () => {
+      rebuildProcessedRef.current = false
+    }
   }, [])
 
   // Auto-select first farmer after farmers are loaded (only once)
@@ -260,26 +268,38 @@ export default function OliveManagement() {
 
   // Handle rebuild farmer selection
   useEffect(() => {
-    console.log('=== OLIVE MANAGEMENT REBUILD CHECK ===')
+    // Skip if already processed or if we don't have rebuild data
     const rebuildFarmerId = localStorage.getItem("rebuildFarmerId")
+    if (!rebuildFarmerId || rebuildProcessedRef.current) {
+      return
+    }
+
+    console.log('=== OLIVE MANAGEMENT REBUILD CHECK ===')
     const rebuildFarmerName = localStorage.getItem("rebuildFarmerName")
     
     console.log('Rebuild data from localStorage:', { rebuildFarmerId, rebuildFarmerName })
     console.log('Current state:', { farmersCount: farmers.length, loading, selectedFarmer: selectedFarmer?.name })
     
-    if (rebuildFarmerId && farmers.length > 0 && !loading) {
+    // Only proceed if we have rebuild data and farmers are loaded
+    if (farmers.length > 0 && !loading) {
       console.log('Attempting to rebuild farmer:', { rebuildFarmerId, rebuildFarmerName, farmersCount: farmers.length })
       console.log('Available farmers:', farmers.map(f => ({ id: f.id, name: f.name })))
       
       const farmer = farmers.find((f) => f.id === rebuildFarmerId)
       if (farmer) {
         console.log('✅ Found farmer for rebuild:', farmer.name)
-        setSelectedFarmer(farmer)
-        showNotification(`Agriculteur ${farmer.name} sélectionné pour reconstruction`, "success")
+        // Only auto-select if no farmer is currently selected
+        if (!selectedFarmer) {
+          setSelectedFarmer(farmer)
+          showNotification(`Agriculteur ${farmer.name} sélectionné pour reconstruction`, "success")
+        } else {
+          showNotification(`Agriculteur ${farmer.name} disponible pour reconstruction`, "success")
+        }
         
-        // Clear localStorage after successful selection
+        // Clear localStorage immediately after successful selection
         localStorage.removeItem("rebuildFarmerId")
         localStorage.removeItem("rebuildFarmerName")
+        rebuildProcessedRef.current = true
         console.log('✅ Cleared localStorage after successful rebuild')
       } else {
         console.log('❌ Farmer not found in current farmers list:', { 
@@ -291,9 +311,10 @@ export default function OliveManagement() {
         const farmerDisplayName = rebuildFarmerName || "cet agriculteur"
         showNotification(`${farmerDisplayName} a été supprimé. Vous devez créer l'agriculteur à nouveau.`, "warning")
         
-        // Clear localStorage after showing error
+        // Clear localStorage immediately after showing error
         localStorage.removeItem("rebuildFarmerId")
         localStorage.removeItem("rebuildFarmerName")
+        rebuildProcessedRef.current = true
         console.log('❌ Cleared localStorage after rebuild error')
       }
     } else {
@@ -304,7 +325,7 @@ export default function OliveManagement() {
       })
     }
     console.log('=== OLIVE MANAGEMENT REBUILD CHECK END ===')
-  }, [farmers, loading])
+  }, [farmers, loading]) // Removed selectedFarmer from dependencies to prevent loops
 
   const showNotification = (message: string, type: "error" | "success" | "warning") => {
     setNotification({ message, type })
@@ -1025,6 +1046,12 @@ export default function OliveManagement() {
 
   // Handle farmer selection with proper async handling
   const handleFarmerSelection = async (farmer: Farmer) => {
+    // Prevent reloading if the same farmer is already selected
+    if (selectedFarmer?.id === farmer.id) {
+      console.log('Farmer already selected, skipping reload:', farmer.name)
+      return
+    }
+    
     // Set the farmer immediately for UI responsiveness
     setSelectedFarmer(farmer)
     

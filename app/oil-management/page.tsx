@@ -1481,14 +1481,14 @@ export default function OilManagement() {
                                   {session.boxDetails && session.boxDetails.length > 0 ? (
                                     session.boxDetails.map((box, index) => (
                                       <div key={index} className="group relative">
-                                                                  <Badge 
-                            variant="outline" 
-                            className={`text-xs cursor-help ${
-                              box.type === 'nchira' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' :
+                                        <Badge 
+                                          variant="outline" 
+                                          className={`text-xs cursor-help ${
+                                            box.type === 'nchira' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' :
                               box.type === 'chkara' ? 'bg-blue-50 border-blue-300 text-blue-700' :
                               'bg-green-50 border-green-200 text-green-700'
-                            }`}
-                          >
+                                          }`}
+                                        >
                                           {box.id}
                                         </Badge>
                                         {/* Tooltip with detailed info */}

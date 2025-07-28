@@ -155,16 +155,16 @@ export default function Dashboard() {
   // Initialize user and check authentication
   useEffect(() => {
     const checkAuth = () => {
-      if (!isAuthenticated()) {
+    if (!isAuthenticated()) {
         console.log('❌ User not authenticated, redirecting to login')
-        router.push('/login')
+      router.push('/login')
         return false
-      }
-      
-      const currentUser = getCurrentUser()
-      if (!currentUser) {
+    }
+    
+    const currentUser = getCurrentUser()
+    if (!currentUser) {
         console.log('❌ No user data found, redirecting to login')
-        router.push('/login')
+      router.push('/login')
         return false
       }
       
@@ -897,40 +897,40 @@ export default function Dashboard() {
               <CardHeader className="pb-4">
                 <div className="space-y-4">
                   {/* Title and Controls Row */}
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center space-x-2">
-                      <Package className="w-5 h-5 text-[#6B8E4B]" />
-                      <span>Utilisation des Boîtes</span>
-                    </CardTitle>
-                    <div className="flex items-center space-x-3">
-                      {/* Box Type Stats */}
-                      <div className="flex items-center space-x-2">
-                        {boxTypeStats.map((stat, index) => (
-                          <Badge
-                            key={stat.type}
-                            variant="secondary"
-                            className={`text-xs ${getBoxTypeColor(stat.type)} animate-slideInRight transition-all duration-300 hover:scale-110`}
-                            style={{ animationDelay: `${index * 100}ms` }}
-                          >
-                            {stat.label}: {stat.count}
-                          </Badge>
-                        ))}
-                      </div>
-                      {/* Filter */}
-                      <div className="flex items-center space-x-2">
-                        <Filter className="w-4 h-4 text-gray-500" />
-                        <Select value={boxFilter} onValueChange={setBoxFilter}>
-                          <SelectTrigger className="w-36 h-8 transition-all duration-200 hover:shadow-md">
-                            <SelectValue placeholder="Filtrer" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tous les types</SelectItem>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="nchira">Nchira</SelectItem>
-                            <SelectItem value="chkara">Chkara</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <Package className="w-5 h-5 text-[#6B8E4B]" />
+                    <span>Utilisation des Boîtes</span>
+                  </CardTitle>
+                  <div className="flex items-center space-x-3">
+                    {/* Box Type Stats */}
+                    <div className="flex items-center space-x-2">
+                      {boxTypeStats.map((stat, index) => (
+                        <Badge
+                          key={stat.type}
+                          variant="secondary"
+                          className={`text-xs ${getBoxTypeColor(stat.type)} animate-slideInRight transition-all duration-300 hover:scale-110`}
+                          style={{ animationDelay: `${index * 100}ms` }}
+                        >
+                          {stat.label}: {stat.count}
+                        </Badge>
+                      ))}
+                    </div>
+                    {/* Filter */}
+                    <div className="flex items-center space-x-2">
+                      <Filter className="w-4 h-4 text-gray-500" />
+                      <Select value={boxFilter} onValueChange={setBoxFilter}>
+                        <SelectTrigger className="w-36 h-8 transition-all duration-200 hover:shadow-md">
+                          <SelectValue placeholder="Filtrer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tous les types</SelectItem>
+                          <SelectItem value="normal">Normal</SelectItem>
+                          <SelectItem value="nchira">Nchira</SelectItem>
+                          <SelectItem value="chkara">Chkara</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     </div>
                   </div>
 
@@ -1103,8 +1103,8 @@ export default function Dashboard() {
                         {boxSearchTerm 
                           ? `Aucune boîte trouvée pour "${boxSearchTerm}"`
                           : boxFilter === 'all' 
-                            ? 'Aucune boîte utilisée pour le moment' 
-                            : `Aucune boîte de type ${getBoxTypeLabel(boxFilter)} utilisée`
+                          ? 'Aucune boîte utilisée pour le moment' 
+                          : `Aucune boîte de type ${getBoxTypeLabel(boxFilter)} utilisée`
                         }
                       </p>
                       {boxSearchTerm && (
@@ -1122,10 +1122,10 @@ export default function Dashboard() {
             <Card className="border-0 shadow-lg lg:col-span-2 animate-fadeInUp transition-all duration-300 hover:shadow-xl" style={{ animationDelay: '200ms' }}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center space-x-2">
-                    <Activity className="w-5 h-5 text-[#6B8E4B]" />
-                    <span>Activité Récente</span>
-                  </CardTitle>
+                <CardTitle className="flex items-center space-x-2">
+                  <Activity className="w-5 h-5 text-[#6B8E4B]" />
+                  <span>Activité Récente</span>
+                </CardTitle>
                   <Button
                     onClick={() => setShowAllActivities(true)}
                     variant="ghost"
