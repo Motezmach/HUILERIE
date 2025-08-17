@@ -81,7 +81,8 @@ interface Box {
 interface BulkBoxEntry {
   id: string
   weight: string
-  error?: string
+  idError?: string
+  weightError?: string
 }
 
 interface ProcessingSession {
@@ -130,6 +131,7 @@ export default function OliveManagement() {
     type: "normal" as "nchira" | "chkara" | "normal",
     weight: "",
   })
+  const [boxFormErrors, setBoxFormErrors] = useState<{ id?: string; weight?: string }>({})
 
   const [farmers, setFarmers] = useState<Farmer[]>([])
   const [loading, setLoading] = useState(true)
@@ -573,7 +575,42 @@ export default function OliveManagement() {
 
   // Box CRUD operations
   const handleAddBox = async () => {
-    if (!selectedFarmer || !boxForm.weight) return
+    if (!selectedFarmer) {
+      showNotification("Veuillez sélectionner un agriculteur avant d'ajouter une boîte", "warning")
+      return
+    }
+
+    // Clear previous errors
+    setBoxFormErrors({})
+
+    // Client-side validation before API call
+    // Validate ID for non-Chkara
+    if (boxForm.type !== "chkara") {
+      const rawId = (boxForm.id || "").trim()
+      if (!rawId) {
+        setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte est requis" }))
+        return
+      }
+
+      const numId = Number.parseInt(rawId)
+      if (isNaN(numId) || numId < 1 || numId > 600) {
+        setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte doit être entre 1 et 600" }))
+        return
+      }
+
+      const duplicateMsg = validateBoxId(rawId)
+      if (duplicateMsg) {
+        setBoxFormErrors((prev) => ({ ...prev, id: duplicateMsg }))
+        return
+      }
+    }
+
+    // Validate weight
+    const weightVal = Number.parseFloat(boxForm.weight)
+    if (isNaN(weightVal) || weightVal <= 0) {
+      setBoxFormErrors((prev) => ({ ...prev, weight: "Veuillez saisir un poids valide supérieur à 0" }))
+      return
+    }
 
     setCreating(true)
     try {
@@ -583,37 +620,22 @@ export default function OliveManagement() {
       // Enhanced validation for non-Chkara boxes
       if (boxForm.type !== "chkara") {
         if (!boxId || boxId.trim() === "") {
-          showNotification("L'ID de la boîte est requis", "error")
+          setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte est requis" }))
           setCreating(false)
           return
         }
 
-        // Validate ID range (1-600)
-        const numId = parseInt(boxId.trim())
-        if (isNaN(numId) || numId < 1 || numId > 600) {
-          showNotification("L'ID de la boîte doit être entre 1 et 600", "error")
-          setCreating(false)
-          return
-        }
-
-        // Check if ID is already used
-        const validationError = validateBoxId(boxId.trim())
-      if (validationError) {
-        showNotification(validationError, "error")
-          setCreating(false)
-        return
-      }
-
+        // Normalize ID
         boxId = boxId.trim()
       }
 
       // Validate weight
       const weight = Number.parseFloat(boxForm.weight)
       if (isNaN(weight) || weight <= 0) {
-        showNotification("Veuillez saisir un poids valide supérieur à 0", "error")
+        setBoxFormErrors((prev) => ({ ...prev, weight: "Veuillez saisir un poids valide supérieur à 0" }))
         setCreating(false)
         return
-    }
+      }
 
       const response = await farmersApi.addBox(selectedFarmer.id, {
       id: boxId,
@@ -641,6 +663,7 @@ export default function OliveManagement() {
         // Reset form and close dialog
     setBoxForm({ id: "", type: "normal", weight: "" })
     setIsAddBoxOpen(false)
+    setBoxFormErrors({})
 
         // Show success notification with box details
         const boxTypeText = boxForm.type === "chkara" ? "Sac Chkara" : `Boîte ${boxId}`
@@ -652,14 +675,11 @@ export default function OliveManagement() {
         // Enhanced error handling with specific messages
         const errorMessage = response.error || 'Erreur lors de l\'assignation'
         
-        if (errorMessage.includes("n'existe pas dans l'inventaire")) {
-          showNotification(`Boîte ${boxId} n'existe pas dans l'inventaire de l'usine (IDs disponibles: 1-600)`, "error")
-        } else if (errorMessage.includes("n'est pas disponible")) {
-          showNotification(`Boîte ${boxId} n'est pas disponible (déjà utilisée par un autre agriculteur)`, "error")
-        } else if (errorMessage.includes("déjà utilisé") || errorMessage.includes("already exists")) {
-          showNotification(`L'ID ${boxId} est déjà utilisé. Veuillez choisir un autre ID entre 1 et 600.`, "error")
-        } else if (errorMessage.includes("600") || errorMessage.includes("range")) {
-          showNotification("L'ID de la boîte doit être entre 1 et 600", "error")
+        // Map backend errors to field-level errors where possible
+        if (errorMessage.includes("n'existe pas dans l'inventaire") || errorMessage.includes("range") || errorMessage.includes("600")) {
+          setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte doit être entre 1 et 600" }))
+        } else if (errorMessage.includes("n'est pas disponible") || errorMessage.includes("déjà utilisé") || errorMessage.includes("already exists")) {
+          setBoxFormErrors((prev) => ({ ...prev, id: "Cet ID de boîte est déjà utilisé" }))
         } else {
           showNotification(errorMessage, 'error')
         }
@@ -848,56 +868,89 @@ export default function OliveManagement() {
   }
 
   const updateBulkBox = (index: number, field: "id" | "weight", value: string) => {
-    setBulkBoxes((prev) =>
-      prev.map((box, i) => {
-        if (i === index) {
-          const updated = { ...box, [field]: value }
-          if (field === "id" && value.trim()) {
-            // Enhanced validation for bulk box IDs
-            const numId = parseInt(value.trim())
+    setBulkBoxes((prev) => {
+      // Update the changed field first
+      const next = prev.map((box, i) => {
+        if (i !== index) return box
+        const updated: BulkBoxEntry = { ...box, [field]: value }
+        // Validate only the edited field here; do not clear the other field's error
+        if (field === "id") {
+          const idTrim = value.trim()
+          if (!idTrim) {
+            updated.idError = "L'ID est requis"
+          } else {
+            const numId = parseInt(idTrim)
             if (isNaN(numId) || numId < 1 || numId > 600) {
-              updated.error = "L'ID doit être entre 1 et 600"
+              updated.idError = "L'ID doit être entre 1 et 600"
             } else {
-              // Check if this box is already used by this farmer
-              const isUsedByThisFarmer = selectedFarmer?.boxes.some(b => b.id === value.trim() && b.status === "in_use")
+              const isUsedByThisFarmer = selectedFarmer?.boxes.some(b => b.id === idTrim && b.status === "in_use")
               if (isUsedByThisFarmer) {
-                updated.error = "Cette boîte est déjà utilisée par cet agriculteur"
+                updated.idError = "Cette boîte est déjà utilisée par cet agriculteur"
               } else {
-                // Check if this box is used by another farmer
-                const isUsedByOtherFarmer = farmers.some(f => 
-                  f.id !== selectedFarmer?.id && 
-                  f.boxes.some(b => b.id === value.trim() && b.status === "in_use")
-                )
+                const isUsedByOtherFarmer = farmers.some(f => f.id !== selectedFarmer?.id && f.boxes.some(b => b.id === idTrim && b.status === "in_use"))
                 if (isUsedByOtherFarmer) {
-                  updated.error = "Cette boîte est utilisée par un autre agriculteur"
+                  updated.idError = "Cette boîte est utilisée par un autre agriculteur"
                 } else {
-                  updated.error = undefined
+                  updated.idError = undefined
                 }
               }
             }
-          } else if (field === "id" && !value.trim()) {
-            updated.error = "L'ID est requis"
-          } else if (field === "weight" && value.trim()) {
-            const weight = parseFloat(value.trim())
+          }
+        } else if (field === "weight") {
+          const wtTrim = value.trim()
+          if (!wtTrim) {
+            updated.weightError = undefined // don't show required until submit
+          } else {
+            const weight = parseFloat(wtTrim)
             if (isNaN(weight) || weight <= 0) {
-              updated.error = "Le poids doit être supérieur à 0"
+              updated.weightError = "Le poids doit être supérieur à 0"
             } else if (weight > 1000) {
-              updated.error = "Le poids semble trop élevé (max 1000 kg)"
+              updated.weightError = "Le poids semble trop élevé (max 1000 kg)"
             } else {
-              updated.error = undefined
+              updated.weightError = undefined
             }
           }
-          return updated
         }
-        return box
-      }),
-    )
+        return updated
+      })
+
+      // After updating the specific field, enforce duplicate ID detection across the whole batch
+      const idCounts: Record<string, number> = {}
+      next.forEach((b) => {
+        const idTrim = (b.id || "").trim()
+        if (idTrim) idCounts[idTrim] = (idCounts[idTrim] || 0) + 1
+      })
+
+      const withDupes = next.map((b) => {
+        const idTrim = (b.id || "").trim()
+        if (idTrim && idCounts[idTrim] > 1) {
+          // Only set duplicate message if there isn't already a more specific id error
+          if (!b.idError) {
+            return { ...b, idError: "ID en double dans ce lot" }
+          }
+          return b
+        }
+        // Clear the duplicate message if it was previously set and no longer applies
+        if (b.idError === "ID en double dans ce lot") {
+          return { ...b, idError: undefined }
+        }
+        return b
+      })
+
+      return withDupes
+    })
   }
 
   const handleBulkAdd = async () => {
     if (!selectedFarmer) return
 
-    const validBoxes = bulkBoxes.filter((box) => !box.error && box.id && box.weight)
+    // Guard client-side: prevent submit if any errors
+    if (bulkBoxes.some((b) => b.idError || b.weightError || !b.id || !b.weight)) {
+      showNotification("Veuillez corriger les erreurs avant de soumettre.", "warning")
+      return
+    }
+
+    const validBoxes = bulkBoxes.filter((box) => !box.idError && !box.weightError && box.id && box.weight)
     if (validBoxes.length === 0) {
       showNotification("Aucune boîte valide à ajouter", "error")
       return
@@ -907,7 +960,14 @@ export default function OliveManagement() {
     const boxIds = validBoxes.map(box => box.id)
     const duplicateIds = boxIds.filter((id, index) => boxIds.indexOf(id) !== index)
     if (duplicateIds.length > 0) {
-      showNotification(`IDs en double détectés: ${duplicateIds.join(', ')}`, "error")
+      // Mark duplicates inline and block submission
+      setBulkBoxes(prev => prev.map(b => {
+        if (duplicateIds.includes(b.id)) {
+          return { ...b, idError: "ID en double dans ce lot" }
+        }
+        return b
+      }))
+      showNotification(`IDs en double détectés: ${duplicateIds.join(', ')}`, "warning")
       return
     }
 
@@ -1439,7 +1499,13 @@ export default function OliveManagement() {
                         )}
                       </div>
                       <div className="flex space-x-2">
-                        <Dialog open={isAddBoxOpen} onOpenChange={setIsAddBoxOpen}>
+                        <Dialog open={isAddBoxOpen} onOpenChange={(isOpen) => {
+                          setIsAddBoxOpen(isOpen)
+                          if (!isOpen) {
+                            setBoxForm({ id: "", type: "normal", weight: "" })
+                            setBoxFormErrors({})
+                          }
+                        }}>
                           <DialogTrigger asChild>
                             <Button size="sm" className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
                               <Plus className="w-4 h-4 mr-2" />
@@ -1478,9 +1544,25 @@ export default function OliveManagement() {
                                     min="1"
                                     max="600"
                                     value={boxForm.id}
-                                    onChange={(e) => setBoxForm((prev) => ({ ...prev, id: e.target.value }))}
+                                    onChange={(e) => {
+                                      const value = e.target.value
+                                      setBoxForm((prev) => ({ ...prev, id: value }))
+                                      // Live-clear error when user edits
+                                      if (boxFormErrors.id) {
+                                        setBoxFormErrors((prev) => ({ ...prev, id: undefined }))
+                                      }
+                                    }}
                                     placeholder="Saisir l'ID de la boîte (1-600)"
+                                    className={boxFormErrors.id ? "border-red-500 focus-visible:ring-red-500" : undefined}
+                                    aria-invalid={!!boxFormErrors.id}
+                                    aria-describedby={boxFormErrors.id ? "boxId-error" : undefined}
                                   />
+                                  {boxFormErrors.id && (
+                                    <div id="boxId-error" className="mt-1 flex items-center text-sm text-red-600">
+                                      <AlertCircle className="w-4 h-4 mr-1" />
+                                      <span>{boxFormErrors.id}</span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {boxForm.type === "chkara" && (
@@ -1497,14 +1579,30 @@ export default function OliveManagement() {
                                   type="number"
                                   step="0.1"
                                   value={boxForm.weight}
-                                  onChange={(e) => setBoxForm((prev) => ({ ...prev, weight: e.target.value }))}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    setBoxForm((prev) => ({ ...prev, weight: value }))
+                                    // Live-clear error when user edits
+                                    if (boxFormErrors.weight) {
+                                      setBoxFormErrors((prev) => ({ ...prev, weight: undefined }))
+                                    }
+                                  }}
                                   placeholder="Saisir le poids en kg"
+                                  className={boxFormErrors.weight ? "border-red-500 focus-visible:ring-red-500" : undefined}
+                                  aria-invalid={!!boxFormErrors.weight}
+                                  aria-describedby={boxFormErrors.weight ? "boxWeight-error" : undefined}
                                 />
+                                {boxFormErrors.weight && (
+                                  <div id="boxWeight-error" className="mt-1 flex items-center text-sm text-red-600">
+                                    <AlertCircle className="w-4 h-4 mr-1" />
+                                    <span>{boxFormErrors.weight}</span>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex space-x-2">
-                                <Button onClick={handleAddBox} className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
+                                <Button onClick={handleAddBox} className="bg-[#6B8E4B] hover:bg-[#5A7A3F]" disabled={creating}>
                                   <Save className="w-4 h-4 mr-2" />
-                                  Enregistrer boîte
+                                  {creating ? 'Enregistrement...' : 'Enregistrer boîte'}
                                 </Button>
                                 <Button variant="outline" onClick={() => setIsAddBoxOpen(false)}>
                                   <X className="w-4 h-4 mr-2" />
@@ -1574,46 +1672,59 @@ export default function OliveManagement() {
 
                                 <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
                                   {bulkBoxes.map((box, index) => (
-                                    <Card key={index} className={`p-4 ${box.error ? "border-red-300 bg-red-50" : ""}`}>
-                                      <div className="space-y-3">
-                                        <h4 className="font-medium">Boîte #{index + 1}</h4>
-                                        <div>
-                                          <Label>ID de la boîte (1-600)</Label>
-                                          <Input
-                                            type="number"
-                                            min="1"
-                                            max="600"
-                                            value={box.id}
-                                            onChange={(e) => updateBulkBox(index, "id", e.target.value)}
-                                            placeholder="ID de la boîte"
-                                          />
-                                          {box.error && <p className="text-xs text-red-600 mt-1">{box.error}</p>}
-                                        </div>
-                                        <div>
-                                          <Label>Poids (kg)</Label>
-                                          <Input
-                                            type="number"
-                                            step="0.1"
-                                            value={box.weight}
-                                            onChange={(e) => updateBulkBox(index, "weight", e.target.value)}
-                                            placeholder="Poids"
-                                          />
-                                        </div>
-                                      </div>
-                                    </Card>
-                                  ))}
+                                    <Card key={index} className={`p-4 ${box.idError || box.weightError ? "border-red-300 bg-red-50" : ""}`}>
+                                       <div className="space-y-3">
+                                         <h4 className="font-medium">Boîte #{index + 1}</h4>
+                                         <div>
+                                           <Label>ID de la boîte (1-600)</Label>
+                                           <Input
+                                             type="number"
+                                             min="1"
+                                             max="600"
+                                             value={box.id}
+                                             onChange={(e) => updateBulkBox(index, "id", e.target.value)}
+                                             placeholder="ID de la boîte"
+                                             className={box.idError ? "border-red-500 focus-visible:ring-red-500" : undefined}
+                                           />
+                                           {box.idError && (
+                                             <div className="mt-1 flex items-center text-xs text-red-600">
+                                               <AlertCircle className="w-3 h-3 mr-1" />
+                                               <span>{box.idError}</span>
+                                             </div>
+                                           )}
+                                         </div>
+                                         <div>
+                                           <Label>Poids (kg)</Label>
+                                           <Input
+                                             type="number"
+                                             step="0.1"
+                                             value={box.weight}
+                                             onChange={(e) => updateBulkBox(index, "weight", e.target.value)}
+                                             placeholder="Poids"
+                                             className={box.weightError ? "border-red-500 focus-visible:ring-red-500" : undefined}
+                                           />
+                                           {box.weightError && (
+                                             <div className="mt-1 flex items-center text-xs text-red-600">
+                                               <AlertCircle className="w-3 h-3 mr-1" />
+                                               <span>{box.weightError}</span>
+                                             </div>
+                                           )}
+                                         </div>
+                                       </div>
+                                     </Card>
+                                   ))}
                                 </div>
 
                                 {/* Validation summary */}
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                   <div className="flex items-center justify-between text-sm">
                                     <span className="text-gray-600">
-                                      Boîtes valides: <span className="font-medium text-green-600">{bulkBoxes.filter((b) => !b.error && b.id && b.weight).length}</span> / {bulkBoxes.length}
+                                      Boîtes valides: <span className="font-medium text-green-600">{bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id && b.weight).length}</span> / {bulkBoxes.length}
                                     </span>
                                     <span className="text-gray-600">
                                       Poids total: <span className="font-medium text-blue-600">
                                         {bulkBoxes
-                                          .filter((b) => !b.error && b.id && b.weight)
+                                          .filter((b) => !b.idError && !b.weightError && b.id && b.weight)
                                           .reduce((sum, b) => sum + parseFloat(b.weight), 0)
                                           .toFixed(1)} kg
                                       </span>
@@ -1624,11 +1735,11 @@ export default function OliveManagement() {
                                 <div className="flex space-x-2">
                                   <Button
                                     onClick={handleBulkAdd}
-                                    disabled={bulkBoxes.some((b) => b.error || !b.id || !b.weight)}
+                                    disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id || !b.weight)}
                                     className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
                                   >
                                     <Save className="w-4 h-4 mr-2" />
-                                    Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.error && b.id && b.weight).length})
+                                    Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id && b.weight).length})
                                   </Button>
                                   <Button variant="outline" onClick={() => setBulkStep(1)}>
                                     Retour
@@ -1652,7 +1763,13 @@ export default function OliveManagement() {
                         <p className="text-gray-500 mb-4">
                           Cet agriculteur n'a pas encore de boîtes enregistrées
                         </p>
-                        <Dialog open={isAddBoxOpen} onOpenChange={setIsAddBoxOpen}>
+                        <Dialog open={isAddBoxOpen} onOpenChange={(isOpen) => {
+                          setIsAddBoxOpen(isOpen)
+                          if (!isOpen) {
+                            setBoxForm({ id: "", type: "normal", weight: "" })
+                            setBoxFormErrors({})
+                          }
+                        }}>
                           <DialogTrigger asChild>
                             <Button className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
                               <Plus className="w-4 h-4 mr-2" />
