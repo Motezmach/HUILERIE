@@ -138,7 +138,7 @@ export const farmersApi = {
   addBox: (id: string, box: {
     id: string
     type: 'normal' | 'nchira' | 'chkara'
-    weight: number
+    weight?: number
   }): Promise<ApiResponse<any>> => 
     apiRequest(`/farmers/${id}/boxes`, {
       method: 'POST',
@@ -149,7 +149,7 @@ export const farmersApi = {
   addBoxes: (id: string, boxes: Array<{
     id: string
     type: 'normal' | 'nchira' | 'chkara'
-    weight: number
+    weight?: number
   }>): Promise<ApiResponse<any[]>> => 
     apiRequest(`/farmers/${id}/boxes`, {
       method: 'POST',
@@ -221,7 +221,7 @@ export const boxesApi = {
 
   // Update box
   update: (id: string, box: Partial<{
-    weight: number
+    weight: number | null
     type: 'normal' | 'nchira' | 'chkara'
   }>): Promise<ApiResponse<any>> => 
     apiRequest(`/boxes/${id}`, {

@@ -119,6 +119,9 @@ export default function OliveManagement() {
   const [user, setUser] = useState<any>(null)
   const [deletingFarmerId, setDeletingFarmerId] = useState<string | null>(null)
   const [boxViewMode, setBoxViewMode] = useState<"grid" | "list">("grid")
+  const [isBulkWeightsOpen, setIsBulkWeightsOpen] = useState(false)
+  const [missingWeightEntries, setMissingWeightEntries] = useState<{ id: string; type: Box["type"]; weight: string; error?: string }[]>([])
+  const bulkWeightRefs = useRef<Array<HTMLInputElement | null>>([])
 
   // Form states
   const [farmerForm, setFarmerForm] = useState({
@@ -417,15 +420,35 @@ export default function OliveManagement() {
     )
   }
 
-  const filteredFarmers = farmers.filter((farmer) => {
-    const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filterType === "all" || farmer.type === filterType
-    
-    // Check if farmer was added today
-    const matchesToday = !showTodayOnly || isToday(farmer.dateAdded)
-    
-    return matchesSearch && matchesFilter && matchesToday
-  })
+  const filteredFarmers = farmers
+    .filter((farmer) => {
+      const term = searchTerm.trim().toLowerCase()
+      const isNumericTerm = /^\d+$/.test(term)
+      const matchesName = farmer.name.toLowerCase().includes(term)
+      let matchesBoxId = false
+      if (term) {
+        if (isNumericTerm) {
+          matchesBoxId = farmer.boxes.some((box) => {
+            const idLower = box.id.toLowerCase()
+            if (/^\d+$/.test(idLower)) return idLower === term
+            const numericPart = idLower.replace(/\D/g, '')
+            return numericPart === term
+          })
+        } else {
+          matchesBoxId = farmer.boxes.some((box) => box.id.toLowerCase().includes(term))
+        }
+      }
+      const matchesSearch = term ? (matchesName || matchesBoxId) : true
+      const matchesFilter = filterType === "all" || farmer.type === filterType
+      const matchesToday = !showTodayOnly || isToday(farmer.dateAdded)
+      return matchesSearch && matchesFilter && matchesToday
+    })
+    .sort((a, b) => {
+      const aMissing = hasBoxesWithoutWeight(a)
+      const bMissing = hasBoxesWithoutWeight(b)
+      if (aMissing !== bMissing) return aMissing ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
 
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
@@ -606,10 +629,13 @@ export default function OliveManagement() {
     }
 
     // Validate weight
-    const weightVal = Number.parseFloat(boxForm.weight)
-    if (isNaN(weightVal) || weightVal <= 0) {
-      setBoxFormErrors((prev) => ({ ...prev, weight: "Veuillez saisir un poids valide supérieur à 0" }))
-      return
+    let weightVal: number | undefined = undefined
+    if (boxForm.weight.trim()) {
+      weightVal = Number.parseFloat(boxForm.weight)
+      if (isNaN(weightVal) || weightVal <= 0) {
+        // Ignore invalid weight when provided; allow empty or correct later
+        weightVal = undefined
+      }
     }
 
     setCreating(true)
@@ -629,21 +655,18 @@ export default function OliveManagement() {
         boxId = boxId.trim()
       }
 
-      // Validate weight
-      const weight = Number.parseFloat(boxForm.weight)
-      if (isNaN(weight) || weight <= 0) {
-        setBoxFormErrors((prev) => ({ ...prev, weight: "Veuillez saisir un poids valide supérieur à 0" }))
-        setCreating(false)
-        return
-      }
-
       const response = await farmersApi.addBox(selectedFarmer.id, {
-      id: boxId,
-      type: boxForm.type,
-        weight: weight,
+        id: boxId,
+        type: boxForm.type,
+        weight: weightVal,
       })
 
       if (response.success) {
+        // Show notification if weight was missing
+        if (!weightVal) {
+          showNotification(`Boîte ${boxId} ajoutée sans poids. Vous devrez ajouter le poids plus tard.`, "warning")
+        }
+        
         // Transform the response data properly
         const newBox = transformBoxFromDb(response.data)
 
@@ -662,12 +685,14 @@ export default function OliveManagement() {
 
         // Reset form and close dialog
     setBoxForm({ id: "", type: "normal", weight: "" })
+        setBoxFormErrors({})
     setIsAddBoxOpen(false)
-    setBoxFormErrors({})
 
         // Show success notification with box details
-        const boxTypeText = boxForm.type === "chkara" ? "Sac Chkara" : `Boîte ${boxId}`
-        showNotification(`${boxTypeText} assignée avec succès à ${selectedFarmer.name}!`, "success")
+        if (weightVal) {
+          const boxTypeText = boxForm.type === "chkara" ? "Sac Chkara" : `Boîte ${boxId}`
+          showNotification(`${boxTypeText} assignée avec succès à ${selectedFarmer.name}!`, "success")
+        }
 
         // Reload farmer data in background to ensure consistency (but don't await it)
         reloadFarmer(selectedFarmer.id).catch(console.error)
@@ -693,12 +718,24 @@ export default function OliveManagement() {
   }
 
   const handleEditBox = async () => {
-    if (!selectedFarmer || !editingBox || !boxForm.weight) return
+    if (!selectedFarmer || !editingBox) return
 
     setCreating(true)
     try {
+      // Parse weight: treat empty, 0 or invalid as missing (null)
+      const trimmed = boxForm.weight.trim()
+      let parsedWeight: number | null = null
+      if (trimmed) {
+        const num = Number.parseFloat(trimmed)
+        if (!isNaN(num) && num > 0) {
+          parsedWeight = num
+        } else {
+          parsedWeight = null
+        }
+      }
+
       const updateData: any = {
-        weight: Number.parseFloat(boxForm.weight),
+        weight: parsedWeight,
         type: boxForm.type,
       }
 
@@ -713,7 +750,7 @@ export default function OliveManagement() {
         // Update the box in local state immediately
         const updatedBox = {
       ...editingBox,
-      weight: Number.parseFloat(boxForm.weight),
+      weight: parsedWeight ?? 0,
           type: boxForm.type,
           id: updateData.id || editingBox.id
     }
@@ -899,13 +936,16 @@ export default function OliveManagement() {
         } else if (field === "weight") {
           const wtTrim = value.trim()
           if (!wtTrim) {
-            updated.weightError = undefined // don't show required until submit
+            updated.weightError = undefined // optional
           } else {
             const weight = parseFloat(wtTrim)
-            if (isNaN(weight) || weight <= 0) {
-              updated.weightError = "Le poids doit être supérieur à 0"
+            if (isNaN(weight)) {
+              updated.weightError = undefined // ignore non-numeric in number input
             } else if (weight > 1000) {
               updated.weightError = "Le poids semble trop élevé (max 1000 kg)"
+            } else if (weight <= 0) {
+              // treat 0 or negative as missing (no error)
+              updated.weightError = undefined
             } else {
               updated.weightError = undefined
             }
@@ -945,12 +985,12 @@ export default function OliveManagement() {
     if (!selectedFarmer) return
 
     // Guard client-side: prevent submit if any errors
-    if (bulkBoxes.some((b) => b.idError || b.weightError || !b.id || !b.weight)) {
+    if (bulkBoxes.some((b) => b.idError || b.weightError || !b.id)) {
       showNotification("Veuillez corriger les erreurs avant de soumettre.", "warning")
       return
     }
 
-    const validBoxes = bulkBoxes.filter((box) => !box.idError && !box.weightError && box.id && box.weight)
+    const validBoxes = bulkBoxes.filter((box) => !box.idError && !box.weightError && box.id)
     if (validBoxes.length === 0) {
       showNotification("Aucune boîte valide à ajouter", "error")
       return
@@ -976,7 +1016,7 @@ export default function OliveManagement() {
       const boxesToCreate = validBoxes.map((box) => ({
         id: box.id,
         type: "normal" as const,
-        weight: Number.parseFloat(box.weight),
+        weight: box.weight ? Number.parseFloat(box.weight) : undefined,
       }))
 
       const response = await farmersApi.addBoxes(selectedFarmer.id, boxesToCreate)
@@ -1028,6 +1068,13 @@ export default function OliveManagement() {
     const invalidBoxes = selectedBoxes.filter(box => box.status !== "in_use")
     if (invalidBoxes.length > 0) {
       showNotification("Certaines boîtes ne sont pas en cours d'utilisation", "error")
+      return
+    }
+
+    // Check if any selected boxes don't have weight
+    const boxesWithoutWeight = selectedBoxes.filter(box => !box.weight || box.weight === 0)
+    if (boxesWithoutWeight.length > 0) {
+      showNotification(`${boxesWithoutWeight.length} boîte(s) sélectionnée(s) n'ont pas de poids. Veuillez ajouter le poids avant de continuer.`, "warning")
       return
     }
 
@@ -1125,6 +1172,117 @@ export default function OliveManagement() {
     } catch (error) {
       console.error('Error reloading farmer data:', error)
       // If reload fails, we still have the farmer data from the list
+    }
+  }
+
+  // Helper function to check if farmer has boxes without weight
+  function hasBoxesWithoutWeight(farmer: Farmer): boolean {
+    return farmer.boxes.some(box => box.status === "in_use" && (!box.weight || box.weight === 0))
+  }
+
+  const openBulkWeightsDialog = (farmer: Farmer) => {
+    const missing = farmer.boxes
+      .filter(b => b.status === "in_use" && (!b.weight || b.weight === 0))
+      .map(b => ({ id: b.id, type: b.type, weight: "", error: "Requis" }))
+    if (missing.length === 0) return
+    setMissingWeightEntries(missing)
+    setIsBulkWeightsOpen(true)
+    // Focus first input after dialog opens
+    setTimeout(() => {
+      if (bulkWeightRefs.current[0]) bulkWeightRefs.current[0].focus()
+    }, 50)
+  }
+
+  const updateMissingWeight = (index: number, value: string) => {
+    setMissingWeightEntries(prev => prev.map((entry, i) => {
+      if (i !== index) return entry
+      const wt = value.trim()
+      let err: string | undefined
+      if (!wt) {
+        err = "Requis"
+      } else {
+        const num = parseFloat(wt)
+        if (isNaN(num)) err = "Invalide"
+        else if (num <= 0) err = "> 0"
+        else if (num > 1000) err = "> 1000"
+        else err = undefined
+      }
+      return { ...entry, weight: value, error: err }
+    }))
+  }
+
+  const focusNextMissing = (index: number) => {
+    const next = index + 1
+    if (bulkWeightRefs.current[next]) {
+      bulkWeightRefs.current[next]?.focus()
+      bulkWeightRefs.current[next]?.select?.()
+    }
+  }
+
+  const handleSaveAllWeights = async () => {
+    if (!selectedFarmer) return
+    // Validate all
+    let valid = true
+    setMissingWeightEntries(prev => prev.map(e => {
+      const wt = e.weight.trim()
+      let err: string | undefined
+      if (!wt) err = "Requis"
+      else {
+        const num = parseFloat(wt)
+        if (isNaN(num) || num <= 0) err = "> 0"
+        else if (num > 1000) err = "> 1000"
+      }
+      if (err) valid = false
+      return { ...e, error: err }
+    }))
+    if (!valid) return
+
+    setCreating(true)
+    try {
+      await Promise.all(missingWeightEntries.map(e => boxesApi.update(e.id, { weight: parseFloat(e.weight) })))
+      showNotification(`${missingWeightEntries.length} poids mis à jour avec succès`, "success")
+      setIsBulkWeightsOpen(false)
+      setMissingWeightEntries([])
+      await reloadFarmer(selectedFarmer.id)
+    } catch (err) {
+      console.error('Bulk weight update failed', err)
+      showNotification('Erreur lors de la mise à jour des poids', 'error')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Bulk delete selected boxes (release to AVAILABLE)
+  const handleBulkDeleteSelectedBoxes = async (farmer: Farmer) => {
+    const selectedBoxes = getSelectedBoxes(farmer)
+    if (selectedBoxes.length === 0) {
+      showNotification("Veuillez sélectionner au moins une boîte à supprimer", "warning")
+      return
+    }
+
+    const confirmMsg = `Libérer ${selectedBoxes.length} boîte(s) sélectionnée(s) ?\n\nElles deviendront disponibles pour d'autres agriculteurs.`
+    if (!confirm(confirmMsg)) return
+
+    setCreating(true)
+    try {
+      await Promise.all(selectedBoxes.map(b => boxesApi.delete(b.id)))
+
+      // Update local state: remove the deleted boxes
+      const remaining = farmer.boxes.filter(b => !selectedBoxes.some(sb => sb.id === b.id))
+
+      setFarmers(prev => prev.map(f => f.id === farmer.id ? { ...f, boxes: remaining } : f))
+      if (selectedFarmer?.id === farmer.id) {
+        setSelectedFarmer(prev => prev ? { ...prev, boxes: remaining } : null)
+      }
+
+      showNotification(`${selectedBoxes.length} boîte(s) libérée(s) avec succès`, "success")
+      // Background refresh
+      reloadFarmer(farmer.id).catch(console.error)
+    } catch (err) {
+      console.error('Bulk delete failed', err)
+      showNotification('Erreur lors de la suppression des boîtes sélectionnées', 'error')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -1318,7 +1476,7 @@ export default function OliveManagement() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Rechercher des agriculteurs..."
+                    placeholder="Rechercher par nom ou ID de boîte..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -1356,9 +1514,24 @@ export default function OliveManagement() {
                 <Card
                   key={farmer.id}
                   className={`cursor-pointer transition-all hover:shadow-md ${
-                    selectedFarmer?.id === farmer.id ? "ring-2 ring-[#6B8E4B] bg-[#6B8E4B]/5" : ""
+                    hasBoxesWithoutWeight(farmer)
+                      ? (
+                          selectedFarmer?.id === farmer.id
+                            ? "ring-2 ring-red-500 bg-red-50 border border-red-300"
+                            : "bg-red-50 border border-red-300 hover:bg-red-100"
+                        )
+                      : (
+                          selectedFarmer?.id === farmer.id
+                            ? "ring-2 ring-[#6B8E4B] bg-[#6B8E4B]/5"
+                            : ""
+                        )
                   }`}
-                  onClick={() => handleFarmerSelection(farmer)}
+                  onClick={() => {
+                    handleFarmerSelection(farmer)
+                    if (hasBoxesWithoutWeight(farmer)) {
+                      openBulkWeightsDialog(farmer)
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center space-x-3">
@@ -1574,6 +1747,7 @@ export default function OliveManagement() {
                               )}
                               <div>
                                 <Label htmlFor="boxWeight">Poids (kg)</Label>
+                                <p className="text-xs text-gray-500 mb-1">Optionnel - peut être ajouté plus tard</p>
                                 <Input
                                   id="boxWeight"
                                   type="number"
@@ -1587,7 +1761,7 @@ export default function OliveManagement() {
                                       setBoxFormErrors((prev) => ({ ...prev, weight: undefined }))
                                     }
                                   }}
-                                  placeholder="Saisir le poids en kg"
+                                  placeholder="Saisir le poids en kg (optionnel)"
                                   className={boxFormErrors.weight ? "border-red-500 focus-visible:ring-red-500" : undefined}
                                   aria-invalid={!!boxFormErrors.weight}
                                   aria-describedby={boxFormErrors.weight ? "boxWeight-error" : undefined}
@@ -1719,7 +1893,7 @@ export default function OliveManagement() {
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                   <div className="flex items-center justify-between text-sm">
                                     <span className="text-gray-600">
-                                      Boîtes valides: <span className="font-medium text-green-600">{bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id && b.weight).length}</span> / {bulkBoxes.length}
+                                      Boîtes valides: <span className="font-medium text-green-600">{bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length}</span> / {bulkBoxes.length}
                                     </span>
                                     <span className="text-gray-600">
                                       Poids total: <span className="font-medium text-blue-600">
@@ -1735,11 +1909,11 @@ export default function OliveManagement() {
                                 <div className="flex space-x-2">
                                   <Button
                                     onClick={handleBulkAdd}
-                                    disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id || !b.weight)}
+                                    disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id)}
                                     className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
                                   >
                                     <Save className="w-4 h-4 mr-2" />
-                                    Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id && b.weight).length})
+                                    Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length})
                                   </Button>
                                   <Button variant="outline" onClick={() => setBulkStep(1)}>
                                     Retour
@@ -1821,7 +1995,14 @@ export default function OliveManagement() {
                             <div className="text-center mb-3">
                               {getBoxIcon(box.type)}
                                 <p className={`font-semibold mt-2 ${box.status !== "in_use" ? 'text-gray-500' : 'text-[#2C3E50]'}`}>{box.id}</p>
-                                <p className={`text-sm ${box.status !== "in_use" ? 'text-gray-400' : 'text-gray-600'}`}>{box.weight} kg</p>
+                                <p className={`text-sm ${box.status !== "in_use" ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {box.weight && box.weight > 0 ? `${box.weight} kg` : (
+                                    <span className="text-orange-600 flex items-center justify-center">
+                                      <AlertCircle className="w-3 h-3 mr-1" />
+                                      Poids manquant
+                                    </span>
+                                  )}
+                                </p>
                                 {box.status !== "in_use" && (
                                   <p className="text-xs text-orange-600 mt-1 font-medium">✓ {box.status === "available" ? "Disponible" : "Traitée"}</p>
                                 )}
@@ -1886,7 +2067,14 @@ export default function OliveManagement() {
                                     {getBoxIcon(box.type)}
                                     <div>
                                       <p className={`font-semibold ${box.status !== "in_use" ? 'text-gray-500' : 'text-[#2C3E50]'}`}>{box.id}</p>
-                                      <p className={`text-sm ${box.status !== "in_use" ? 'text-gray-400' : 'text-gray-600'}`}>{box.weight} kg</p>
+                                      <p className={`text-sm ${box.status !== "in_use" ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {box.weight && box.weight > 0 ? `${box.weight} kg` : (
+                                          <span className="text-orange-600 flex items-center">
+                                            <AlertCircle className="w-3 h-3 mr-1" />
+                                            Poids manquant
+                                          </span>
+                                        )}
+                                      </p>
                                       {box.status !== "in_use" && (
                                         <p className="text-xs text-orange-600 font-medium">✓ {box.status === "available" ? "Disponible" : "Traitée"}</p>
                                       )}
@@ -1943,42 +2131,79 @@ export default function OliveManagement() {
                     {/* Processing Controls */}
                     {getSelectedBoxes(selectedFarmer).length > 0 && (
                       <div className="bg-gradient-to-r from-[#6B8E4B]/10 to-[#F4D03F]/10 rounded-lg p-6 border-2 border-[#6B8E4B]/20">
+                        {(() => {
+                          const selectedBoxes = getSelectedBoxes(selectedFarmer)
+                          const boxesWithWeight = selectedBoxes.filter(box => box.weight && box.weight > 0)
+                          const boxesWithoutWeight = selectedBoxes.filter(box => !box.weight || box.weight === 0)
+                          
+                          return (
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-semibold text-[#2C3E50] text-lg">
-                              {getSelectedBoxes(selectedFarmer).length} boîtes sélectionnées pour le traitement
+                              {selectedBoxes.length} boîtes sélectionnées pour le traitement
                             </p>
+                            {boxesWithoutWeight.length > 0 && (
+                              <div className="mb-2 p-2 bg-orange-50 border border-orange-200 rounded-md">
+                                <p className="text-sm text-orange-700 flex items-center">
+                                  <AlertCircle className="w-4 h-4 mr-1" />
+                                  {boxesWithoutWeight.length} boîte(s) sans poids - ajoutez le poids avant de continuer
+                                </p>
+                              </div>
+                            )}
                             <p className="text-gray-600 mb-2">
-                              Poids total: {getSelectedBoxes(selectedFarmer).reduce((sum, box) => sum + box.weight, 0)}{" "}
+                              Poids total: {boxesWithWeight.reduce((sum, box) => sum + box.weight, 0)}{" "}
                               kg
+                              {boxesWithoutWeight.length > 0 && (
+                                <span className="text-orange-600 ml-1">
+                                  ({boxesWithoutWeight.length} boîte(s) sans poids)
+                                </span>
+                              )}
                             </p>
                             <p className="text-sm text-gray-600">
                               Valeur estimée:{" "}
                               {(
-                                getSelectedBoxes(selectedFarmer).reduce((sum, box) => sum + box.weight, 0) *
+                                boxesWithWeight.reduce((sum, box) => sum + box.weight, 0) *
                                 selectedFarmer.pricePerKg
                               ).toFixed(2)}{" "}
                               DT
                             </p>
                           </div>
-                          <Button
-                            onClick={() => handleCompleteProcessing(selectedFarmer)}
-                            disabled={creating}
-                            className="bg-[#F4D03F] hover:bg-[#E6C547] text-[#8B4513] text-lg px-6 py-3 h-auto"
-                          >
-                            {creating ? (
-                              <>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              onClick={() => handleBulkDeleteSelectedBoxes(selectedFarmer)}
+                              disabled={creating}
+                              variant="outline"
+                              className="border-red-500 text-red-600 hover:bg-red-50"
+                              title="Libérer les boîtes sélectionnées"
+                            >
+                              {creating ? (
                                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                Création de la session...
-                              </>
-                            ) : (
-                              <>
-                            <ArrowRight className="w-5 h-5 mr-2" />
-                            Terminer le traitement
-                              </>
-                            )}
-                          </Button>
+                              ) : (
+                                <Trash2 className="w-5 h-5 mr-2" />
+                              )}
+                              Supprimer la sélection
+                            </Button>
+                            <Button
+                              onClick={() => handleCompleteProcessing(selectedFarmer)}
+                              disabled={creating || boxesWithoutWeight.length > 0}
+                              className="bg-[#F4D03F] hover:bg-[#E6C547] text-[#8B4513] text-lg px-6 py-3 h-auto"
+                            >
+                              {creating ? (
+                                <>
+                                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                  Création de la session...
+                                </>
+                              ) : (
+                                <>
+                                <ArrowRight className="w-5 h-5 mr-2" />
+                                {boxesWithoutWeight.length > 0 ? "Ajouter les poids manquants" : "Terminer le traitement"}
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </CardContent>
@@ -2153,6 +2378,81 @@ export default function OliveManagement() {
                 <X className="w-4 h-4 mr-2" />
                 Annuler
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Edit Missing Weights Dialog */}
+      <Dialog open={isBulkWeightsOpen} onOpenChange={(open) => {
+        setIsBulkWeightsOpen(open)
+        if (!open) {
+          setMissingWeightEntries([])
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Compléter les poids manquants</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Boîtes sans poids: {missingWeightEntries.length}</span>
+              <Progress value={(missingWeightEntries.filter(e => !e.error && e.weight.trim()).length / Math.max(1, missingWeightEntries.length)) * 100} className="w-40" />
+            </div>
+            <div className="grid grid-cols-2 gap-4 max-h-80 overflow-y-auto">
+              {missingWeightEntries.map((entry, index) => (
+                <Card key={entry.id} className={`p-4 ${entry.error ? 'border-orange-300 bg-orange-50' : 'border-green-200'}`}>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Boîte {entry.id}</h4>
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {entry.type}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label>Poids (kg)</Label>
+                      <Input
+                        ref={(el) => { bulkWeightRefs.current[index] = el }}
+                        type="number"
+                        step="0.1"
+                        value={entry.weight}
+                        onChange={(e) => updateMissingWeight(index, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            // Advance when valid
+                            const num = parseFloat(entry.weight)
+                            if (!isNaN(num) && num > 0) {
+                              focusNextMissing(index)
+                            }
+                          }
+                        }}
+                        placeholder="Saisir le poids"
+                        className={entry.error ? "border-orange-500 focus-visible:ring-orange-500" : undefined}
+                      />
+                      {entry.error && (
+                        <div className="mt-1 text-xs text-orange-700 flex items-center">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          <span>{entry.error === 'Requis' ? 'Requis' : entry.error === '> 0' ? 'Doit être > 0' : entry.error === '> 1000' ? 'Max 1000 kg' : 'Invalide'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                Complétés: <span className="font-medium">{missingWeightEntries.filter(e => !e.error && e.weight.trim()).length}</span> / {missingWeightEntries.length}
+              </span>
+              <div className="flex space-x-2">
+                <Button onClick={handleSaveAllWeights} disabled={creating || missingWeightEntries.some(e => e.error || !e.weight.trim())} className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
+                  {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  {creating ? 'Sauvegarde...' : 'Enregistrer tous les poids'}
+                </Button>
+                <Button variant="outline" onClick={() => setIsBulkWeightsOpen(false)}>
+                  Annuler
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>

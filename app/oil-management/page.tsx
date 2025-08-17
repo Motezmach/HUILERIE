@@ -407,9 +407,27 @@ export default function OilManagement() {
     setSelectedFarmer(null)
   }, [])
 
-  // Filter farmers based on search and payment status
+  // Filter farmers based on search (by name or box ID) and payment status
   const filteredFarmers = processedFarmers.filter((farmer) => {
-    const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const term = searchTerm.trim().toLowerCase()
+    const isNumericTerm = /^\d+$/.test(term)
+    let matchesSearch = true
+    if (term) {
+      const matchesName = farmer.name.toLowerCase().includes(term)
+      let matchesBoxId = false
+      const allBoxIds = farmer.sessions.flatMap((s) => s.boxIds || [])
+      if (isNumericTerm) {
+        matchesBoxId = allBoxIds.some((id) => {
+          const idLower = id.toLowerCase()
+          if (/^\d+$/.test(idLower)) return idLower === term
+          const numericPart = idLower.replace(/\D/g, '')
+          return numericPart === term
+        })
+      } else {
+        matchesBoxId = allBoxIds.some((id) => id.toLowerCase().includes(term))
+      }
+      matchesSearch = matchesName || matchesBoxId
+    }
     const matchesPayment = paymentFilter === "all" || farmer.paymentStatus === paymentFilter
     const matchesToday = showTodayOnly ? new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0] : true
     return matchesSearch && matchesPayment && matchesToday
@@ -936,7 +954,7 @@ export default function OilManagement() {
         <div>
           <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Facturé à:</h3>
           <div className="bg-gray-50 p-3 rounded border">
-            <p className="font-semibold text-lg">{farmer.name}</p>
+            <p className="font-semibold text-lg">{farmer.name.split(' ')[0]}</p>
             {farmer.phone && <p className="text-gray-600">{farmer.phone}</p>}
             <p className="text-sm text-gray-600 mt-2">
               <strong>Tarif:</strong> {session.pricePerKg.toFixed(2)} DT/kg
@@ -1232,7 +1250,7 @@ export default function OilManagement() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Rechercher des agriculteurs..."
+                    placeholder="Rechercher par nom ou ID de boîte..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"

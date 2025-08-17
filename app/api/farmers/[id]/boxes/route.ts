@@ -121,7 +121,7 @@ export async function POST(
             data: {
               id: `Chkara${chkaraCounter}`,
               type: 'CHKARA',
-              currentWeight: boxRequest.weight,
+              currentWeight: boxRequest.weight ?? null,
               currentFarmerId: farmerId,
               assignedAt: new Date(),
               status: 'IN_USE'
@@ -157,7 +157,7 @@ export async function POST(
             where: { id: requestedBoxId },
             data: {
               type: boxRequest.type.toUpperCase() as any,
-              currentWeight: boxRequest.weight,
+              currentWeight: boxRequest.weight ?? null,
               currentFarmerId: farmerId,
               assignedAt: new Date(),
               status: 'IN_USE'
@@ -217,7 +217,7 @@ export async function POST(
           data: {
             id: `Chkara${chkaraCounter}`,
             type: 'CHKARA',
-            currentWeight: validatedData.weight,
+            currentWeight: validatedData.weight ?? null,
             currentFarmerId: farmerId,
             assignedAt: new Date(),
             status: 'IN_USE'
@@ -266,7 +266,7 @@ export async function POST(
             data: {
               id: requestedBoxId,
               type: validatedData.type.toUpperCase() as any,
-              currentWeight: validatedData.weight,
+              currentWeight: validatedData.weight ?? null,
               currentFarmerId: farmerId,
               assignedAt: new Date(),
               status: 'IN_USE'
@@ -290,7 +290,7 @@ export async function POST(
             where: { id: requestedBoxId },
             data: {
               type: validatedData.type.toUpperCase() as any,
-              currentWeight: validatedData.weight,
+              currentWeight: validatedData.weight ?? null,
               currentFarmerId: farmerId,
               assignedAt: new Date(),
               status: 'IN_USE'

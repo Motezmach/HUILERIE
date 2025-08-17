@@ -2,8 +2,13 @@ import { z } from 'zod'
 
 // Farmer validation schemas
 export const createFarmerSchema = z.object({
-  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(100, "Le nom ne peut pas dépasser 100 caractères"),
-  phone: z.string().regex(/^[\+]?[0-9\s\-()]+$/, "Format de téléphone invalide").optional().or(z.literal("")),
+  name: z.string()
+    .min(2, "Le nom doit contenir au moins 2 caractères")
+    .max(100, "Le nom ne peut pas dépasser 100 caractères")
+    .refine((val) => val.trim().split(/\s+/).length >= 2, {
+      message: "Le nom doit contenir au moins deux mots (Prénom Nom)",
+    }),
+  phone: z.string().regex(/^[\+]? [0-9\s\-()]+$/, "Format de téléphone invalide").optional().or(z.literal("")),
   type: z.enum(['small', 'large'], {
     required_error: "Le type d'agriculteur est requis",
   }),
@@ -11,8 +16,14 @@ export const createFarmerSchema = z.object({
 })
 
 export const updateFarmerSchema = z.object({
-  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(100, "Le nom ne peut pas dépasser 100 caractères").optional(),
-  phone: z.string().regex(/^[\+]?[0-9\s\-()]+$/, "Format de téléphone invalide").optional().or(z.literal("")),
+  name: z.string()
+    .min(2, "Le nom doit contenir au moins 2 caractères")
+    .max(100, "Le nom ne peut pas dépasser 100 caractères")
+    .refine((val) => val.trim().split(/\s+/).length >= 2, {
+      message: "Le nom doit contenir au moins deux mots (Prénom Nom)",
+    })
+    .optional(),
+  phone: z.string().regex(/^[\+]? [0-9\s\-()]+$/, "Format de téléphone invalide").optional().or(z.literal("")),
   type: z.enum(['small', 'large']).optional(),
   pricePerKg: z.number().min(0.01, "Le prix par kg doit être supérieur à 0").max(10, "Le prix par kg semble trop élevé").optional()
 })
@@ -23,7 +34,7 @@ export const createBoxSchema = z.object({
   type: z.enum(['nchira', 'chkara', 'normal'], {
     required_error: "Le type de boîte est requis",
   }),
-  weight: z.number().min(0.1, "Le poids doit être supérieur à 0"),
+  weight: z.number().min(0.1, "Le poids doit être supérieur à 0").optional(),
   farmerId: z.string().uuid("ID d'agriculteur invalide")
 })
 
@@ -33,7 +44,7 @@ export const createBoxItemSchema = z.object({
   type: z.enum(['nchira', 'chkara', 'normal'], {
     required_error: "Le type de boîte est requis",
   }),
-  weight: z.number().min(0.1, "Le poids doit être supérieur à 0")
+  weight: z.number().min(0.1, "Le poids doit être supérieur à 0").optional()
 })
 
 export const bulkCreateBoxSchema = z.object({
@@ -45,7 +56,7 @@ export const updateBoxSchema = z.object({
   type: z.enum(['nchira', 'chkara', 'normal'], {
     required_error: "Le type de boîte est requis",
   }).optional(),
-  weight: z.number().min(0.1, "Le poids doit être supérieur à 0").optional()
+  weight: z.number().min(0.1, "Le poids doit être supérieur à 0").nullable().optional()
 })
 
 // Box ID validation
