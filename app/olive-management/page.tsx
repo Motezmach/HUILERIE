@@ -2751,75 +2751,274 @@ export default function OliveManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Edit Missing Weights Dialog */}
+      {/* Bulk Edit Missing Weights Dialog - Mobile Enhanced */}
       <Dialog open={isBulkWeightsOpen} onOpenChange={(open) => {
         setIsBulkWeightsOpen(open)
         if (!open) {
           setMissingWeightEntries([])
         }
       }}>
-        <DialogContent className="max-w-full sm:max-w-2xl mx-4 max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Compléter les poids manquants</DialogTitle>
+        <DialogContent className="max-w-full sm:max-w-4xl mx-2 sm:mx-4 p-3 sm:p-6 max-h-[95vh] overflow-hidden">
+          <DialogHeader className="pb-4 border-b border-gray-200">
+            <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left text-gray-900">
+              ⚖️ Compléter les poids manquants
+            </DialogTitle>
+            
+            {/* Mobile Progress Header */}
+            <div className="space-y-3 pt-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span className="text-sm text-gray-600 text-center sm:text-left">
+                  📦 Boîtes sans poids: <span className="font-semibold text-blue-600">{missingWeightEntries.length}</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <Progress 
+                    value={(missingWeightEntries.filter(e => !e.error && e.weight.trim()).length / Math.max(1, missingWeightEntries.length)) * 100} 
+                    className="flex-1 sm:w-32 h-2 sm:h-3" 
+                  />
+                  <span className="text-xs sm:text-sm text-gray-500 min-w-fit">
+                    {missingWeightEntries.filter(e => !e.error && e.weight.trim()).length}/{missingWeightEntries.length}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Mobile Status Indicator */}
+              {missingWeightEntries.some(e => e.error || !e.weight.trim()) ? (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 text-center sm:text-left">
+                  <p className="text-xs sm:text-sm text-orange-700">
+                    ⚠️ <span className="font-medium">{missingWeightEntries.filter(e => e.error || !e.weight.trim()).length}</span> poids à compléter
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center sm:text-left">
+                  <p className="text-xs sm:text-sm text-green-700">
+                    ✅ <span className="font-medium">Tous les poids sont complétés!</span>
+                  </p>
+                </div>
+              )}
+            </div>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Boîtes sans poids: {missingWeightEntries.length}</span>
-              <Progress value={(missingWeightEntries.filter(e => !e.error && e.weight.trim()).length / Math.max(1, missingWeightEntries.length)) * 100} className="w-40" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-80 overflow-y-auto">
-              {missingWeightEntries.map((entry, index) => (
-                <Card key={entry.id} className={`p-4 ${entry.error ? 'border-orange-300 bg-orange-50' : 'border-green-200'}`}>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Boîte {entry.id}</h4>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {entry.type}
-                      </Badge>
-                    </div>
-                    <div>
-                      <Label>Poids (kg)</Label>
-                      <Input
-                        ref={(el) => { bulkWeightRefs.current[index] = el }}
-                        type="number"
-                        step="0.1"
-                        value={entry.weight}
-                        onChange={(e) => updateMissingWeight(index, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            // Advance when valid
-                            const num = parseFloat(entry.weight)
-                            if (!isNaN(num) && num > 0) {
-                              focusNextMissing(index)
-                            }
-                          }
-                        }}
-                        placeholder="Saisir le poids"
-                        className={entry.error ? "border-orange-500 focus-visible:ring-orange-500" : undefined}
-                      />
-                      {entry.error && (
-                        <div className="mt-1 text-xs text-orange-700 flex items-center">
-                          <AlertCircle className="w-3 h-3 mr-1" />
-                          <span>{entry.error === 'Requis' ? 'Requis' : entry.error === '> 0' ? 'Doit être > 0' : entry.error === '> 1000' ? 'Max 1000 kg' : 'Invalide'}</span>
+          
+          <div className="flex flex-col overflow-hidden">
+                         {/* Scrollable Content Area - Mobile Enhanced */}
+             <div 
+               className="overflow-y-auto py-4 space-y-4 border border-gray-200 rounded-lg bg-gray-50/30" 
+               style={{
+                 maxHeight: 'calc(95vh - 280px)', // Account for header, footer, and mobile FAB
+                 minHeight: '300px',
+                 scrollbarWidth: 'thin',
+                 scrollbarColor: '#CBD5E0 #F7FAFC'
+               }}
+             >
+                             {/* Scroll Indicator for Mobile */}
+               <div className="sm:hidden text-center pb-2">
+                 <div className="space-y-2">
+                   <p className="text-xs text-gray-500 bg-blue-50 inline-block px-3 py-1 rounded-full border border-blue-200">
+                     📱 Faites défiler pour voir toutes les boîtes
+                   </p>
+                   {missingWeightEntries.length > 3 && (
+                     <p className="text-xs text-blue-600 font-medium">
+                       ↕️ {missingWeightEntries.length} boîtes au total
+                     </p>
+                   )}
+                 </div>
+               </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 pb-20 sm:pb-4">
+                {missingWeightEntries.map((entry, index) => (
+                  <Card key={entry.id} className={`p-3 sm:p-4 transition-all duration-200 ${
+                    entry.error 
+                      ? 'border-orange-300 bg-orange-50 shadow-orange-100' 
+                      : entry.weight.trim() 
+                        ? 'border-green-300 bg-green-50 shadow-green-100' 
+                        : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'
+                  }`}>
+                    <div className="space-y-3">
+                      {/* Box Header - Mobile Enhanced */}
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-sm sm:text-base text-gray-900">
+                          📦 Boîte {entry.id}
+                        </h4>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs px-2 py-1 font-medium capitalize ${
+                            entry.type === 'chkara' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-blue-100 text-blue-700 border-blue-300'
+                          }`}
+                        >
+                          {entry.type}
+                        </Badge>
+                      </div>
+                      
+                      {/* Weight Input - Mobile Enhanced */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">
+                          ⚖️ Poids (kg)
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            ref={(el) => { bulkWeightRefs.current[index] = el }}
+                            type="number"
+                            step="0.1"
+                            value={entry.weight}
+                            onChange={(e) => updateMissingWeight(index, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                // Advance when valid
+                                const num = parseFloat(entry.weight)
+                                if (!isNaN(num) && num > 0) {
+                                  focusNextMissing(index)
+                                }
+                              }
+                            }}
+                            placeholder="Ex: 25.5"
+                            className={`h-11 sm:h-10 text-base sm:text-sm ${
+                              entry.error 
+                                ? "border-orange-500 focus-visible:ring-orange-500 bg-orange-50" 
+                                : entry.weight.trim()
+                                  ? "border-green-500 focus-visible:ring-green-500 bg-green-50"
+                                  : "border-gray-300 focus-visible:ring-blue-500"
+                            }`}
+                          />
+                          {entry.weight.trim() && !entry.error && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            </div>
+                          )}
                         </div>
-                      )}
+                        
+                        {/* Error Message - Mobile Enhanced */}
+                        {entry.error && (
+                          <div className="bg-orange-100 border border-orange-200 rounded-md p-2">
+                            <div className="flex items-center text-xs text-orange-700">
+                              <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                              <span className="font-medium">
+                                {entry.error === 'Requis' ? 'Poids requis' : 
+                                 entry.error === '> 0' ? 'Doit être > 0 kg' : 
+                                 entry.error === '> 1000' ? 'Maximum 1000 kg' : 'Valeur invalide'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                                    </Card>
+                ))}
+              </div>
+              
+              {/* Bottom scroll indicator - shows when there's content below */}
+              <div className="sm:hidden sticky bottom-0 pointer-events-none">
+                <div className="h-8 bg-gradient-to-t from-gray-50/80 to-transparent flex items-end justify-center pb-1">
+                  {missingWeightEntries.length > 3 && (
+                    <div className="text-xs text-gray-400 animate-bounce">
+                      ⬇️ Plus de boîtes ci-dessous
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">
-                Complétés: <span className="font-medium">{missingWeightEntries.filter(e => !e.error && e.weight.trim()).length}</span> / {missingWeightEntries.length}
-              </span>
-              <div className="flex space-x-2">
-                <Button onClick={handleSaveAllWeights} disabled={creating || missingWeightEntries.some(e => e.error || !e.weight.trim())} className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
-                  {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  {creating ? 'Sauvegarde...' : 'Enregistrer tous les poids'}
-                </Button>
-                <Button variant="outline" onClick={() => setIsBulkWeightsOpen(false)}>
-                  Annuler
-                </Button>
+            
+                        {/* Mobile Floating Action Button */}
+             <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 shadow-lg">
+               <div className="max-w-sm mx-auto space-y-3">
+                 {/* Scroll indicator when there are many boxes */}
+                 {missingWeightEntries.length > 3 && (
+                   <div className="text-center pb-1">
+                     <p className="text-xs text-blue-600 font-medium animate-pulse">
+                       ↕️ Faites défiler pour voir toutes les {missingWeightEntries.length} boîtes
+                     </p>
+                   </div>
+                 )}
+                 
+                 <Button
+                   onClick={handleSaveAllWeights}
+                   disabled={creating || missingWeightEntries.some(e => e.error || !e.weight.trim())}
+                   className="w-full h-14 text-lg font-bold bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50"
+                 >
+                   {creating ? (
+                     <>
+                       <Loader2 className="w-6 h-6 mr-3 animate-spin" />
+                       Sauvegarde...
+                     </>
+                   ) : (
+                     <>
+                       <Save className="w-6 h-6 mr-3" />
+                       {missingWeightEntries.some(e => e.error || !e.weight.trim()) ? (
+                         <>Complétez les poids ({missingWeightEntries.filter(e => !e.error && e.weight.trim()).length}/{missingWeightEntries.length})</>
+                       ) : (
+                         <>Enregistrer tous les poids</>
+                       )}
+                     </>
+                   )}
+                 </Button>
+                 
+                 {/* Mobile Progress */}
+                 {missingWeightEntries.some(e => e.error || !e.weight.trim()) && (
+                   <div className="text-center">
+                     <p className="text-xs text-orange-600 font-medium">
+                       ⚠️ {missingWeightEntries.filter(e => e.error || !e.weight.trim()).length} poids restant(s)
+                     </p>
+                   </div>
+                 )}
+               </div>
+             </div>
+            
+            {/* Desktop Actions - Enhanced */}
+            <div className="hidden sm:block pt-4 border-t border-gray-200">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+                {/* Desktop Summary */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-600">
+                      📊 Progression: <span className="font-semibold text-blue-600">
+                        {missingWeightEntries.filter(e => !e.error && e.weight.trim()).length}
+                      </span> / {missingWeightEntries.length} complétés
+                    </span>
+                    {missingWeightEntries.length > 0 && (
+                      <Badge variant="outline" className={`text-xs ${
+                        missingWeightEntries.filter(e => !e.error && e.weight.trim()).length === missingWeightEntries.length
+                          ? 'bg-green-100 text-green-700 border-green-300'
+                          : 'bg-orange-100 text-orange-700 border-orange-300'
+                      }`}>
+                        {missingWeightEntries.filter(e => !e.error && e.weight.trim()).length === missingWeightEntries.length
+                          ? '✅ Terminé'
+                          : `⏳ ${missingWeightEntries.length - missingWeightEntries.filter(e => !e.error && e.weight.trim()).length} restant(s)`
+                        }
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Desktop Action Buttons */}
+                <div className="flex items-center justify-center gap-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsBulkWeightsOpen(false)}
+                    className="h-11 px-6 text-base font-medium border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Annuler
+                  </Button>
+                  <Button 
+                    onClick={handleSaveAllWeights} 
+                    disabled={creating || missingWeightEntries.some(e => e.error || !e.weight.trim())} 
+                    className="h-11 px-8 text-base font-bold bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  >
+                    {creating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Sauvegarde...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-5 h-5 mr-2" />
+                        {missingWeightEntries.some(e => e.error || !e.weight.trim()) ? (
+                          <>Complétez d'abord tous les poids</>
+                        ) : (
+                          <>Enregistrer tous les poids</>
+                        )}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
