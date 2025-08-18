@@ -31,8 +31,10 @@ export default function LoginPage() {
       // Add a small delay to prevent immediate redirect
       const timer = setTimeout(() => {
         if (isAuthenticated()) {
-          console.log('✅ User already authenticated, redirecting to dashboard...')
-          router.push('/dashboard')
+          const isMobile = window.innerWidth < 768 // md breakpoint
+          const redirectPath = isMobile ? '/olive-management' : '/dashboard'
+          console.log(`✅ User already authenticated, redirecting to ${redirectPath}...`)
+          router.push(redirectPath)
         }
       }, 100)
       
@@ -75,11 +77,13 @@ export default function LoginPage() {
         // Clear the form
         setLoginForm({ username: '', password: '' })
         
-        console.log('🔄 Redirecting to dashboard...')
+        const isMobile = window.innerWidth < 768 // md breakpoint
+        const redirectPath = isMobile ? '/olive-management' : '/dashboard'
+        console.log(`🔄 Redirecting to ${redirectPath}...`)
         
         // Small delay to ensure state is saved, then redirect
         setTimeout(() => {
-          router.push('/dashboard')
+          router.push(redirectPath)
         }, 100)
         
       } else {

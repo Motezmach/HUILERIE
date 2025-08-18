@@ -51,6 +51,8 @@ import {
   SquareIcon,
   CheckSquare,
   PackagePlus,
+  Menu,
+  ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -122,6 +124,8 @@ export default function OliveManagement() {
   const [isBulkWeightsOpen, setIsBulkWeightsOpen] = useState(false)
   const [missingWeightEntries, setMissingWeightEntries] = useState<{ id: string; type: Box["type"]; weight: string; error?: string }[]>([])
   const bulkWeightRefs = useRef<Array<HTMLInputElement | null>>([])
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [mobileView, setMobileView] = useState<"farmers" | "boxes">("farmers")
 
   // Form states
   const [farmerForm, setFarmerForm] = useState({
@@ -439,10 +443,10 @@ export default function OliveManagement() {
         }
       }
       const matchesSearch = term ? (matchesName || matchesBoxId) : true
-      const matchesFilter = filterType === "all" || farmer.type === filterType
-      const matchesToday = !showTodayOnly || isToday(farmer.dateAdded)
-      return matchesSearch && matchesFilter && matchesToday
-    })
+    const matchesFilter = filterType === "all" || farmer.type === filterType
+    const matchesToday = !showTodayOnly || isToday(farmer.dateAdded)
+    return matchesSearch && matchesFilter && matchesToday
+  })
     .sort((a, b) => {
       const aMissing = hasBoxesWithoutWeight(a)
       const bMissing = hasBoxesWithoutWeight(b)
@@ -608,27 +612,27 @@ export default function OliveManagement() {
 
     // Client-side validation before API call
     // Validate ID for non-Chkara
-    if (boxForm.type !== "chkara") {
+      if (boxForm.type !== "chkara") {
       const rawId = (boxForm.id || "").trim()
       if (!rawId) {
         setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte est requis" }))
-        return
-      }
+          return
+        }
 
       const numId = Number.parseInt(rawId)
-      if (isNaN(numId) || numId < 1 || numId > 600) {
+        if (isNaN(numId) || numId < 1 || numId > 600) {
         setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte doit être entre 1 et 600" }))
-        return
-      }
+          return
+        }
 
       const duplicateMsg = validateBoxId(rawId)
       if (duplicateMsg) {
         setBoxFormErrors((prev) => ({ ...prev, id: duplicateMsg }))
         return
       }
-    }
+      }
 
-    // Validate weight
+      // Validate weight
     let weightVal: number | undefined = undefined
     if (boxForm.weight.trim()) {
       weightVal = Number.parseFloat(boxForm.weight)
@@ -647,17 +651,17 @@ export default function OliveManagement() {
       if (boxForm.type !== "chkara") {
         if (!boxId || boxId.trim() === "") {
           setBoxFormErrors((prev) => ({ ...prev, id: "L'ID de la boîte est requis" }))
-          setCreating(false)
-          return
+        setCreating(false)
+        return
         }
 
         // Normalize ID
         boxId = boxId.trim()
-      }
+    }
 
       const response = await farmersApi.addBox(selectedFarmer.id, {
-        id: boxId,
-        type: boxForm.type,
+      id: boxId,
+      type: boxForm.type,
         weight: weightVal,
       })
 
@@ -690,8 +694,8 @@ export default function OliveManagement() {
 
         // Show success notification with box details
         if (weightVal) {
-          const boxTypeText = boxForm.type === "chkara" ? "Sac Chkara" : `Boîte ${boxId}`
-          showNotification(`${boxTypeText} assignée avec succès à ${selectedFarmer.name}!`, "success")
+        const boxTypeText = boxForm.type === "chkara" ? "Sac Chkara" : `Boîte ${boxId}`
+        showNotification(`${boxTypeText} assignée avec succès à ${selectedFarmer.name}!`, "success")
         }
 
         // Reload farmer data in background to ensure consistency (but don't await it)
@@ -949,9 +953,9 @@ export default function OliveManagement() {
             } else {
               updated.weightError = undefined
             }
+            }
           }
-        }
-        return updated
+          return updated
       })
 
       // After updating the specific field, enforce duplicate ID detection across the whole batch
@@ -1022,7 +1026,25 @@ export default function OliveManagement() {
       const response = await farmersApi.addBoxes(selectedFarmer.id, boxesToCreate)
 
       if (response.success) {
-        // Reload farmer to get fresh data with all boxes
+        // Transform the new boxes from the response
+        const newBoxes = response.data.map((boxData: any) => transformBoxFromDb(boxData))
+        
+        // Update farmers list immediately with new boxes
+        setFarmers(prev => prev.map(farmer => 
+          farmer.id === selectedFarmer.id 
+            ? { ...farmer, boxes: [...farmer.boxes, ...newBoxes] }
+            : farmer
+        ))
+
+        // Update selected farmer immediately with new boxes
+        setSelectedFarmer(prev => prev ? {
+          ...prev,
+          boxes: [...prev.boxes, ...newBoxes]
+        } : null)
+
+        console.log(`✅ Added ${newBoxes.length} boxes immediately to farmer ${selectedFarmer.name}`)
+        
+        // Also reload farmer data from server to ensure consistency
         await reloadFarmer(selectedFarmer.id)
 
         setBulkStep(1)
@@ -1161,6 +1183,11 @@ export default function OliveManagement() {
     
     // Set the farmer immediately for UI responsiveness
     setSelectedFarmer(farmer)
+    
+    // On mobile, switch to boxes view when farmer is selected
+    if (window.innerWidth < 768) { // md breakpoint
+      setMobileView("boxes")
+    }
     
     // Then reload the farmer data in the background to ensure we have fresh data
     try {
@@ -1307,16 +1334,25 @@ export default function OliveManagement() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden p-2"
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
             <div className="w-8 h-8 bg-[#6B8E4B] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">HM</span>
             </div>
-            <h1 className="text-2xl font-bold text-[#2C3E50]">HUILERIE MASMOUDI</h1>
+            <h1 className="text-lg sm:text-2xl font-bold text-[#2C3E50] truncate">HUILERIE MASMOUDI</h1>
           </div>
-          <div className="flex items-center space-x-4">
-            <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F]">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F] text-xs sm:text-sm hidden sm:block">
               Gestionnaire d'usine
             </Badge>
             <div className="w-8 h-8 bg-[#6B8E4B] rounded-full flex items-center justify-center">
@@ -1326,9 +1362,26 @@ export default function OliveManagement() {
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 min-h-screen">
+      {/* Mobile Navigation Bar */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-2">
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-[#6B8E4B] text-white">
+            <Package className="w-4 h-4" />
+            <span className="text-sm font-medium">Olives</span>
+          </div>
+          <Link
+            href="/oil-management"
+            className="flex items-center space-x-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Archive className="w-4 h-4" />
+            <span className="text-sm font-medium">Huile</span>
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex relative">
+        {/* Desktop Sidebar */}
+        <aside className="hidden md:block w-64 bg-white border-r border-gray-200 min-h-screen">
           <nav className="p-4 space-y-2">
             <Link
               href="/dashboard"
@@ -1365,10 +1418,102 @@ export default function OliveManagement() {
           </nav>
         </aside>
 
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setIsMobileSidebarOpen(false)}>
+            <aside className="w-64 bg-white h-full border-r border-gray-200" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#2C3E50]">Menu</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <nav className="p-4 space-y-2">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center space-x-3 px-3 py-2 text-[#2C3E50] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Tableau de bord</span>
+                </Link>
+                <Link
+                  href="/olive-management"
+                  className="flex items-center space-x-3 px-3 py-2 bg-[#6B8E4B] text-white rounded-lg"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <Users className="w-5 h-5" />
+                  <span>Gestion des olives</span>
+                </Link>
+                <Link
+                  href="/oil-management"
+                  className="flex items-center space-x-3 px-3 py-2 text-[#2C3E50] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <Archive className="w-5 h-5" />
+                  <span>Gestion de l'huile</span>
+                </Link>
+                <Separator className="my-2" />
+                <Link
+                  href="/huilerie"
+                  className="flex items-center space-x-3 px-3 py-2 text-[#8B4513] hover:bg-[#F4D03F]/10 rounded-lg transition-all duration-200 border border-[#F4D03F]/20"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <Crown className="w-5 h-5 text-[#F4D03F]" />
+                  <span className="font-semibold">HUILERIE</span>
+                  <Badge variant="secondary" className="ml-auto text-xs bg-[#F4D03F] text-[#8B4513]">
+                    Propriétaire
+                  </Badge>
+                </Link>
+              </nav>
+            </aside>
+          </div>
+        )}
+
         {/* Main Content */}
-        <main className="flex-1 flex">
+        <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* Mobile View Toggle */}
+          <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={mobileView === "farmers" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMobileView("farmers")}
+                className={mobileView === "farmers" ? "bg-[#6B8E4B] text-white" : ""}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Agriculteurs ({filteredFarmers.length})
+              </Button>
+              <Button
+                variant={mobileView === "boxes" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMobileView("boxes")}
+                disabled={!selectedFarmer}
+                className={mobileView === "boxes" ? "bg-[#6B8E4B] text-white" : ""}
+              >
+                <Package className="w-4 h-4 mr-2" />
+                Boîtes {selectedFarmer && `(${selectedFarmer.boxes.length})`}
+              </Button>
+              {selectedFarmer && mobileView === "boxes" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMobileView("farmers")}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+
           {/* Left Panel - Farmers List */}
-          <div className="w-1/3 p-6 border-r border-gray-200">
+          <div className={`${mobileView === "farmers" ? "block" : "hidden"} md:block w-full md:w-1/3 p-4 md:p-6 border-r border-gray-200 overflow-y-auto`}>
             <div className="mb-6">
               <div className="space-y-4 mb-4">
                 {/* Header with title and add button */}
@@ -1384,9 +1529,11 @@ export default function OliveManagement() {
                         Ajouter agriculteur
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Ajouter un nouvel agriculteur</DialogTitle>
+                    <DialogContent className="max-w-full sm:max-w-md mx-4 p-4 sm:p-6">
+                      <DialogHeader className="pb-4 border-b border-gray-200">
+                        <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
+                          Ajouter un nouvel agriculteur
+                        </DialogTitle>
                       </DialogHeader>
                     <div className="space-y-4">
                       <div>
@@ -1424,20 +1571,25 @@ export default function OliveManagement() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex flex-col sm:flex-row gap-3 sm:space-x-2 pt-4 border-t border-gray-200">
                         <Button 
                           onClick={handleAddFarmer} 
                           disabled={creating}
-                          className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
+                          className="bg-[#6B8E4B] hover:bg-[#5A7A3F] h-12 text-base font-medium flex-1 sm:flex-none"
                         >
                           {creating ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                           ) : (
-                          <Save className="w-4 h-4 mr-2" />
+                          <Save className="w-5 h-5 mr-2" />
                           )}
                           {creating ? 'Création...' : 'Enregistrer agriculteur'}
                         </Button>
-                        <Button variant="outline" onClick={() => setIsAddFarmerOpen(false)} disabled={creating}>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setIsAddFarmerOpen(false)} 
+                          disabled={creating}
+                          className="h-12 text-base flex-1 sm:flex-none"
+                        >
                           <X className="w-4 h-4 mr-2" />
                           Annuler
                         </Button>
@@ -1590,7 +1742,7 @@ export default function OliveManagement() {
           </div>
 
           {/* Right Panel - Farmer Management */}
-          <div className="flex-1 p-6">
+          <div className={`${mobileView === "boxes" ? "block" : "hidden"} md:block flex-1 p-4 md:p-6 overflow-y-auto`}>
             {selectedFarmer ? (
               <div className="space-y-6">
                 {/* Farmer Details Form */}
@@ -1599,7 +1751,7 @@ export default function OliveManagement() {
                     <CardTitle className="text-[#2C3E50]">Détails de l'agriculteur</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
                         <Input value={selectedFarmer.name} readOnly />
@@ -1626,52 +1778,69 @@ export default function OliveManagement() {
                 {/* Boxes Gallery */}
                 <Card className="border-0 shadow-lg">
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
                         <CardTitle className="text-[#2C3E50]">Gestion des boîtes</CardTitle>
                         
-                        {/* View Toggle Button */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setBoxViewMode(boxViewMode === "grid" ? "list" : "grid")}
-                          className="border-gray-300 text-gray-600 hover:bg-gray-100"
-                        >
-                          {boxViewMode === "grid" ? (
-                            <>
-                              <List className="w-4 h-4 mr-2" />
-                              Vue liste
-                            </>
-                          ) : (
-                            <>
-                              <Grid3X3 className="w-4 h-4 mr-2" />
-                              Vue grille
-                            </>
-                          )}
-                        </Button>
-                        
-                        {selectedFarmer.boxes.length > 0 && (
+                        {/* Mobile: Show back button */}
+                        <div className="md:hidden">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setMobileView("farmers")}
+                          >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Retour
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* View Toggle Button */}
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={handleSelectAll}
-                            className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white"
+                            onClick={() => setBoxViewMode(boxViewMode === "grid" ? "list" : "grid")}
+                            className="border-gray-300 text-gray-600 hover:bg-gray-100"
                           >
-                            {selectedFarmer.boxes.every((box) => box.selected) ? (
+                            {boxViewMode === "grid" ? (
                               <>
-                                <SquareIcon className="w-4 h-4 mr-2" />
-                                Désélectionner tout
+                                <List className="w-4 h-4 mr-2" />
+                                Vue liste
                               </>
                             ) : (
                               <>
-                                <CheckSquare className="w-4 h-4 mr-2" />
-                                Sélectionner tout
+                                <Grid3X3 className="w-4 h-4 mr-2" />
+                                Vue grille
                               </>
                             )}
                           </Button>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
+                          
+                          {selectedFarmer.boxes.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleSelectAll}
+                              className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white"
+                            >
+                              {selectedFarmer.boxes.every((box) => box.selected) ? (
+                                <>
+                                  <SquareIcon className="w-4 h-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">Désélectionner tout</span>
+                                  <span className="sm:hidden">Désél. tout</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckSquare className="w-4 h-4 mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">Sélectionner tout</span>
+                                  <span className="sm:hidden">Sél. tout</span>
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                         <Dialog open={isAddBoxOpen} onOpenChange={(isOpen) => {
                           setIsAddBoxOpen(isOpen)
                           if (!isOpen) {
@@ -1685,9 +1854,11 @@ export default function OliveManagement() {
                               Ajouter boîte
                             </Button>
                           </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Ajouter une nouvelle boîte</DialogTitle>
+                          <DialogContent className="max-w-full sm:max-w-md mx-4 p-4 sm:p-6">
+                            <DialogHeader className="pb-4 border-b border-gray-200">
+                              <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
+                                Ajouter une nouvelle boîte
+                              </DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4">
                               <div>
@@ -1798,134 +1969,324 @@ export default function OliveManagement() {
                               Ajout en lot
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>Ajouter des boîtes en lot</DialogTitle>
+                          <DialogContent className="max-w-full sm:max-w-2xl md:max-w-4xl max-h-[95vh] overflow-hidden mx-2 sm:mx-4 p-3 sm:p-6">
+                            <DialogHeader className="pb-4 border-b border-gray-200">
+                              {/* Mobile: Show back button for Step 2 */}
+                              {bulkStep === 2 && (
+                                <div className="sm:hidden mb-3">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setBulkStep(1)}
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2"
+                                  >
+                                    <ArrowLeft className="w-5 h-5 mr-2" />
+                                    Retour à l'étape 1
+                                  </Button>
+                                </div>
+                              )}
+                              
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
+                                  Ajouter des boîtes en lot
+                                </DialogTitle>
+                                
+                                {/* Enhanced Step Indicator */}
+                                <div className="flex items-center justify-center sm:justify-end gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${bulkStep >= 1 ? 'bg-[#6B8E4B] text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                      1
+                                    </div>
+                                    <div className={`w-6 h-1 rounded ${bulkStep >= 2 ? 'bg-[#6B8E4B]' : 'bg-gray-200'}`}></div>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${bulkStep >= 2 ? 'bg-[#6B8E4B] text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                      2
+                                    </div>
+                                  </div>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs font-medium ${bulkStep === 1 ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-green-300 text-green-700 bg-green-50'}`}
+                                  >
+                                    {bulkStep === 1 ? 'Quantité' : 'Configuration'}
+                                  </Badge>
+                                </div>
+                              </div>
                             </DialogHeader>
 
                             {bulkStep === 1 && (
-                              <div className="space-y-4">
-                                <div>
-                                  <Label htmlFor="bulkCount">Nombre de boîtes à ajouter (max 50)</Label>
-                                  <Input
-                                    id="bulkCount"
-                                    type="number"
-                                    min="1"
-                                    max="50"
-                                    value={bulkCount}
-                                    onChange={(e) => setBulkCount(e.target.value)}
-                                    placeholder="Saisir le nombre de boîtes"
-                                  />
+                              <div className="space-y-6 py-4 overflow-y-auto">
+                                {/* Step 1 - Mobile Enhanced */}
+                                <div className="text-center sm:text-left">
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                    Combien de boîtes voulez-vous ajouter ?
+                                  </h3>
+                                  <p className="text-sm text-gray-600 mb-4">
+                                    Vous pouvez ajouter jusqu'à 50 boîtes à la fois
+                                  </p>
                                 </div>
-                                <div className="flex space-x-2">
+                                
+                                <div className="space-y-4">
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <Label htmlFor="bulkCount" className="text-base font-medium text-gray-900 block mb-3">
+                                      Nombre de boîtes (1-50)
+                                    </Label>
+                                    <Input
+                                      id="bulkCount"
+                                      type="number"
+                                      min="1"
+                                      max="50"
+                                      value={bulkCount}
+                                      onChange={(e) => setBulkCount(e.target.value)}
+                                      placeholder="Ex: 10"
+                                      className="text-lg h-12 text-center sm:text-left border-blue-300 focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                    {bulkCount && Number.parseInt(bulkCount) > 0 && (
+                                      <div className="mt-3 text-center">
+                                        <Badge className="bg-green-100 text-green-800 border-green-300">
+                                          ✓ {bulkCount} boîte{Number.parseInt(bulkCount) > 1 ? 's' : ''} à configurer
+                                        </Badge>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Quick Select Buttons for Mobile */}
+                                  <div className="sm:hidden">
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Sélection rapide :</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {[5, 10, 20].map((num) => (
+                                        <Button
+                                          key={num}
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => setBulkCount(num.toString())}
+                                          className="h-12 text-base"
+                                        >
+                                          {num}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex flex-col sm:flex-row gap-3 sm:space-x-2 pt-4 border-t border-gray-200">
                                   <Button
                                     onClick={handleBulkStepNext}
                                     disabled={!bulkCount || Number.parseInt(bulkCount) <= 0}
-                                    className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
+                                    className="bg-[#6B8E4B] hover:bg-[#5A7A3F] h-12 text-base font-medium flex-1 sm:flex-none"
                                   >
+                                    <ArrowRight className="w-5 h-5 mr-2" />
                                     Étape suivante
                                   </Button>
-                                  <Button variant="outline" onClick={() => setIsBulkAddOpen(false)}>
+                                  <Button 
+                                    variant="outline" 
+                                    onClick={() => setIsBulkAddOpen(false)}
+                                    className="h-12 text-base flex-1 sm:flex-none"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
                                     Annuler
                                   </Button>
                                 </div>
                               </div>
                             )}
 
-                            {bulkStep === 2 && (
-                              <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <h3 className="text-lg font-semibold">Saisir les détails des boîtes</h3>
-                                  <Progress
-                                    value={(bulkBoxes.filter((b) => b.id && b.weight).length / bulkBoxes.length) * 100}
-                                    className="w-32"
-                                  />
-                                </div>
-
-
-
-                                <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                                  {bulkBoxes.map((box, index) => (
-                                    <Card key={index} className={`p-4 ${box.idError || box.weightError ? "border-red-300 bg-red-50" : ""}`}>
-                                       <div className="space-y-3">
-                                         <h4 className="font-medium">Boîte #{index + 1}</h4>
-                                         <div>
-                                           <Label>ID de la boîte (1-600)</Label>
-                                           <Input
-                                             type="number"
-                                             min="1"
-                                             max="600"
-                                             value={box.id}
-                                             onChange={(e) => updateBulkBox(index, "id", e.target.value)}
-                                             placeholder="ID de la boîte"
-                                             className={box.idError ? "border-red-500 focus-visible:ring-red-500" : undefined}
-                                           />
-                                           {box.idError && (
-                                             <div className="mt-1 flex items-center text-xs text-red-600">
-                                               <AlertCircle className="w-3 h-3 mr-1" />
-                                               <span>{box.idError}</span>
-                                             </div>
-                                           )}
-                                         </div>
-                                         <div>
-                                           <Label>Poids (kg)</Label>
-                                           <Input
-                                             type="number"
-                                             step="0.1"
-                                             value={box.weight}
-                                             onChange={(e) => updateBulkBox(index, "weight", e.target.value)}
-                                             placeholder="Poids"
-                                             className={box.weightError ? "border-red-500 focus-visible:ring-red-500" : undefined}
-                                           />
-                                           {box.weightError && (
-                                             <div className="mt-1 flex items-center text-xs text-red-600">
-                                               <AlertCircle className="w-3 h-3 mr-1" />
-                                               <span>{box.weightError}</span>
-                                             </div>
-                                           )}
-                                         </div>
-                                       </div>
-                                     </Card>
-                                   ))}
-                                </div>
-
-                                {/* Validation summary */}
-                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-600">
-                                      Boîtes valides: <span className="font-medium text-green-600">{bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length}</span> / {bulkBoxes.length}
-                                    </span>
-                                    <span className="text-gray-600">
-                                      Poids total: <span className="font-medium text-blue-600">
-                                        {bulkBoxes
-                                          .filter((b) => !b.idError && !b.weightError && b.id && b.weight)
-                                          .reduce((sum, b) => sum + parseFloat(b.weight), 0)
-                                          .toFixed(1)} kg
+                                                        {bulkStep === 2 && (
+                              <div className="space-y-4 overflow-hidden relative">
+                                {/* Step 2 Header - Mobile Enhanced */}
+                                <div className="space-y-3">
+                                  <div className="text-center sm:text-left">
+                                    <h3 className="text-lg font-semibold text-gray-900">
+                                      Configuration des boîtes
+                                    </h3>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      Saisissez l'ID et le poids pour chaque boîte
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Progress Section - Mobile Optimized */}
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                      <span className="text-sm font-medium text-gray-700 text-center sm:text-left">
+                                        Progression: {bulkBoxes.filter((b) => b.id && b.weight).length} / {bulkBoxes.length} boîtes
                                       </span>
-                                    </span>
+                                      <Progress
+                                        value={(bulkBoxes.filter((b) => b.id && b.weight).length / bulkBoxes.length) * 100}
+                                        className="w-full sm:w-32 h-2"
+                                      />
+                                    </div>
                                   </div>
                                 </div>
 
-                                <div className="flex space-x-2">
-                                  <Button
-                                    onClick={handleBulkAdd}
-                                    disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id)}
-                                    className="bg-[#6B8E4B] hover:bg-[#5A7A3F]"
-                                  >
-                                    <Save className="w-4 h-4 mr-2" />
-                                    Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length})
-                                  </Button>
-                                  <Button variant="outline" onClick={() => setBulkStep(1)}>
-                                    Retour
-                                  </Button>
-                                  <Button variant="outline" onClick={() => setIsBulkAddOpen(false)}>
-                                    Annuler
-                                  </Button>
+                                {/* Scrollable Boxes Container - Mobile Enhanced */}
+                                <div className="overflow-y-auto max-h-72 sm:max-h-96 -mx-1 pb-20 sm:pb-4">
+                                  <div className="grid grid-cols-1 gap-3 px-1">
+                                     {bulkBoxes.map((box, index) => (
+                                       <Card key={index} className={`p-3 sm:p-4 ${box.idError || box.weightError ? "border-red-300 bg-red-50" : "border-gray-200"} shadow-sm`}>
+                                         <div className="space-y-4">
+                                           {/* Box Header */}
+                                           <div className="flex items-center justify-between">
+                                             <h4 className="font-semibold text-base text-gray-900">
+                                               Boîte #{index + 1}
+                                             </h4>
+                                             {!box.idError && !box.weightError && box.id && box.weight && (
+                                               <Badge className="bg-green-100 text-green-800 text-xs">
+                                                 ✓ Complète
+                                               </Badge>
+                                             )}
+                                           </div>
+                                           
+                                           {/* ID Input */}
+                                           <div>
+                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                               ID de la boîte (1-600) *
+                                             </Label>
+                                             <Input
+                                               type="number"
+                                               min="1"
+                                               max="600"
+                                               value={box.id}
+                                               onChange={(e) => updateBulkBox(index, "id", e.target.value)}
+                                               placeholder="Ex: 123"
+                                               className={`h-11 text-base ${box.idError ? "border-red-500 focus-visible:ring-red-500" : "border-gray-300 focus:border-blue-500"}`}
+                                             />
+                                             {box.idError && (
+                                               <div className="mt-2 flex items-center text-xs text-red-600 bg-red-50 p-2 rounded">
+                                                 <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                                                 <span>{box.idError}</span>
+                                               </div>
+                                             )}
+                                           </div>
+                                           
+                                           {/* Weight Input */}
+                                           <div>
+                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                               Poids (kg)
+                                             </Label>
+                                             <Input
+                                               type="number"
+                                               step="0.1"
+                                               value={box.weight}
+                                               onChange={(e) => updateBulkBox(index, "weight", e.target.value)}
+                                               placeholder="Ex: 25.5"
+                                               className={`h-11 text-base ${box.weightError ? "border-red-500 focus-visible:ring-red-500" : "border-gray-300 focus:border-blue-500"}`}
+                                             />
+                                             {box.weightError && (
+                                               <div className="mt-2 flex items-center text-xs text-red-600 bg-red-50 p-2 rounded">
+                                                 <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                                                 <span>{box.weightError}</span>
+                                               </div>
+                                             )}
+                                           </div>
+                                         </div>
+                                       </Card>
+                                                                        ))}
+                                   </div>
+                                 </div>
+
+
+
+                                {/* Mobile Floating Action Button */}
+                                <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50">
+                                  <div className="max-w-sm mx-auto space-y-3">
+                                    <Button
+                                      onClick={handleBulkAdd}
+                                      disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id)}
+                                      className="w-full h-14 text-lg font-bold bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <Save className="w-6 h-6 mr-3" />
+                                      {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) ? (
+                                        <>Complétez les boîtes</>
+                                      ) : (
+                                        <>Ajouter {bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length} boîte{bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length > 1 ? 's' : ''}</>
+                                      )}
+                                    </Button>
+                                    
+                                    {/* Mobile Progress Indicator */}
+                                    {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) && (
+                                      <div className="text-center">
+                                        <p className="text-xs text-orange-600 font-medium">
+                                          ⚠ {bulkBoxes.filter((b) => b.idError || b.weightError || !b.id).length} boîte(s) à corriger
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Action Buttons - Mobile Enhanced */}
+                                <div className="space-y-4 pt-6 border-t border-gray-200">
+                                                                                                        {/* Desktop Button Layout - Enhanced Visibility */}
+                                   <div className="hidden sm:block">
+                                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+                                       {/* Desktop Submit Button - Prominent */}
+                                       <Button
+                                         onClick={handleBulkAdd}
+                                         disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id)}
+                                         className="w-full h-14 text-lg font-bold bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                                       >
+                                         <Save className="w-6 h-6 mr-3" />
+                                         {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) ? (
+                                           <>Complétez les boîtes pour continuer</>
+                                         ) : (
+                                           <>Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length})</>
+                                         )}
+                                       </Button>
+                                       
+                                       {/* Desktop Navigation Buttons */}
+                                       <div className="flex items-center justify-center gap-4">
+                                         <Button 
+                                           variant="outline" 
+                                           onClick={() => setBulkStep(1)}
+                                           className="h-11 text-base font-medium border-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                                         >
+                                           <ArrowLeft className="w-4 h-4 mr-2" />
+                                           Retour à l'étape 1
+                                         </Button>
+                                         <Button 
+                                           variant="outline" 
+                                           onClick={() => setIsBulkAddOpen(false)}
+                                           className="h-11 text-base font-medium border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                                         >
+                                           <X className="w-4 h-4 mr-2" />
+                                           Annuler
+                                         </Button>
+                                       </div>
+                                       
+                                       {/* Desktop Progress Indicator */}
+                                       {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) && (
+                                         <div className="text-center">
+                                           <p className="text-sm text-orange-600 font-medium">
+                                             ⚠ {bulkBoxes.filter((b) => b.idError || b.weightError || !b.id).length} boîte(s) nécessitent une correction
+                                           </p>
+                                         </div>
+                                       )}
+                                     </div>
+                                   </div>
+                                  
+                                  {/* Mobile Navigation Buttons */}
+                                  <div className="sm:hidden">
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <Button 
+                                        variant="outline" 
+                                        onClick={() => setBulkStep(1)}
+                                        className="h-12 text-base font-medium border-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                                      >
+                                        <ArrowLeft className="w-5 h-5 mr-2" />
+                                        Retour
+                                      </Button>
+                                      <Button 
+                                        variant="outline" 
+                                        onClick={() => setIsBulkAddOpen(false)}
+                                        className="h-12 text-base font-medium border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                                      >
+                                        <X className="w-5 h-5 mr-2" />
+                                        Annuler
+                                      </Button>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             )}
                           </DialogContent>
                         </Dialog>
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
@@ -1956,7 +2317,7 @@ export default function OliveManagement() {
                       <>
                         {/* Grid View */}
                         {boxViewMode === "grid" && (
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
                       {selectedFarmer.boxes.map((box) => (
                         <Card
                           key={box.id}
@@ -2137,9 +2498,9 @@ export default function OliveManagement() {
                           const boxesWithoutWeight = selectedBoxes.filter(box => !box.weight || box.weight === 0)
                           
                           return (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-[#2C3E50] text-lg">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-semibold text-[#2C3E50] text-base lg:text-lg">
                               {selectedBoxes.length} boîtes sélectionnées pour le traitement
                             </p>
                             {boxesWithoutWeight.length > 0 && (
@@ -2150,7 +2511,7 @@ export default function OliveManagement() {
                                 </p>
                               </div>
                             )}
-                            <p className="text-gray-600 mb-2">
+                            <p className="text-gray-600 mb-2 text-sm lg:text-base">
                               Poids total: {boxesWithWeight.reduce((sum, box) => sum + box.weight, 0)}{" "}
                               kg
                               {boxesWithoutWeight.length > 0 && (
@@ -2168,39 +2529,42 @@ export default function OliveManagement() {
                               DT
                             </p>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                                      <Button
                               onClick={() => handleBulkDeleteSelectedBoxes(selectedFarmer)}
-                              disabled={creating}
+                            disabled={creating}
                               variant="outline"
-                              className="border-red-500 text-red-600 hover:bg-red-50"
+                              className="border-red-500 text-red-600 hover:bg-red-50 text-sm lg:text-base"
                               title="Libérer les boîtes sélectionnées"
                             >
                               {creating ? (
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
                               ) : (
-                                <Trash2 className="w-5 h-5 mr-2" />
+                                <Trash2 className="w-4 h-4 mr-1 sm:mr-2" />
                               )}
-                              Supprimer la sélection
+                              <span className="hidden sm:inline">Supprimer la sélection</span>
+                              <span className="sm:hidden">Supprimer</span>
                             </Button>
                             <Button
                               onClick={() => handleCompleteProcessing(selectedFarmer)}
                               disabled={creating || boxesWithoutWeight.length > 0}
-                              className="bg-[#F4D03F] hover:bg-[#E6C547] text-[#8B4513] text-lg px-6 py-3 h-auto"
-                            >
-                              {creating ? (
-                                <>
-                                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                  Création de la session...
-                                </>
-                              ) : (
-                                <>
-                                <ArrowRight className="w-5 h-5 mr-2" />
-                                {boxesWithoutWeight.length > 0 ? "Ajouter les poids manquants" : "Terminer le traitement"}
-                                </>
-                              )}
-                            </Button>
-                          </div>
+                            className="bg-[#F4D03F] hover:bg-[#E6C547] text-[#8B4513] text-sm lg:text-lg px-4 sm:px-6 py-2 sm:py-3 h-auto"
+                          >
+                            {creating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />
+                                <span className="hidden sm:inline">Création de la session...</span>
+                                <span className="sm:hidden">Création...</span>
+                              </>
+                            ) : (
+                              <>
+                            <ArrowRight className="w-4 h-4 mr-1 sm:mr-2" />
+                                <span className="hidden sm:inline">{boxesWithoutWeight.length > 0 ? "Ajouter les poids manquants" : "Terminer le traitement"}</span>
+                                <span className="sm:hidden">{boxesWithoutWeight.length > 0 ? "Ajouter poids" : "Terminer"}</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         </div>
                           )
                         })()}
@@ -2226,9 +2590,11 @@ export default function OliveManagement() {
 
       {/* Edit Farmer Dialog */}
       <Dialog open={isEditFarmerOpen} onOpenChange={setIsEditFarmerOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier l'agriculteur</DialogTitle>
+        <DialogContent className="max-w-full sm:max-w-md mx-4 p-4 sm:p-6">
+          <DialogHeader className="pb-4 border-b border-gray-200">
+            <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
+              Modifier l'agriculteur
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -2299,9 +2665,11 @@ export default function OliveManagement() {
 
       {/* Edit Box Dialog */}
       <Dialog open={!!editingBox} onOpenChange={(open) => !open && setEditingBox(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier la boîte</DialogTitle>
+        <DialogContent className="max-w-full sm:max-w-md mx-4 p-4 sm:p-6">
+          <DialogHeader className="pb-4 border-b border-gray-200">
+            <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
+              Modifier la boîte
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -2390,7 +2758,7 @@ export default function OliveManagement() {
           setMissingWeightEntries([])
         }
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-full sm:max-w-2xl mx-4 max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Compléter les poids manquants</DialogTitle>
           </DialogHeader>
@@ -2399,7 +2767,7 @@ export default function OliveManagement() {
               <span className="text-sm text-gray-600">Boîtes sans poids: {missingWeightEntries.length}</span>
               <Progress value={(missingWeightEntries.filter(e => !e.error && e.weight.trim()).length / Math.max(1, missingWeightEntries.length)) * 100} className="w-40" />
             </div>
-            <div className="grid grid-cols-2 gap-4 max-h-80 overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-80 overflow-y-auto">
               {missingWeightEntries.map((entry, index) => (
                 <Card key={entry.id} className={`p-4 ${entry.error ? 'border-orange-300 bg-orange-50' : 'border-green-200'}`}>
                   <div className="space-y-2">

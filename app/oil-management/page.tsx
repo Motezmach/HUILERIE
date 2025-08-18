@@ -25,6 +25,10 @@ import {
   LogOut,
   Calendar,
   Crown,
+  Menu,
+  ArrowLeft,
+  FileText,
+  Package,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
@@ -90,6 +94,8 @@ export default function OilManagement() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [mobileView, setMobileView] = useState<"farmers" | "sessions">("farmers")
 
   const [processedFarmers, setProcessedFarmers] = useState<ProcessedFarmer[]>([])
 
@@ -1144,16 +1150,25 @@ export default function OilManagement() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden p-2"
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
             <div className="w-8 h-8 bg-[#6B8E4B] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">HM</span>
             </div>
-            <h1 className="text-2xl font-bold text-[#2C3E50]">HUILERIE MASMOUDI</h1>
+            <h1 className="text-lg sm:text-2xl font-bold text-[#2C3E50] truncate">HUILERIE MASMOUDI</h1>
           </div>
-          <div className="flex items-center space-x-4">
-            <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F]">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F] text-xs sm:text-sm hidden sm:block">
               {user?.role || 'Gestionnaire d\'usine'}
             </Badge>
             <div className="flex items-center space-x-2">
@@ -1176,9 +1191,26 @@ export default function OilManagement() {
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-gray-200 min-h-screen">
+      {/* Mobile Navigation Bar */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-2">
+        <div className="flex items-center space-x-2">
+          <Link
+            href="/olive-management"
+            className="flex items-center space-x-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Package className="w-4 h-4" />
+            <span className="text-sm font-medium">Olives</span>
+          </Link>
+          <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-[#6B8E4B] text-white">
+            <Archive className="w-4 h-4" />
+            <span className="text-sm font-medium">Huile</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex relative">
+        {/* Desktop Sidebar */}
+        <aside className="hidden md:block w-64 bg-white border-r border-gray-200 min-h-screen">
           <nav className="p-4 space-y-2">
             <Link
               href="/dashboard"
@@ -1215,10 +1247,102 @@ export default function OilManagement() {
           </nav>
         </aside>
 
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setIsMobileSidebarOpen(false)}>
+            <aside className="w-64 bg-white h-full border-r border-gray-200" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#2C3E50]">Menu</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <nav className="p-4 space-y-2">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center space-x-3 px-3 py-2 text-[#2C3E50] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Tableau de bord</span>
+                </Link>
+                <Link
+                  href="/olive-management"
+                  className="flex items-center space-x-3 px-3 py-2 text-[#2C3E50] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <Users className="w-5 h-5" />
+                  <span>Gestion des olives</span>
+                </Link>
+                <Link
+                  href="/oil-management"
+                  className="flex items-center space-x-3 px-3 py-2 bg-[#6B8E4B] text-white rounded-lg"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <Archive className="w-5 h-5" />
+                  <span>Gestion de l'huile</span>
+                </Link>
+                <Separator className="my-2" />
+                <Link
+                  href="/huilerie"
+                  className="flex items-center space-x-3 px-3 py-2 text-[#8B4513] hover:bg-[#F4D03F]/10 rounded-lg transition-all duration-200 border border-[#F4D03F]/20"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                >
+                  <Crown className="w-5 h-5 text-[#F4D03F]" />
+                  <span className="font-semibold">HUILERIE</span>
+                  <Badge variant="secondary" className="ml-auto text-xs bg-[#F4D03F] text-[#8B4513]">
+                    Propriétaire
+                  </Badge>
+                </Link>
+              </nav>
+            </aside>
+          </div>
+        )}
+
         {/* Main Content */}
-        <main className="flex-1 flex">
+        <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* Mobile View Toggle */}
+          <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={mobileView === "farmers" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMobileView("farmers")}
+                className={mobileView === "farmers" ? "bg-[#6B8E4B] text-white" : ""}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Agriculteurs ({filteredFarmers.length})
+              </Button>
+              <Button
+                variant={mobileView === "sessions" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMobileView("sessions")}
+                disabled={!selectedFarmer}
+                className={mobileView === "sessions" ? "bg-[#6B8E4B] text-white" : ""}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Sessions {selectedFarmer && `(${selectedFarmer.sessions.length})`}
+              </Button>
+              {selectedFarmer && mobileView === "sessions" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMobileView("farmers")}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+
           {/* Left Panel - Processed Farmers */}
-          <div className="w-1/3 p-6 border-r border-gray-200">
+          <div className={`${mobileView === "farmers" ? "block" : "hidden"} md:block w-full md:w-1/3 p-4 md:p-6 border-r border-gray-200 overflow-y-auto`}>
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -1289,7 +1413,13 @@ export default function OilManagement() {
                   className={`cursor-pointer transition-all hover:shadow-md ${
                     selectedFarmer?.id === farmer.id ? "ring-2 ring-[#6B8E4B] bg-[#6B8E4B]/5" : ""
                   }`}
-                  onClick={() => setSelectedFarmer(farmer)}
+                  onClick={() => {
+                    setSelectedFarmer(farmer)
+                    // On mobile, switch to sessions view when farmer is selected
+                    if (window.innerWidth < 768) { // md breakpoint
+                      setMobileView("sessions")
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center space-x-3">
@@ -1336,7 +1466,7 @@ export default function OilManagement() {
           </div>
 
           {/* Right Panel - Oil Processing Details */}
-          <div className="flex-1 p-6">
+          <div className={`${mobileView === "sessions" ? "block" : "hidden"} md:block flex-1 p-4 md:p-6 overflow-y-auto`}>
             {selectedFarmer ? (
               <div className="space-y-6">
                 {/* Farmer Info */}
@@ -1345,7 +1475,7 @@ export default function OilManagement() {
                     <CardTitle className="text-[#2C3E50]">Informations de l'agriculteur</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-gray-600">Nom</p>
                         <p className="font-semibold">{selectedFarmer.name}</p>
@@ -1371,23 +1501,39 @@ export default function OilManagement() {
                 {/* Processing History */}
                 <Card className="border-0 shadow-lg">
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-[#2C3E50]">Sessions de traitement</CardTitle>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRebuild(selectedFarmer.id)}
-                        className="border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reconstruire
-                      </Button>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {/* Mobile: Show back button */}
+                          <div className="md:hidden">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setMobileView("farmers")}
+                            >
+                              <ArrowLeft className="w-4 h-4 mr-2" />
+                              Retour
+                            </Button>
+                          </div>
+                          <CardTitle className="text-[#2C3E50]">Sessions de traitement</CardTitle>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRebuild(selectedFarmer.id)}
+                          className="border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          <span className="hidden sm:inline">Reconstruire</span>
+                          <span className="sm:hidden">Reconstruire</span>
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
 
                   {/* Farmer Statistics Component */}
                   <CardContent className="p-6 border-b">
-                    <div className="grid grid-cols-3 gap-6 text-center mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-center mb-6">
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Total des sessions</p>
                         <p className="text-2xl font-bold text-[#2C3E50]">{selectedFarmer.sessions.length}</p>
@@ -1441,14 +1587,14 @@ export default function OilManagement() {
                           onClick={() => session.paymentStatus !== "paid" && handleEditSession(session)}
                         >
                           <CardContent className="p-4">
-                            <div className="flex items-center justify-between mb-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
                               <div className="flex items-center space-x-3">
                                 <h4 className="font-semibold text-[#2C3E50]">Session {session.sessionNumber}</h4>
                                 {getSessionStatusBadge(session)}
                               </div>
                               <div className="flex items-center space-x-2">
                                 {session.paymentStatus !== "paid" && (
-                                  <div className="text-sm text-blue-600 font-medium">
+                                  <div className="text-sm text-blue-600 font-medium hidden sm:block">
                                     <Edit className="w-3 h-3 inline mr-1" />
                                     Cliquer pour modifier
                                   </div>
@@ -1461,6 +1607,7 @@ export default function OilManagement() {
                                     e.stopPropagation()
                                     setShowDeleteSessionConfirm(session.id)
                                   }}
+                                  className="flex-shrink-0"
                                 >
                                   <Trash2 className="w-4 h-4 text-red-500" />
                                 </Button>
@@ -1468,7 +1615,7 @@ export default function OilManagement() {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                               <div>
                                 <p className="text-sm text-gray-600">Nombre de boîtes</p>
                                 <p className="font-semibold">{session.boxCount} boîtes</p>
@@ -1549,7 +1696,7 @@ export default function OilManagement() {
                                 </p>
                               </div>
                               {(session.processingStatus === "processed" || session.oilWeight > 0) && (
-                                <div className="flex space-x-2">
+                                <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1557,10 +1704,11 @@ export default function OilManagement() {
                                       e.stopPropagation()
                                       handlePrintReceipt(session)
                                     }}
-                                    className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white"
+                                    className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white flex-1 sm:flex-none"
                                   >
                                     <Printer className="w-4 h-4 mr-2" />
-                                    Imprimer
+                                    <span className="hidden sm:inline">Imprimer</span>
+                                    <span className="sm:hidden">Imprimer</span>
                                   </Button>
                                   {session.paymentStatus === "unpaid" && (
                                     <Button
@@ -1569,10 +1717,11 @@ export default function OilManagement() {
                                         e.stopPropagation()
                                         setShowPaymentConfirm(session.id)
                                       }}
-                                      className="bg-green-600 hover:bg-green-700"
+                                      className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
                                     >
                                       <CheckCircle className="w-4 h-4 mr-2" />
-                                      Marquer comme payé
+                                      <span className="hidden sm:inline">Marquer comme payé</span>
+                                      <span className="sm:hidden">Payé</span>
                                     </Button>
                                   )}
                                 </div>
@@ -1600,8 +1749,8 @@ export default function OilManagement() {
 
       {/* Edit Session Modal */}
       {editingSession && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[500px] max-w-2xl max-h-[90vh] overflow-y-auto text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto text-gray-900 mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingSession.oilWeight > 0 ? "Modifier les détails de traitement" : "Saisir les détails de traitement"}
@@ -1615,7 +1764,7 @@ export default function OilManagement() {
 
             {/* Session Info */}
             <div className="bg-gray-50 p-4 rounded-lg mb-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div>
                   <p className="font-medium text-gray-700">Session: {editingSession.sessionNumber}</p>
                   <p className="text-gray-600">Créée le: {new Date(editingSession.createdAt).toLocaleDateString('fr-FR')}</p>
@@ -1710,11 +1859,11 @@ export default function OilManagement() {
                   className="bg-white text-gray-900"
                 />
               </div>
-              <div className="flex space-x-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
                 <Button
                   onClick={handleSaveSession}
                   disabled={saving}
-                  className="bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white"
+                  className="bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white flex-1 sm:flex-none"
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1723,7 +1872,7 @@ export default function OilManagement() {
                   )}
                   {saving ? 'Enregistrement...' : 'Enregistrer'}
                 </Button>
-                <Button variant="outline" onClick={() => setEditingSession(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
+                <Button variant="outline" onClick={() => setEditingSession(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 flex-1 sm:flex-none">
                   <X className="w-4 h-4 mr-2" />
                   Annuler
                 </Button>
@@ -1735,11 +1884,11 @@ export default function OilManagement() {
 
       {/* Payment Confirmation Modal */}
       {showPaymentConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md text-gray-900 mx-4">
             <h3 className="text-lg font-semibold mb-4 text-gray-900">Confirmer le paiement</h3>
             <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir marquer cette session comme payée ?</p>
-              <div className="flex space-x-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
                 <Button
                   onClick={() => handleMarkAsPaid(showPaymentConfirm)}
                 disabled={saving}
@@ -1762,8 +1911,8 @@ export default function OilManagement() {
 
       {/* Delete Farmer Confirmation Modal */}
       {showDeleteFarmerConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md text-gray-900 mx-4">
             <h3 className="text-lg font-semibold mb-4 text-gray-900">Supprimer l'agriculteur</h3>
             <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir supprimer cet agriculteur et toutes ses sessions ?</p>
               <div className="flex space-x-2">
@@ -1781,8 +1930,8 @@ export default function OilManagement() {
 
       {/* Delete Session Confirmation Modal */}
       {showDeleteSessionConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md text-gray-900 mx-4">
             <h3 className="text-lg font-semibold mb-4 text-gray-900">Supprimer la session</h3>
             <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir supprimer cette session de traitement ?</p>
               <div className="flex space-x-2">

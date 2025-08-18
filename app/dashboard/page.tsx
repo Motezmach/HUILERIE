@@ -168,6 +168,14 @@ export default function Dashboard() {
         return false
       }
       
+      // Check if mobile and redirect to olive management
+      const isMobile = window.innerWidth < 768 // md breakpoint
+      if (isMobile) {
+        console.log('📱 Mobile device detected, redirecting to olive management...')
+        router.push('/olive-management')
+        return false
+      }
+      
       setUser(currentUser)
       return true
     }
