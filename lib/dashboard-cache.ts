@@ -1,4 +1,7 @@
 import { prisma } from './prisma'
+import { updateFarmerTotals } from './utils'
+
+const DASHBOARD_UPDATE_ENDPOINT = '/api/dashboard/real-time'
 
 // Dashboard cache invalidation system
 export async function invalidateDashboardCache() {
@@ -35,26 +38,8 @@ export async function triggerDashboardUpdate(reason: string) {
 // Helper function to update farmer totals and trigger dashboard update
 export async function updateFarmerTotalsAndDashboard(farmerId: string, reason: string) {
   try {
-    // Update farmer totals
-    const sessions = await prisma.processingSession.findMany({
-      where: { farmerId }
-    })
-    
-    const totalAmountDue = sessions.reduce((sum, session) => sum + Number(session.totalPrice), 0)
-    const totalAmountPaid = sessions
-      .filter(session => session.paymentStatus === 'PAID')
-      .reduce((sum, session) => sum + Number(session.totalPrice), 0)
-    
-    const paymentStatus = totalAmountDue === totalAmountPaid ? 'PAID' : 'PENDING'
-    
-    await prisma.farmer.update({
-      where: { id: farmerId },
-      data: {
-        totalAmountDue,
-        totalAmountPaid,
-        paymentStatus
-      }
-    })
+    // Use the updated farmer totals logic
+    await updateFarmerTotals(farmerId, prisma)
     
     // Trigger dashboard update
     await triggerDashboardUpdate(reason)

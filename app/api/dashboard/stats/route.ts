@@ -59,14 +59,14 @@ export async function GET() {
           const revenue = await prisma.processingSession.aggregate({
             where: {
               createdAt: { gte: startOfDay, lte: endOfDay },
-              paymentStatus: 'PAID'
+              paymentStatus: { in: ['PAID', 'PARTIAL'] } // Include partial payments
             },
-            _sum: { totalPrice: true }
+            _sum: { amountPaid: true } // Use amountPaid to include partial payments
           })
           
           return {
             date: startOfDay.toISOString().split('T')[0],
-            revenue: Number(revenue._sum.totalPrice || 0)
+            revenue: Number(revenue._sum.amountPaid || 0) // Use amountPaid
           }
         })
       ),

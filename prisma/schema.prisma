@@ -29,9 +29,10 @@ model User {
 model Farmer {
   id                   String             @id @default(uuid())
   name                 String
+  nickname             String?            // Optional nickname field
   phone                String?
   type                 FarmerType         @default(SMALL)
-  pricePerKg           Decimal            @default(0.15)
+  pricePerKg           Decimal?           // Made nullable - pricing is now per-session
   dateAdded            DateTime           @default(now())
   totalAmountDue       Decimal            @default(0)
   totalAmountPaid      Decimal            @default(0)
@@ -76,8 +77,10 @@ model ProcessingSession {
   oilWeight            Decimal            @default(0)
   totalBoxWeight       Decimal
   boxCount             Int
-  totalPrice           Decimal
-  pricePerKg           Decimal            @default(0.15)
+  totalPrice           Decimal?           // Made nullable - will be set during payment
+  pricePerKg           Decimal?           // Made nullable - will be set during payment
+  amountPaid           Decimal            @default(0)  // Track partial payments
+  remainingAmount      Decimal            @default(0)  // Track remaining balance
   processingStatus     ProcessingStatus   @default(PENDING)
   paymentStatus        PaymentStatus      @default(UNPAID)
   paymentDate          DateTime?
@@ -87,6 +90,7 @@ model ProcessingSession {
   
   farmer               Farmer             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
   sessionBoxes         SessionBox[]
+  paymentTransactions  PaymentTransaction[] // New relation for payment history
   
   @@map("processing_sessions")
 }
@@ -105,6 +109,20 @@ model SessionBox {
   
   @@unique([sessionId, boxId])
   @@map("session_boxes")
+}
+
+model PaymentTransaction {
+  id                   String             @id @default(uuid())
+  sessionId            String
+  amount               Decimal            // Amount paid in this transaction
+  paymentDate          DateTime           @default(now())
+  paymentMethod        String?            // Optional: cash, bank, etc.
+  notes                String?            // Optional payment notes
+  createdAt            DateTime           @default(now())
+  
+  session              ProcessingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@map("payment_transactions")
 }
 
 model DashboardMetrics {
@@ -145,9 +163,10 @@ enum ProcessingStatus {
 }
 
 enum PaymentStatus {
-  UNPAID
-  PAID
-  PENDING
+  UNPAID     // No payment made
+  PARTIAL    // Partial payment made
+  PAID       // Full payment completed
+  PENDING    // Used for farmer-level status
 }
 
 enum UserRole {

@@ -104,6 +104,7 @@ export const farmersApi = {
   // Create farmer
   create: (farmer: {
     name: string
+    nickname?: string
     phone?: string
     type: 'small' | 'large'
   }): Promise<ApiResponse<any>> => 
@@ -115,9 +116,9 @@ export const farmersApi = {
   // Update farmer
   update: (id: string, farmer: Partial<{
     name: string
+    nickname: string
     phone: string
     type: 'small' | 'large'
-    pricePerKg: number
   }>): Promise<ApiResponse<any>> => 
     apiRequest(`/farmers/${id}`, {
       method: 'PUT',
@@ -305,7 +306,7 @@ export const sessionsApi = {
     boxIds: string[]
     totalBoxWeight: number
     boxCount: number
-    totalPrice: number
+    // totalPrice removed - will be calculated during payment
   }): Promise<ApiResponse<any>> => 
     apiRequest('/sessions', {
       method: 'POST',
@@ -334,9 +335,12 @@ export const sessionsApi = {
       body: JSON.stringify(data),
     }),
 
-  // Update payment
+  // Update payment with flexible pricing
   updatePayment: (id: string, data: {
-    status: 'paid' | 'unpaid'
+    pricePerKg: number
+    amountPaid: number
+    paymentMethod?: string
+    notes?: string
   }): Promise<ApiResponse<any>> => 
     apiRequest(`/sessions/${id}/payment`, {
       method: 'PUT',

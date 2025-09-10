@@ -91,19 +91,19 @@ export async function GET(request: NextRequest) {
         _count: { paymentStatus: true }
       }),
       
-      // Today's revenue (paid sessions only)
+      // Today's revenue (include both paid and partial payments)
       prisma.processingSession.aggregate({
         where: {
           createdAt: { gte: todayStart, lte: todayEnd },
-          paymentStatus: 'PAID'
+          paymentStatus: { in: ['PAID', 'PARTIAL'] }
         },
-        _sum: { totalPrice: true }
+        _sum: { amountPaid: true } // Use amountPaid to include partial payments
       }),
       
-      // Total revenue (all time, paid sessions only)
+      // Total revenue (all time, include both paid and partial payments)
       prisma.processingSession.aggregate({
-        where: { paymentStatus: 'PAID' },
-        _sum: { totalPrice: true }
+        where: { paymentStatus: { in: ['PAID', 'PARTIAL'] } },
+        _sum: { amountPaid: true } // Use amountPaid to include partial payments
       }),
       
       // Yesterday's farmers count
@@ -113,13 +113,13 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // Yesterday's revenue
+      // Yesterday's revenue (include both paid and partial payments)
       prisma.processingSession.aggregate({
         where: {
           createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
-          paymentStatus: 'PAID'
+          paymentStatus: { in: ['PAID', 'PARTIAL'] }
         },
-        _sum: { totalPrice: true }
+        _sum: { amountPaid: true } // Use amountPaid to include partial payments
       }),
       
       // Average oil extraction (processed sessions only)
@@ -203,8 +203,8 @@ export async function GET(request: NextRequest) {
       totalBoxes: 600, // Fixed total factory boxes based on your memory
       activeBoxes: availableBoxes, // Available boxes (ready for assignment)
       pendingExtractions,
-      todayRevenue: Number(todayRevenue._sum.totalPrice || 0),
-      totalRevenue: Number(totalRevenue._sum.totalPrice || 0),
+      todayRevenue: Number(todayRevenue._sum.amountPaid || 0), // Fixed to use amountPaid
+      totalRevenue: Number(totalRevenue._sum.amountPaid || 0), // Fixed to use amountPaid
       averageOilExtraction: Number(avgOilExtraction._avg.oilWeight || 0),
       metricDate: todayStart.toISOString(),
       chkaraCount: chkaraCount // Add Chkara count
@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
 
     const trends = {
       farmersChange: todayFarmersAdded - yesterdayFarmers,
-      revenueChange: metrics.todayRevenue - Number(yesterdayRevenue._sum.totalPrice || 0)
+      revenueChange: metrics.todayRevenue - Number(yesterdayRevenue._sum.amountPaid || 0)
     }
 
     // Build recent activity feed

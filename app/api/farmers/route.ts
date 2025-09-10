@@ -4,8 +4,7 @@ import { createFarmerSchema, farmersQuerySchema } from '@/lib/validations'
 import { 
   createSuccessResponse, 
   createErrorResponse, 
-  createPaginatedResponse,
-  calculatePricePerKg
+  createPaginatedResponse
 } from '@/lib/utils'
 import { triggerDashboardUpdate } from '@/lib/dashboard-cache'
 
@@ -101,14 +100,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createFarmerSchema.parse(body)
     
-    const pricePerKg = calculatePricePerKg(validatedData.type)
-    
     const farmer = await prisma.farmer.create({
       data: {
         name: validatedData.name,
+        nickname: validatedData.nickname || null,
         phone: validatedData.phone || null,
         type: validatedData.type.toUpperCase() as any,
-        pricePerKg
+        // pricePerKg is now nullable - no default value set
       }
     })
 

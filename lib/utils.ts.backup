@@ -193,19 +193,6 @@ export function getFarmerTypeLabel(type: string): string {
   }
 }
 
-// Farmer display utilities
-export function formatFarmerDisplayName(name: string, nickname?: string | null): string {
-  if (nickname && nickname.trim()) {
-    return `${name} (${nickname.trim()})`
-  }
-  return name
-}
-
-export function formatFarmerInvoiceName(name: string): string {
-  // For invoices, always use only the official name, never the nickname
-  return name
-}
-
 // Backend utility functions for API responses
 export function createSuccessResponse<T>(data: T, message?: string) {
   return {
@@ -349,44 +336,20 @@ export async function updateFarmerTotals(farmerId: string, prisma: any) {
   const totalAmountPaid = sessions
     .reduce((sum: number, session: any) => sum + Number(session.amountPaid || 0), 0)
   
-  // SIMPLIFIED FARMER STATUS LOGIC:
-  // Check if ANY session is not fully paid
-  const hasUnpaidSessions = sessions.some((session: any) => {
-    // Session is considered unpaid if:
-    // 1. No price set yet (new session) - totalPrice is null
-    // 2. Payment status is not PAID
-    // 3. Has remaining amount > 0
-    return (
-      session.totalPrice === null || 
-      session.paymentStatus !== 'PAID' || 
-      Number(session.remainingAmount || 0) > 0
+  // Farmer is fully paid when total paid equals or exceeds total due
+  // AND all sessions with prices are either PAID or have remaining amount = 0
+  const allSessionsPaid = sessions
+    .filter((session: any) => session.totalPrice !== null)
+    .every((session: any) => 
+      session.paymentStatus === 'PAID' || 
+      Number(session.remainingAmount || 0) === 0
     )
-  })
   
-  // Simple status logic:
-  // - If ANY session is unpaid → PENDING
-  // - If ALL sessions are paid AND amounts match → PAID
-  const paymentStatus = hasUnpaidSessions ? 'PENDING' : 'PAID'
-  
-  console.log('👨‍🌾 Simplified Farmer Status Update:', {
-    farmerId,
-    totalSessions: sessions.length,
-    hasUnpaidSessions,
-    totalAmountDue,
-    totalAmountPaid,
-    calculatedStatus: paymentStatus,
-    sessionStatuses: sessions.map((s: any) => ({
-      id: s.sessionNumber || s.id,
-      totalPrice: s.totalPrice,
-      paymentStatus: s.paymentStatus,
-      remainingAmount: s.remainingAmount,
-      isUnpaid: (
-        s.totalPrice === null || 
-        s.paymentStatus !== 'PAID' || 
-        Number(s.remainingAmount || 0) > 0
-      )
-    }))
-  })
+  const paymentStatus = (totalAmountDue > 0 && totalAmountPaid >= totalAmountDue && allSessionsPaid) 
+    ? 'PAID' 
+    : totalAmountPaid > 0 
+      ? 'PARTIAL'
+      : 'PENDING'
   
   return await prisma.farmer.update({
     where: { id: farmerId },

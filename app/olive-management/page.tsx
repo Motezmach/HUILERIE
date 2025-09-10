@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -57,9 +57,10 @@ import {
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { farmersApi, boxesApi, sessionsApi } from "@/lib/api"
-import { transformFarmerFromDb, transformBoxFromDb, generateSessionNumber, calculatePricePerKg } from "@/lib/utils"
+import { transformFarmerFromDb, transformBoxFromDb, generateSessionNumber } from "@/lib/utils"
 import { logout, getCurrentUser } from '@/lib/auth-client'
 import { Separator } from "@/components/ui/separator"
+import { formatFarmerDisplayName } from '@/lib/utils'
 
 interface Farmer {
   id: string
@@ -69,6 +70,7 @@ interface Farmer {
   dateAdded: string
   pricePerKg: number
   boxes: Box[]
+  nickname?: string
 }
 
 interface Box {
@@ -130,9 +132,17 @@ export default function OliveManagement() {
   // Form states
   const [farmerForm, setFarmerForm] = useState({
     name: "",
+    nickname: "",
     phone: "",
     type: "small" as "small" | "large",
   })
+  
+  // Add validation errors state
+  const [farmerFormErrors, setFarmerFormErrors] = useState<{
+    name?: string
+    phone?: string
+  }>({})
+
   const [boxForm, setBoxForm] = useState({
     id: "",
     type: "normal" as "nchira" | "chkara" | "normal",
@@ -424,35 +434,28 @@ export default function OliveManagement() {
     )
   }
 
-  const filteredFarmers = farmers
-    .filter((farmer) => {
-      const term = searchTerm.trim().toLowerCase()
-      const isNumericTerm = /^\d+$/.test(term)
+  // Filter and search logic
+  const filteredFarmers = useMemo(() => {
+    return farmers.filter((farmer) => {
+      const term = searchTerm.toLowerCase()
       const matchesName = farmer.name.toLowerCase().includes(term)
-      let matchesBoxId = false
-      if (term) {
-        if (isNumericTerm) {
-          matchesBoxId = farmer.boxes.some((box) => {
-            const idLower = box.id.toLowerCase()
-            if (/^\d+$/.test(idLower)) return idLower === term
-            const numericPart = idLower.replace(/\D/g, '')
-            return numericPart === term
-          })
-        } else {
-          matchesBoxId = farmer.boxes.some((box) => box.id.toLowerCase().includes(term))
-        }
+      const matchesPhone = farmer.phone?.toLowerCase().includes(term)
+      const matchesSearch = matchesName || matchesPhone
+
+      // Filter by treatment status instead of farmer type
+      let matchesFilter = true
+      if (filterType === "needs-treatment") {
+        // Farmers who have boxes without weight or are missing boxes (RED CARDS)
+        matchesFilter = hasBoxesWithoutWeight(farmer) || farmer.boxes.length === 0
+      } else if (filterType === "ready") {
+        // Farmers who have all boxes with weights and at least one box (NORMAL CARDS)
+        matchesFilter = farmer.boxes.length > 0 && !hasBoxesWithoutWeight(farmer)
       }
-      const matchesSearch = term ? (matchesName || matchesBoxId) : true
-    const matchesFilter = filterType === "all" || farmer.type === filterType
-    const matchesToday = !showTodayOnly || isToday(farmer.dateAdded)
-    return matchesSearch && matchesFilter && matchesToday
-  })
-    .sort((a, b) => {
-      const aMissing = hasBoxesWithoutWeight(a)
-      const bMissing = hasBoxesWithoutWeight(b)
-      if (aMissing !== bMissing) return aMissing ? -1 : 1
-      return a.name.localeCompare(b.name)
+      // "all" shows everyone
+
+      return matchesSearch && matchesFilter
     })
+  }, [farmers, searchTerm, filterType])
 
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
@@ -461,11 +464,21 @@ export default function OliveManagement() {
     
     // If activating today filter, auto-select first today's farmer
     if (newShowTodayOnly) {
-      const todaysFarmers = farmers.filter(farmer => 
-        farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        (filterType === "all" || farmer.type === filterType) &&
-        isToday(farmer.dateAdded)
-      )
+      const todaysFarmers = farmers.filter(farmer => {
+        const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
+        
+        // Use the same filter logic as in filteredFarmers
+        let matchesFilter = true
+        if (filterType === "needs-treatment") {
+          matchesFilter = hasBoxesWithoutWeight(farmer) || farmer.boxes.length === 0
+        } else if (filterType === "ready") {
+          matchesFilter = farmer.boxes.length > 0 && !hasBoxesWithoutWeight(farmer)
+        }
+        
+        const matchesToday = isToday(farmer.dateAdded)
+        
+        return matchesSearch && matchesFilter && matchesToday
+      })
       
       if (todaysFarmers.length > 0) {
         setSelectedFarmer(todaysFarmers[0])
@@ -473,10 +486,36 @@ export default function OliveManagement() {
     }
   }
 
-  // Farmer CRUD operations
-  const handleAddFarmer = async () => {
+  // Validation function for farmer form
+  const validateFarmerForm = () => {
+    const errors: { name?: string; phone?: string } = {}
+    
+    // Name validation: 2 words, each with 3+ letters
     if (!farmerForm.name.trim()) {
-      showNotification("Le nom de l'agriculteur est requis", "error")
+      errors.name = "Le nom est requis"
+    } else {
+      const words = farmerForm.name.trim().split(/\s+/)
+      if (words.length < 2) {
+        errors.name = "Le nom doit contenir au moins 2 mots"
+      } else if (words.some(word => word.length < 3)) {
+        errors.name = "Chaque mot doit contenir au moins 3 lettres"
+      }
+    }
+    
+    // Phone validation: exactly 8 digits (if provided)
+    if (farmerForm.phone.trim()) {
+      if (!/^[0-9]{8}$/.test(farmerForm.phone.trim())) {
+        errors.phone = "Le numéro doit contenir exactement 8 chiffres"
+      }
+    }
+    
+    setFarmerFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleAddFarmer = async () => {
+    // Validate form before submitting
+    if (!validateFarmerForm()) {
       return
     }
 
@@ -484,19 +523,24 @@ export default function OliveManagement() {
     try {
       const response = await farmersApi.create({
         name: farmerForm.name.trim(),
+        nickname: farmerForm.nickname.trim() || undefined,
         phone: farmerForm.phone.trim() || undefined,
-      type: farmerForm.type,
+        type: farmerForm.type,
       })
 
       if (response.success) {
-        const newFarmer = transformFarmerFromDb({
-          ...response.data,
+        const newFarmer = transformFarmerFromDb(response.data)
+        
+        // Add to farmers list with empty boxes initially
+        const farmerWithBoxes = {
+          ...newFarmer,
           boxes: []
-        })
+        }
 
-    setFarmers((prev) => [...prev, newFarmer])
-    setFarmerForm({ name: "", phone: "", type: "small" })
-    setIsAddFarmerOpen(false)
+        setFarmers((prev) => [...prev, farmerWithBoxes])
+        setFarmerForm({ name: "", nickname: "", phone: "", type: "small" })
+        setFarmerFormErrors({}) // Clear errors on success
+        setIsAddFarmerOpen(false)
         showNotification(`Agriculteur ${newFarmer.name} ajouté avec succès`, "success")
       } else {
         showNotification(response.error || 'Erreur lors de la création', 'error')
@@ -510,8 +554,10 @@ export default function OliveManagement() {
   }
 
   const handleEditFarmer = async () => {
-    if (!selectedFarmer || !farmerForm.name.trim()) {
-      showNotification("Le nom de l'agriculteur est requis", "error")
+    if (!selectedFarmer) return
+
+    // Validate form before submitting
+    if (!validateFarmerForm()) {
       return
     }
 
@@ -519,9 +565,10 @@ export default function OliveManagement() {
     try {
       const response = await farmersApi.update(selectedFarmer.id, {
         name: farmerForm.name.trim(),
+        nickname: farmerForm.nickname.trim() || undefined,
         phone: farmerForm.phone.trim() || undefined,
-              type: farmerForm.type,
-        pricePerKg: selectedFarmer.pricePerKg
+        type: farmerForm.type
+        // Removed pricePerKg - pricing is now per-session
       })
 
       if (response.success) {
@@ -532,17 +579,15 @@ export default function OliveManagement() {
         if (currentFarmer && (!updatedFarmer.boxes || updatedFarmer.boxes.length === 0) && currentFarmer.boxes.length > 0) {
           updatedFarmer.boxes = currentFarmer.boxes
         }
+
+        setFarmers((prev) => prev.map((f) => (f.id === selectedFarmer.id ? updatedFarmer : f)))
         
-        setFarmers((prev) =>
-          prev.map((farmer) =>
-            farmer.id === selectedFarmer.id ? updatedFarmer : farmer
-          )
-        )
-        
+        // Update selected farmer reference
         setSelectedFarmer(updatedFarmer)
-    setFarmerForm({ name: "", phone: "", type: "small" })
-    setIsEditFarmerOpen(false)
-    showNotification("Agriculteur mis à jour avec succès!", "success")
+        setFarmerForm({ name: "", nickname: "", phone: "", type: "small" })
+        setFarmerFormErrors({}) // Clear errors on success
+        setIsEditFarmerOpen(false)
+        showNotification("Agriculteur mis à jour avec succès!", "success")
       } else {
         showNotification(response.error || 'Erreur lors de la mise à jour', 'error')
       }
@@ -1100,9 +1145,8 @@ export default function OliveManagement() {
       return
     }
 
-    // Calculate total weight and price
+    // Calculate total weight (price will be set during payment)
     const totalBoxWeight = selectedBoxes.reduce((sum, box) => sum + box.weight, 0)
-    const totalPrice = totalBoxWeight * farmer.pricePerKg
 
     setCreating(true)
     try {
@@ -1112,7 +1156,7 @@ export default function OliveManagement() {
       boxIds: selectedBoxes.map((box) => box.id),
       totalBoxWeight: totalBoxWeight,
         boxCount: selectedBoxes.length,
-        totalPrice: totalPrice
+        // totalPrice will be calculated during payment process
       })
 
       if (response.success) {
@@ -1158,6 +1202,7 @@ export default function OliveManagement() {
   const openEditFarmer = (farmer: Farmer) => {
     setFarmerForm({
       name: farmer.name,
+      nickname: farmer.nickname || "", // Add nickname field with fallback
       phone: farmer.phone,
       type: farmer.type,
     })
@@ -1202,9 +1247,11 @@ export default function OliveManagement() {
     }
   }
 
-  // Helper function to check if farmer has boxes without weight
+  // Helper function to check if farmer has boxes without weight (determines RED CARD)
   function hasBoxesWithoutWeight(farmer: Farmer): boolean {
-    return farmer.boxes.some(box => box.status === "in_use" && (!box.weight || box.weight === 0))
+    return farmer.boxes.some(box => 
+      box.status === "in_use" && (!box.weight || box.weight === 0)
+    )
   }
 
   const openBulkWeightsDialog = (farmer: Farmer) => {
@@ -1266,14 +1313,52 @@ export default function OliveManagement() {
 
     setCreating(true)
     try {
-      await Promise.all(missingWeightEntries.map(e => boxesApi.update(e.id, { weight: parseFloat(e.weight) })))
+      // Create weight update promises
+      const weightUpdates = missingWeightEntries.map(e => 
+        boxesApi.update(e.id, { weight: parseFloat(e.weight) })
+      )
+      
+      // Update local state immediately for instant UI feedback
+      const weightMap = new Map(missingWeightEntries.map(e => [e.id, parseFloat(e.weight)]))
+      
+      // Update farmers list immediately
+      setFarmers(prev => prev.map(farmer => 
+        farmer.id === selectedFarmer.id
+          ? {
+              ...farmer,
+              boxes: farmer.boxes.map(box => 
+                weightMap.has(box.id) ? { ...box, weight: weightMap.get(box.id)! } : box
+              )
+            }
+          : farmer
+      ))
+
+      // Update selected farmer immediately
+      setSelectedFarmer(prev => prev ? {
+        ...prev,
+        boxes: prev.boxes.map(box => 
+          weightMap.has(box.id) ? { ...box, weight: weightMap.get(box.id)! } : box
+        )
+      } : null)
+
+      // Execute API updates
+      await Promise.all(weightUpdates)
+      
+      // Small delay to ensure UI updates are visible
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       showNotification(`${missingWeightEntries.length} poids mis à jour avec succès`, "success")
       setIsBulkWeightsOpen(false)
       setMissingWeightEntries([])
-      await reloadFarmer(selectedFarmer.id)
+      
+      // Reload farmer data in background to ensure server consistency
+      reloadFarmer(selectedFarmer.id).catch(console.error)
     } catch (err) {
       console.error('Bulk weight update failed', err)
       showNotification('Erreur lors de la mise à jour des poids', 'error')
+      
+      // If API update failed, reload farmer to revert local changes
+      reloadFarmer(selectedFarmer.id).catch(console.error)
     } finally {
       setCreating(false)
     }
@@ -1530,65 +1615,74 @@ export default function OliveManagement() {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-full sm:max-w-md mx-4 p-4 sm:p-6">
-                      <DialogHeader className="pb-4 border-b border-gray-200">
-                        <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
-                          Ajouter un nouvel agriculteur
+                      <DialogHeader className="pb-3 border-b border-gray-200">
+                        <DialogTitle className="text-lg font-semibold">
+                          Ajouter un agriculteur
                         </DialogTitle>
                       </DialogHeader>
-                    <div className="space-y-4">
+                    <div className="space-y-3 py-3">
                       <div>
                         <Label htmlFor="name">Nom *</Label>
                         <Input
                           id="name"
                           value={farmerForm.name}
-                          onChange={(e) => setFarmerForm((prev) => ({ ...prev, name: e.target.value }))}
-                          placeholder="Saisir le nom de l'agriculteur"
+                          onChange={(e) => {
+                            setFarmerForm((prev) => ({ ...prev, name: e.target.value }))
+                            // Clear error when user starts typing
+                            if (farmerFormErrors.name) {
+                              setFarmerFormErrors(prev => ({ ...prev, name: undefined }))
+                            }
+                          }}
+                          className={farmerFormErrors.name ? "border-red-500 focus:border-red-500" : ""}
+                        />
+                        {farmerFormErrors.name && (
+                          <p className="text-red-500 text-xs mt-1">{farmerFormErrors.name}</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="nickname">Surnom</Label>
+                        <Input
+                          id="nickname"
+                          value={farmerForm.nickname}
+                          onChange={(e) => setFarmerForm((prev) => ({ ...prev, nickname: e.target.value }))}
                         />
                       </div>
                       <div>
-                        <Label htmlFor="phone">Téléphone (optionnel)</Label>
+                        <Label htmlFor="phone">Téléphone</Label>
                         <Input
                           id="phone"
                           value={farmerForm.phone}
-                          onChange={(e) => setFarmerForm((prev) => ({ ...prev, phone: e.target.value }))}
-                          placeholder="Saisir le numéro de téléphone"
+                          onChange={(e) => {
+                            setFarmerForm((prev) => ({ ...prev, phone: e.target.value }))
+                            // Clear error when user starts typing
+                            if (farmerFormErrors.phone) {
+                              setFarmerFormErrors(prev => ({ ...prev, phone: undefined }))
+                            }
+                          }}
+                          className={farmerFormErrors.phone ? "border-red-500 focus:border-red-500" : ""}
                         />
+                        {farmerFormErrors.phone && (
+                          <p className="text-red-500 text-xs mt-1">{farmerFormErrors.phone}</p>
+                        )}
                       </div>
-                      <div>
-                        <Label htmlFor="type">Type d'agriculteur</Label>
-                        <Select
-                          value={farmerForm.type}
-                          onValueChange={(value: "small" | "large") =>
-                            setFarmerForm((prev) => ({ ...prev, type: value }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="small">Petit agriculteur (0.15 DT/kg)</SelectItem>
-                            <SelectItem value="large">Grand agriculteur (0.20 DT/kg)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-3 sm:space-x-2 pt-4 border-t border-gray-200">
+                      <div className="flex gap-2 pt-3 border-t border-gray-200">
                         <Button 
                           onClick={handleAddFarmer} 
                           disabled={creating}
-                          className="bg-[#6B8E4B] hover:bg-[#5A7A3F] h-12 text-base font-medium flex-1 sm:flex-none"
+                          className="bg-[#6B8E4B] hover:bg-[#5A7A3F] flex-1"
                         >
                           {creating ? (
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           ) : (
-                          <Save className="w-5 h-5 mr-2" />
+                          <Save className="w-4 h-4 mr-2" />
                           )}
-                          {creating ? 'Création...' : 'Enregistrer agriculteur'}
+                          {creating ? 'Création...' : 'Enregistrer'}
                         </Button>
                         <Button 
                           variant="outline" 
                           onClick={() => setIsAddFarmerOpen(false)} 
                           disabled={creating}
-                          className="h-12 text-base flex-1 sm:flex-none"
+                          className="flex-1"
                         >
                           <X className="w-4 h-4 mr-2" />
                           Annuler
@@ -1637,12 +1731,12 @@ export default function OliveManagement() {
                 <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger>
                     <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Filtrer par type" />
+                    <SelectValue placeholder="Filtrer par statut" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tous les agriculteurs</SelectItem>
-                    <SelectItem value="small">Petits agriculteurs</SelectItem>
-                    <SelectItem value="large">Grands agriculteurs</SelectItem>
+                    <SelectItem value="needs-treatment">Besoin de traitement</SelectItem>
+                    <SelectItem value="ready">Prêts pour traitement</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1696,14 +1790,11 @@ export default function OliveManagement() {
                         </span>
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-[#2C3E50]">{farmer.name}</h3>
+                        <h3 className="font-semibold text-[#2C3E50]">{formatFarmerDisplayName(farmer.name, farmer.nickname)}</h3>
                         <p className="text-sm text-gray-600">{farmer.phone || "Pas de téléphone"}</p>
                         <div className="flex items-center space-x-2 mt-1">
                           <Package className="w-4 h-4 text-gray-400" />
                           <span className="text-sm text-gray-600">{farmer.boxes.length} boîtes</span>
-                          <Badge variant={farmer.type === "large" ? "default" : "secondary"} className="text-xs">
-                            {farmer.pricePerKg} DT/kg
-                          </Badge>
                         </div>
                       </div>
                       <div className="flex flex-col space-y-1">
@@ -1754,22 +1845,11 @@ export default function OliveManagement() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                        <Input value={selectedFarmer.name} readOnly />
+                        <Input value={formatFarmerDisplayName(selectedFarmer.name, selectedFarmer.nickname)} readOnly />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
                         <Input value={selectedFarmer.phone || "Non renseigné"} readOnly />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Type d'agriculteur</label>
-                        <Input
-                          value={selectedFarmer.type === "large" ? "Grand agriculteur" : "Petit agriculteur"}
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Prix par kg</label>
-                        <Input value={`${selectedFarmer.pricePerKg} DT`} readOnly />
                       </div>
                     </div>
                   </CardContent>
@@ -2591,70 +2671,62 @@ export default function OliveManagement() {
       {/* Edit Farmer Dialog */}
       <Dialog open={isEditFarmerOpen} onOpenChange={setIsEditFarmerOpen}>
         <DialogContent className="max-w-full sm:max-w-md mx-4 p-4 sm:p-6">
-          <DialogHeader className="pb-4 border-b border-gray-200">
-            <DialogTitle className="text-lg sm:text-xl font-bold text-center sm:text-left">
+          <DialogHeader className="pb-3 border-b border-gray-200">
+            <DialogTitle className="text-lg font-semibold">
               Modifier l'agriculteur
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-3 py-3">
             <div>
               <Label htmlFor="editName">Nom *</Label>
               <Input
                 id="editName"
                 value={farmerForm.name}
-                onChange={(e) => setFarmerForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Saisir le nom de l'agriculteur"
+                onChange={(e) => {
+                  setFarmerForm((prev) => ({ ...prev, name: e.target.value }))
+                  // Clear error when user starts typing
+                  if (farmerFormErrors.name) {
+                    setFarmerFormErrors(prev => ({ ...prev, name: undefined }))
+                  }
+                }}
+                className={farmerFormErrors.name ? "border-red-500 focus:border-red-500" : ""}
+              />
+              {farmerFormErrors.name && (
+                <p className="text-red-500 text-xs mt-1">{farmerFormErrors.name}</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="editNickname">Surnom</Label>
+              <Input
+                id="editNickname"
+                value={farmerForm.nickname}
+                onChange={(e) => setFarmerForm((prev) => ({ ...prev, nickname: e.target.value }))}
               />
             </div>
             <div>
-              <Label htmlFor="editPhone">Téléphone (optionnel)</Label>
+              <Label htmlFor="editPhone">Téléphone</Label>
               <Input
                 id="editPhone"
                 value={farmerForm.phone}
-                onChange={(e) => setFarmerForm((prev) => ({ ...prev, phone: e.target.value }))}
-                placeholder="Saisir le numéro de téléphone"
-              />
-            </div>
-            <div>
-              <Label htmlFor="editType">Type d'agriculteur</Label>
-              <Select
-                value={farmerForm.type}
-                onValueChange={(value: "small" | "large") => setFarmerForm((prev) => ({ ...prev, type: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="small">Petit agriculteur (0.15 DT/kg)</SelectItem>
-                  <SelectItem value="large">Grand agriculteur (0.20 DT/kg)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="editPricePerKg">Prix par kg (DT) *</Label>
-              <Input
-                id="editPricePerKg"
-                type="number"
-                step="0.01"
-                min="0.01"
-                max="10"
-                value={selectedFarmer?.pricePerKg || 0.15}
                 onChange={(e) => {
-                  const newPrice = parseFloat(e.target.value) || 0.15
-                  setSelectedFarmer(prev => prev ? { ...prev, pricePerKg: newPrice } : null)
+                  setFarmerForm((prev) => ({ ...prev, phone: e.target.value }))
+                  // Clear error when user starts typing
+                  if (farmerFormErrors.phone) {
+                    setFarmerFormErrors(prev => ({ ...prev, phone: undefined }))
+                  }
                 }}
-                placeholder="Prix par kilogramme"
+                className={farmerFormErrors.phone ? "border-red-500 focus:border-red-500" : ""}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Vous pouvez modifier le prix personnalisé pour cet agriculteur
-              </p>
+              {farmerFormErrors.phone && (
+                <p className="text-red-500 text-xs mt-1">{farmerFormErrors.phone}</p>
+              )}
             </div>
-            <div className="flex space-x-2">
-              <Button onClick={handleEditFarmer} className="bg-[#6B8E4B] hover:bg-[#5A7A3F]">
+            <div className="flex gap-2 pt-3 border-t border-gray-200">
+              <Button onClick={handleEditFarmer} className="bg-[#6B8E4B] hover:bg-[#5A7A3F] flex-1">
                 <Save className="w-4 h-4 mr-2" />
-                Mettre à jour l'agriculteur
+                Mettre à jour
               </Button>
-              <Button variant="outline" onClick={() => setIsEditFarmerOpen(false)}>
+              <Button variant="outline" onClick={() => setIsEditFarmerOpen(false)} className="flex-1">
                 <X className="w-4 h-4 mr-2" />
                 Annuler
               </Button>

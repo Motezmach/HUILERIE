@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2 } from "lucide-react"
 import {
   Users,
@@ -29,23 +30,26 @@ import {
   ArrowLeft,
   FileText,
   Package,
+  Eye,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { sessionsApi, farmersApi } from "@/lib/api"
 import { logout, getCurrentUser } from '@/lib/auth-client'
+import { formatFarmerDisplayName, formatFarmerInvoiceName } from '@/lib/utils'
 
 interface ProcessedFarmer {
   id: string
   name: string
+  nickname?: string
   phone: string
   type: "small" | "large"
   pricePerKg: number
   sessions: ProcessingSession[]
   totalAmountDue: number
   totalAmountPaid: number
-  paymentStatus: "paid" | "pending"
+  paymentStatus: "paid" | "pending" // Simplified: removed "partial"
   lastProcessingDate: string
 }
 
@@ -53,7 +57,7 @@ interface ProcessingSession {
   id: string
   date: string
   oilWeight: number
-  totalPrice: number
+  totalPrice: number | null  // Can be null until price is set during payment
   boxCount: number
   boxIds: string[]
   boxDetails?: Array<{
@@ -63,12 +67,14 @@ interface ProcessingSession {
   }>
   totalBoxWeight: number
   processingStatus: "pending" | "processed"
-  paymentStatus: "unpaid" | "paid"
+  paymentStatus: "unpaid" | "paid" | "partial"
   farmerId: string
   sessionNumber: string
   paymentDate?: string
   createdAt: string
-  pricePerKg: number
+  pricePerKg: number | null  // Can be null until set during payment
+  amountPaid?: number        // Track partial payments
+  remainingAmount?: number   // Track remaining balance
 }
 
 export default function OilManagement() {
@@ -87,7 +93,6 @@ export default function OilManagement() {
   const [notification, setNotification] = useState<{ message: string; type: "error" | "success" | "warning" } | null>(
     null,
   )
-  const [showPaymentConfirm, setShowPaymentConfirm] = useState<string | null>(null)
   const [showDeleteFarmerConfirm, setShowDeleteFarmerConfirm] = useState<string | null>(null)
   const [showDeleteSessionConfirm, setShowDeleteSessionConfirm] = useState<string | null>(null)
   const [printingSession, setPrintingSession] = useState<ProcessingSession | null>(null)
@@ -97,38 +102,43 @@ export default function OilManagement() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<"farmers" | "sessions">("farmers")
 
+  // New payment modal states
+  const [paymentSession, setPaymentSession] = useState<ProcessingSession | null>(null)
+  const [paymentForm, setPaymentForm] = useState({
+    pricePerKg: "",
+    isFullPayment: true,
+    customAmount: "",
+    paymentMethod: "",
+    notes: ""
+  })
+  const [calculatedTotal, setCalculatedTotal] = useState(0)
+
+  // Session details modal states
+  const [sessionDetailsModal, setSessionDetailsModal] = useState<ProcessingSession | null>(null)
+  const [sessionPaymentHistory, setSessionPaymentHistory] = useState<any[]>([])
+  const [loadingSessionDetails, setLoadingSessionDetails] = useState(false)
+
   const [processedFarmers, setProcessedFarmers] = useState<ProcessedFarmer[]>([])
 
   // Initialize user
   useEffect(() => {
     const currentUser = getCurrentUser()
     if (!currentUser) {
-      console.log('❌ No user found in oil management, redirecting to login')
-      window.location.href = '/login'
+      router.push('/login')
       return
     }
     setUser(currentUser)
+    
+    // Load sessions on component mount
+    loadSessions()
   }, [])
 
   const handleLogout = async () => {
     try {
-      console.log('🔄 Starting logout process...')
-      
-      // Clear authentication immediately
       await logout()
-      
-      console.log('✅ Logout completed, redirecting...')
-      
-      // Force hard redirect to ensure clean state
-      window.location.href = '/login'
+      router.push('/login')
     } catch (error) {
-      console.error('❌ Logout error:', error)
-      
-      // Force clear everything even if logout fails
-      localStorage.clear()
-      document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;'
-      
-      // Force redirect
+      // Fallback redirect
       window.location.href = '/login'
     }
   }
@@ -137,13 +147,6 @@ export default function OilManagement() {
   const loadSessions = async () => {
     try {
       setLoading(true)
-      console.log('Loading sessions with parameters:', {
-        limit: 1000,
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-        includeFarmer: true,
-        includeBoxes: false
-      })
       
       // Get all sessions with farmer data
       const response = await sessionsApi.getAll({
@@ -153,8 +156,6 @@ export default function OilManagement() {
         includeFarmer: true,
         includeBoxes: true
       })
-
-      console.log('Sessions API response:', response)
 
       if (response.success) {
         // Group sessions by farmer using farmer data from API response
@@ -169,28 +170,23 @@ export default function OilManagement() {
             acc[farmerId] = {
               id: session.farmer?.id || farmerId,
               name: session.farmer?.name || "Agriculteur inconnu",
+              nickname: session.farmer?.nickname || null,
               phone: session.farmer?.phone || "",
               type: session.farmer?.type || "small",
-              pricePerKg: Number(session.farmer?.pricePerKg) || 0.15,
+              pricePerKg: 0, // Not used anymore - pricing is per-session
               sessions: [],
               totalAmountDue: 0,
-      totalAmountPaid: 0,
+              totalAmountPaid: 0,
               paymentStatus: "pending" as const,
               lastProcessingDate: ""
             }
           }
 
-          // Debug logging for box IDs
-          console.log('Session data:', session.id, {
-            sessionBoxes: session.sessionBoxes,
-            boxIdsExtracted: session.sessionBoxes?.map((sb: any) => sb.boxId) || []
-          })
-
           const transformedSession: ProcessingSession = {
             id: session.id,
             date: session.processingDate ? new Date(session.processingDate).toISOString().split('T')[0] : "",
             oilWeight: Number(session.oilWeight) || 0,
-            totalPrice: Number(session.totalPrice),
+            totalPrice: session.totalPrice ? Number(session.totalPrice) : null,
             boxCount: session.boxCount,
             boxIds: session.sessionBoxes?.map((sb: any) => sb.boxId) || [],
             boxDetails: session.sessionBoxes?.map((sb: any) => ({
@@ -200,23 +196,27 @@ export default function OilManagement() {
             })) || [],
             totalBoxWeight: Number(session.totalBoxWeight),
             processingStatus: (Number(session.oilWeight) > 0 || session.processingStatus === 'PROCESSED' || session.processingStatus === 'processed') ? "processed" : "pending",
-            paymentStatus: (session.paymentStatus === 'PAID' || session.paymentStatus === 'paid') ? "paid" : "unpaid",
+            paymentStatus: session.paymentStatus === 'PAID' || session.paymentStatus === 'paid' ? "paid" : 
+                          session.paymentStatus === 'PARTIAL' || session.paymentStatus === 'partial' ? "partial" : "unpaid",
             farmerId: session.farmerId,
             sessionNumber: session.sessionNumber || session.id,
             paymentDate: session.paymentDate ? new Date(session.paymentDate).toISOString().split('T')[0] : undefined,
             createdAt: session.createdAt,
-            pricePerKg: Number(session.pricePerKg) || Number(session.farmer?.pricePerKg) || 0.15,
+            pricePerKg: session.pricePerKg ? Number(session.pricePerKg) : null,
+            amountPaid: Number(session.amountPaid || 0),
+            remainingAmount: Number(session.remainingAmount || 0),
           }
 
-          // Debug the transformed session
-          console.log('Transformed session boxIds:', transformedSession.boxIds)
-
-          // Payment status transformation is now case-insensitive
-
           acc[farmerId].sessions.push(transformedSession)
-          acc[farmerId].totalAmountDue += session.totalPrice
-          if (session.paymentStatus === 'paid' || session.paymentStatus === 'PAID') {
-            acc[farmerId].totalAmountPaid += session.totalPrice
+          // Only add to totals if session has a price set
+          if (session.totalPrice) {
+            acc[farmerId].totalAmountDue += Number(session.totalPrice)
+          }
+          // Add amountPaid for any session that has payment status (paid or partial)
+          if (session.paymentStatus === 'paid' || session.paymentStatus === 'PAID' || 
+              session.paymentStatus === 'partial' || session.paymentStatus === 'PARTIAL') {
+            const amountToAdd = Number(session.amountPaid || 0)
+            acc[farmerId].totalAmountPaid += amountToAdd
           }
           acc[farmerId].lastProcessingDate = session.createdAt
 
@@ -224,13 +224,52 @@ export default function OilManagement() {
         }, {})
 
         // Convert to array and calculate payment status
-        const processedFarmersArray = Object.values(groupedByFarmer).map((farmer: any) => ({
+        const processedFarmersArray = Object.values(groupedByFarmer).map((farmer: any) => {
+          // SIMPLIFIED FARMER STATUS LOGIC (matching backend):
+          // Check if ANY session is not fully paid
+          const hasUnpaidSessions = farmer.sessions.some((s: ProcessingSession) => {
+            // Session is considered unpaid if:
+            // 1. No price set yet (new session) - totalPrice is null
+            // 2. Payment status is not 'paid'
+            // 3. Has remaining amount > 0
+            return (
+              s.totalPrice === null || 
+              s.paymentStatus !== 'paid' || 
+              (s.remainingAmount || 0) > 0
+            )
+          })
+          
+          // Simple status logic: 'pending' if ANY session is unpaid, 'paid' if ALL are paid
+          const farmerPaymentStatus = hasUnpaidSessions ? 'pending' : 'paid'
+          
+          console.log('👨‍🌾 Frontend Farmer Status Calculation:', {
+            farmerName: farmer.name,
+            totalSessions: farmer.sessions.length,
+            hasUnpaidSessions,
+            totalAmountDue: farmer.totalAmountDue,
+            totalAmountPaid: farmer.totalAmountPaid,
+            calculatedStatus: farmerPaymentStatus,
+            sessionStatuses: farmer.sessions.map((s: ProcessingSession) => ({
+              id: s.sessionNumber,
+              totalPrice: s.totalPrice,
+              paymentStatus: s.paymentStatus,
+              remainingAmount: s.remainingAmount,
+              isUnpaid: (
+                s.totalPrice === null || 
+                s.paymentStatus !== 'paid' || 
+                (s.remainingAmount || 0) > 0
+              )
+            }))
+          })
+          
+          return {
           ...farmer,
-          paymentStatus: farmer.totalAmountPaid >= farmer.totalAmountDue ? "paid" : "pending",
+            paymentStatus: farmerPaymentStatus,
           sessions: farmer.sessions.sort((a: ProcessingSession, b: ProcessingSession) => 
             new Date(b.date || '').getTime() - new Date(a.date || '').getTime()
           )
-        }))
+          }
+        })
 
         setProcessedFarmers(processedFarmersArray)
 
@@ -324,9 +363,10 @@ export default function OilManagement() {
               const newProcessedFarmer: ProcessedFarmer = {
                 id: farmer.id,
                 name: farmer.name,
-              phone: farmer.phone || "",
+                nickname: farmer.nickname || null,
+                phone: farmer.phone || "",
                 type: farmer.type,
-                pricePerKg: farmer.pricePerKg,
+                pricePerKg: 0, // Not used anymore - pricing is per-session
               sessions: [{
                 id: targetSession.id,
                 date: targetSession.processingDate ? new Date(targetSession.processingDate).toISOString().split('T')[0] : "",
@@ -346,7 +386,7 @@ export default function OilManagement() {
                 sessionNumber: targetSession.sessionNumber || targetSession.id,
                 paymentDate: targetSession.paymentDate ? new Date(targetSession.paymentDate).toISOString().split('T')[0] : undefined,
                 createdAt: targetSession.createdAt,
-                pricePerKg: targetSession.pricePerKg || farmer.pricePerKg,
+                pricePerKg: targetSession.pricePerKg || null, // Only use session price, not farmer price
               }],
               totalAmountDue: targetSession.totalPrice,
               totalAmountPaid: (targetSession.paymentStatus === 'paid' || targetSession.paymentStatus === 'PAID') ? targetSession.totalPrice : 0,
@@ -529,7 +569,7 @@ export default function OilManagement() {
         // Recalculate totals
         const totalAmountPaid = updatedSessions
           .filter(s => s.paymentStatus === 'paid')
-          .reduce((sum, s) => sum + s.totalPrice, 0)
+          .reduce((sum, s) => sum + (s.totalPrice || 0), 0)
         
         return {
           ...prevFarmer,
@@ -549,7 +589,7 @@ export default function OilManagement() {
             
             const totalAmountPaid = updatedSessions
               .filter(s => s.paymentStatus === 'paid')
-              .reduce((sum, s) => sum + s.totalPrice, 0)
+              .reduce((sum, s) => sum + (s.totalPrice || 0), 0)
             
             return {
               ...farmer,
@@ -584,104 +624,274 @@ export default function OilManagement() {
     }
   }
 
-  const handleMarkAsPaid = async (sessionId: string) => {
-    if (!selectedFarmer) return
+  // Calculate total price in real-time based on price per kg
+  useEffect(() => {
+    if (paymentSession && paymentForm.pricePerKg) {
+      const pricePerKg = parseFloat(paymentForm.pricePerKg) || 0
+      const total = paymentSession.totalBoxWeight * pricePerKg
+      setCalculatedTotal(total)
+    } else {
+      setCalculatedTotal(0)
+    }
+  }, [paymentSession, paymentForm.pricePerKg])
+
+  const handleOpenPaymentModal = (session: ProcessingSession) => {
+    console.log('🔍 Opening payment modal for session:', {
+      sessionId: session.id,
+      pricePerKg: session.pricePerKg,
+      totalPrice: session.totalPrice,
+      sessionData: session
+    })
+    
+    setPaymentSession(session)
+    
+    // Pre-fill price if already set from previous payment
+    const existingPrice = session.pricePerKg ? session.pricePerKg.toString() : ""
+    
+    console.log('💰 Setting payment form with existing price:', existingPrice)
+    
+    setPaymentForm({
+      pricePerKg: existingPrice,
+      isFullPayment: true,
+      customAmount: "",
+      paymentMethod: "",
+      notes: ""
+    })
+    
+    // Calculate total if price exists
+    if (session.pricePerKg) {
+      const total = session.totalBoxWeight * session.pricePerKg
+      setCalculatedTotal(total)
+      console.log('📊 Calculated total from existing price:', {
+        totalBoxWeight: session.totalBoxWeight,
+        pricePerKg: session.pricePerKg,
+        calculatedTotal: total
+      })
+    } else {
+      setCalculatedTotal(0)
+      console.log('❌ No existing price found, setting calculated total to 0')
+    }
+  }
+
+  const handleProcessPayment = async () => {
+    if (!paymentSession || !selectedFarmer) return
+
+    // For partial payments, use existing price; for new payments, validate price input
+    const pricePerKg = paymentSession.pricePerKg || parseFloat(paymentForm.pricePerKg)
+    if (!pricePerKg || pricePerKg <= 0) {
+      showNotification("Veuillez saisir un prix par kg valide", "error")
+      return
+    }
+
+    // Calculate payment amount based on payment type and session status
+    let amountPaid = 0
+    if (paymentSession.paymentStatus === "partial") {
+      // For partial payments, use remaining amount or custom amount
+      amountPaid = paymentForm.isFullPayment 
+        ? (paymentSession.remainingAmount || 0)
+        : parseFloat(paymentForm.customAmount) || 0
+    } else {
+      // For new payments, use full total or custom amount
+      const totalPrice = paymentSession.totalBoxWeight * pricePerKg
+      amountPaid = paymentForm.isFullPayment 
+        ? totalPrice 
+        : parseFloat(paymentForm.customAmount) || 0
+    }
+
+    if (amountPaid <= 0) {
+      showNotification("Veuillez saisir un montant de paiement valide", "error")
+      return
+    }
+
+    // Validate payment doesn't exceed remaining amount for partial payments
+    if (paymentSession.paymentStatus === "partial" && amountPaid > (paymentSession.remainingAmount || 0)) {
+      showNotification(`Le montant ne peut pas dépasser le montant restant (${(paymentSession.remainingAmount || 0).toFixed(2)} DT)`, "error")
+      return
+    }
 
     setSaving(true)
     try {
-      const response = await sessionsApi.updatePayment(sessionId, {
-        status: 'paid'
-      })
-
-      if (response.success) {
-        // Immediately update the UI
-        const currentDate = new Date().toISOString().split('T')[0]
-        
-        // Update selected farmer's sessions
-        setSelectedFarmer(prevFarmer => {
-          if (!prevFarmer) return prevFarmer
-          const updatedSessions = prevFarmer.sessions.map(s => 
-            s.id === sessionId ? { ...s, paymentStatus: "paid" as const, paymentDate: currentDate } : s
-          )
-          
-          const totalAmountPaid = updatedSessions
-            .filter(s => s.paymentStatus === 'paid')
-            .reduce((sum, s) => sum + s.totalPrice, 0)
-          
-          return {
-            ...prevFarmer,
-            sessions: updatedSessions,
-            totalAmountPaid,
-            paymentStatus: totalAmountPaid >= prevFarmer.totalAmountDue ? "paid" : "pending"
-          }
+      const response = await fetch(`/api/sessions/${paymentSession.id}/payment`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pricePerKg: pricePerKg,
+          amountPaid: amountPaid,
+          paymentMethod: paymentForm.paymentMethod || null,
+          notes: paymentForm.notes || null
         })
-
-        // Update processed farmers list
-        setProcessedFarmers(prevFarmers => 
-          prevFarmers.map(farmer => {
-            if (farmer.id === selectedFarmer.id) {
-              const updatedSessions = farmer.sessions.map(s => 
-                s.id === sessionId ? { ...s, paymentStatus: "paid" as const, paymentDate: currentDate } : s
-              )
+      })
               
-              const totalAmountPaid = updatedSessions
-                .filter(s => s.paymentStatus === 'paid')
-                .reduce((sum, s) => sum + s.totalPrice, 0)
-              
-              return {
-              ...farmer,
-                sessions: updatedSessions,
-                totalAmountPaid,
-                paymentStatus: totalAmountPaid >= farmer.totalAmountDue ? "paid" : "pending"
-              }
-            }
-            return farmer
-          })
-    )
+      const data = await response.json()
 
-    setShowPaymentConfirm(null)
-        showNotification("Paiement marqué comme effectué!", "success")
+      if (data.success) {
+        // Show immediate feedback
+        showNotification("Paiement en cours de traitement...", "success")
+        
+        // Immediately update UI state with the returned session data
+        updateSessionInState({
+          id: paymentSession.id,
+          totalPrice: data.data.totalPrice,
+          pricePerKg: data.data.pricePerKg,
+          amountPaid: data.data.amountPaid,
+          remainingAmount: data.data.remainingAmount,
+          paymentStatus: data.data.paymentStatus,
+          paymentDate: data.data.paymentDate
+        })
+        
+        // Close payment modal
+        setPaymentSession(null)
+        
+        // Show final success notification
+        setTimeout(() => {
+          showNotification(data.message, "success")
+        }, 100)
 
-        // Reload sessions in background to ensure consistency
+        // Optional: Reload sessions in background for data consistency (reduced delay)
         setTimeout(() => {
           loadSessions()
-        }, 1000)
+        }, 2000)
       } else {
-        showNotification(response.error || "Erreur lors de la mise à jour du paiement", "error")
+        showNotification(data.error || "Erreur lors du traitement du paiement", "error")
       }
     } catch (error) {
-      console.error('Error updating payment:', error)
+      console.error('Error processing payment:', error)
       showNotification("Erreur de connexion au serveur", "error")
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDeleteFarmer = (farmerId: string) => {
-    // For now, just clear the farmer from local state
-    // In a real implementation, you'd delete all their sessions
-    setProcessedFarmers(prev => prev.filter(f => f.id !== farmerId))
-    setShowDeleteFarmerConfirm(null)
-    showNotification("Agriculteur supprimé", "success")
+  const handleMarkAsPaid = async (sessionId: string) => {
+    // Find the session and open payment modal
+    const session = selectedFarmer?.sessions.find(s => s.id === sessionId)
+    if (session) {
+      // Don't open payment modal if session is already fully paid
+      if (session.paymentStatus === "paid") {
+        showNotification("Cette session est déjà entièrement payée", "warning")
+        return
+      }
+      
+      handleOpenPaymentModal(session)
+    }
+  }
+
+  // Load detailed session information including payment history
+  const handleOpenSessionDetails = async (session: ProcessingSession) => {
+    setLoadingSessionDetails(true)
+    setSessionDetailsModal(session)
+    
+    try {
+      // Fetch detailed session data including payment transactions
+      const response = await fetch(`/api/sessions/${session.id}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        // Extract payment history from the session data
+        const paymentHistory = data.data.paymentTransactions || []
+        setSessionPaymentHistory(paymentHistory)
+        
+        console.log('📋 Session Details Loaded:', {
+          sessionId: session.id,
+          sessionNumber: session.sessionNumber,
+          paymentHistory: paymentHistory.length,
+          sessionData: data.data
+        })
+      } else {
+        console.error('Failed to load session details:', data.error)
+        setSessionPaymentHistory([])
+      }
+    } catch (error) {
+      console.error('Error loading session details:', error)
+      setSessionPaymentHistory([])
+    } finally {
+      setLoadingSessionDetails(false)
+    }
+  }
+
+  const handleDeleteFarmer = async (farmerId: string) => {
+    setSaving(true)
+    try {
+      const response = await farmersApi.delete(farmerId)
+
+      if (response.success) {
+        // Remove farmer from local state
+        setProcessedFarmers(prev => prev.filter(f => f.id !== farmerId))
+        
+        // Clear selection if this farmer was selected
+        if (selectedFarmer?.id === farmerId) {
+          setSelectedFarmer(null)
+        }
+        
+        setShowDeleteFarmerConfirm(null)
+        showNotification("Agriculteur et toutes ses sessions supprimés avec succès!", "success")
+      } else {
+        showNotification(response.error || "Erreur lors de la suppression", "error")
+      }
+    } catch (error) {
+      console.error('Error deleting farmer:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDeleteSession = async (sessionId: string) => {
     setSaving(true)
     try {
+      // Find the farmer who owns this session and get session details
+      const farmerOfDeletedSession = processedFarmers.find(f => 
+        f.sessions.some(s => s.id === sessionId)
+      )
+      
+      const sessionToDelete = farmerOfDeletedSession?.sessions.find(s => s.id === sessionId)
+      const isLastSessionForFarmer = farmerOfDeletedSession && farmerOfDeletedSession.sessions.length === 1
+      const wasSelectedFarmer = selectedFarmer && farmerOfDeletedSession?.id === selectedFarmer.id
+
+      console.log('🗑️ Deleting session:', {
+        sessionId,
+        sessionNumber: sessionToDelete?.sessionNumber,
+        farmerName: farmerOfDeletedSession?.name,
+        paymentStatus: sessionToDelete?.paymentStatus,
+        amountPaid: sessionToDelete?.amountPaid,
+        isLastSession: isLastSessionForFarmer
+      })
+
       const response = await sessionsApi.delete(sessionId)
 
       if (response.success) {
+        // Check if refund is needed
+        const refundInfo = response.data
+        
         // Reload sessions to get fresh data
         await loadSessions()
 
-    setShowDeleteSessionConfirm(null)
-    showNotification("Session supprimée avec succès!", "success")
+        // Prepare success message based on what happened
+        let message = "Session supprimée avec succès!"
+        
+        if (refundInfo?.wasPartiallyPaid && refundInfo?.refundAmount > 0) {
+          message += ` 💰 Remboursement nécessaire: ${refundInfo.refundAmount.toFixed(2)} DT`
+        }
+        
+        if (refundInfo?.boxesReleased > 0) {
+          message += ` 📦 ${refundInfo.boxesReleased} boîtes libérées`
+        }
+
+        if (wasSelectedFarmer && isLastSessionForFarmer) {
+          setSelectedFarmer(null)
+          message += " L'agriculteur n'apparaît plus dans la liste car il n'a plus de sessions."
+        }
+
+        showNotification(message, "success")
+        setShowDeleteSessionConfirm(null)
       } else {
         showNotification(response.error || "Erreur lors de la suppression", "error")
       }
     } catch (error) {
       console.error('Error deleting session:', error)
-      showNotification("Erreur de connexion au serveur", "error")
+      showNotification('Erreur de connexion au serveur', 'error')
     } finally {
       setSaving(false)
     }
@@ -784,6 +994,12 @@ export default function OilManagement() {
           Traité et payé
         </Badge>
       )
+    } else if (session.paymentStatus === "partial") {
+      return (
+        <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
+          Paiement partiel
+        </Badge>
+      )
     } else {
       return (
         <Badge variant="outline" className="border-yellow-500 text-yellow-800 bg-yellow-50">
@@ -804,6 +1020,8 @@ export default function OilManagement() {
     // Session is processed, now check payment status
     if (session.paymentStatus === "paid") {
       return "border-green-200 bg-green-50"
+    } else if (session.paymentStatus === "partial") {
+      return "border-blue-200 bg-blue-50"
     } else {
       return "border-yellow-200 bg-yellow-50"
     }
@@ -899,6 +1117,29 @@ export default function OilManagement() {
           .section-spacing {
             margin-bottom: 12px !important;
           }
+          
+          .partial-payment-section {
+            background-color: #FEF3C7 !important;
+            border: 2px solid #F59E0B !important;
+            padding: 12px !important;
+            margin-bottom: 15px !important;
+            border-radius: 6px !important;
+          }
+          
+          .partial-payment-title {
+            color: #92400E !important;
+            font-weight: bold !important;
+            font-size: 14px !important;
+            margin-bottom: 8px !important;
+          }
+          
+          .payment-amount-box {
+            background-color: white !important;
+            border: 1px solid #D1D5DB !important;
+            padding: 8px !important;
+            border-radius: 4px !important;
+            text-align: center !important;
+          }
         }
         
         .print-invoice {
@@ -942,7 +1183,6 @@ export default function OilManagement() {
             <h1 className="company-name text-2xl font-bold text-[#2C3E50] mb-2">HUILERIE MASMOUDI</h1>
             <div className="text-sm text-gray-700">
               <p><strong>Adresse:</strong> Tunis, Mahdia</p>
-              <p><strong>Téléphone:</strong> 27408877</p>
             </div>
           </div>
           <div className="text-right">
@@ -960,10 +1200,10 @@ export default function OilManagement() {
         <div>
           <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Facturé à:</h3>
           <div className="bg-gray-50 p-3 rounded border">
-            <p className="font-semibold text-lg">{farmer.name.split(' ')[0]}</p>
+            <p className="font-semibold text-lg">{formatFarmerInvoiceName(farmer.name)}</p>
             {farmer.phone && <p className="text-gray-600">{farmer.phone}</p>}
             <p className="text-sm text-gray-600 mt-2">
-              <strong>Tarif:</strong> {session.pricePerKg.toFixed(2)} DT/kg
+              <strong>Tarif:</strong> {session.pricePerKg ? session.pricePerKg.toFixed(2) : 'Non défini'} DT/kg
             </p>
           </div>
         </div>
@@ -978,13 +1218,47 @@ export default function OilManagement() {
             </p>
             <p className="mb-1">
               <strong>Statut paiement:</strong>{" "}
-              <span className={session.paymentStatus === "paid" ? "text-green-600 font-semibold" : "text-orange-600 font-semibold"}>
-                {session.paymentStatus === "paid" ? "✓ Payé" : "En attente"}
+              <span className={
+                session.paymentStatus === "paid" 
+                  ? "text-green-600 font-semibold" 
+                  : session.paymentStatus === "partial" 
+                    ? "text-blue-600 font-semibold"
+                    : "text-orange-600 font-semibold"
+              }>
+                {session.paymentStatus === "paid" 
+                  ? "✓ Payé intégralement" 
+                  : session.paymentStatus === "partial" 
+                    ? "◐ Paiement partiel"
+                    : "◯ En attente"
+                }
               </span>
             </p>
+            
+            {/* Show payment details for partial and paid sessions */}
+            {(session.paymentStatus === "partial" || session.paymentStatus === "paid") && session.totalPrice && (
+              <div className="mt-2 p-2 bg-white border border-gray-200 rounded">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-600">Montant total:</span>
+                    <span className="font-semibold ml-1">{session.totalPrice.toFixed(2)} DT</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Montant payé:</span>
+                    <span className="font-semibold ml-1 text-green-600">{(session.amountPaid || 0).toFixed(2)} DT</span>
+                  </div>
+                  {session.paymentStatus === "partial" && (
+                    <div className="col-span-2">
+                      <span className="text-gray-600">Reste à payer:</span>
+                      <span className="font-semibold ml-1 text-red-600">{(session.remainingAmount || 0).toFixed(2)} DT</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             {session.paymentDate && (
-              <p className="text-sm text-gray-600">
-                <strong>Date de paiement:</strong> {new Date(session.paymentDate).toLocaleDateString('fr-FR')}
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>Dernière date de paiement:</strong> {new Date(session.paymentDate).toLocaleDateString('fr-FR')}
               </p>
             )}
           </div>
@@ -998,7 +1272,7 @@ export default function OilManagement() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="font-semibold text-gray-700 mb-2">
-                IDs des boîtes ({session.boxCount} boîte{session.boxCount > 1 ? 's' : ''}):
+                Numéros des boîtes ({session.boxCount} boîte{session.boxCount > 1 ? 's' : ''}):
               </p>
               <div className="flex flex-wrap gap-1">
                 {session.boxIds && session.boxIds.length > 0 ? (
@@ -1061,8 +1335,8 @@ export default function OilManagement() {
               </td>
               <td className="font-semibold">{session.boxCount}</td>
               <td className="font-semibold">{session.totalBoxWeight.toFixed(1)}</td>
-              <td className="font-semibold">{session.pricePerKg.toFixed(2)}</td>
-              <td className="font-bold text-lg">{session.totalPrice.toFixed(2)}</td>
+              <td className="font-semibold">{session.pricePerKg ? session.pricePerKg.toFixed(2) : 'Non défini'}</td>
+              <td className="font-bold text-lg">{session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'}</td>
             </tr>
           </tbody>
         </table>
@@ -1076,13 +1350,13 @@ export default function OilManagement() {
               <div className="bg-gray-100 p-2 border-b border-gray-300">
                 <div className="flex justify-between">
                   <span className="font-medium">Sous-total:</span>
-                  <span className="font-semibold">{session.totalPrice.toFixed(2)} DT</span>
+                  <span className="font-semibold">{session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'} DT</span>
                 </div>
               </div>
               <div className="total-section bg-[#F4D03F] p-3">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-lg">TOTAL À PAYER:</span>
-                  <span className="text-xl font-bold text-[#2C3E50]">{session.totalPrice.toFixed(2)} DT</span>
+                  <span className="text-xl font-bold text-[#2C3E50]">{session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'} DT</span>
                 </div>
               </div>
             </div>
@@ -1111,6 +1385,30 @@ export default function OilManagement() {
         </div>
       )}
 
+      {/* Partial Payment Notice */}
+      {session.paymentStatus === "partial" && session.totalPrice && (
+        <div className="mb-4 bg-yellow-50 border border-yellow-300 rounded p-4 section-spacing partial-payment-section">
+          <h4 className="font-semibold text-yellow-800 mb-3 flex items-center partial-payment-title">
+            <span className="inline-block w-6 h-6 bg-yellow-500 text-white rounded-full text-center text-sm mr-2">!</span>
+            Paiement Partiel en Cours
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div className="bg-white p-3 rounded border border-yellow-200 payment-amount-box">
+              <p className="text-yellow-700 font-medium">Montant Total:</p>
+              <p className="text-xl font-bold text-yellow-900">{session.totalPrice.toFixed(2)} DT</p>
+            </div>
+            <div className="bg-white p-3 rounded border border-green-200 payment-amount-box">
+              <p className="text-green-700 font-medium">Déjà Payé:</p>
+              <p className="text-xl font-bold text-green-800">{(session.amountPaid || 0).toFixed(2)} DT</p>
+            </div>
+            <div className="bg-white p-3 rounded border border-red-200 payment-amount-box">
+              <p className="text-red-700 font-medium">Reste à Payer:</p>
+              <p className="text-xl font-bold text-red-800">{(session.remainingAmount || 0).toFixed(2)} DT</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="border-t-2 border-[#6B8E4B] pt-3 text-center">
         <p className="text-sm text-gray-600 mb-1">
@@ -1128,6 +1426,123 @@ export default function OilManagement() {
       </div>
     </div>
   )
+
+  // Function to immediately update session and farmer in UI state
+  const updateSessionInState = (updatedSessionData: any) => {
+    if (!selectedFarmer) return
+
+    console.log('🔄 Updating session in state:', {
+      sessionId: updatedSessionData.id,
+      newData: updatedSessionData
+    })
+
+    // Update the session in selected farmer
+    setSelectedFarmer(prevFarmer => {
+      if (!prevFarmer) return prevFarmer
+      
+      const updatedSessions = prevFarmer.sessions.map(s => 
+        s.id === updatedSessionData.id ? {
+          ...s,
+          ...updatedSessionData,
+          totalPrice: updatedSessionData.totalPrice,
+          pricePerKg: updatedSessionData.pricePerKg,
+          amountPaid: updatedSessionData.amountPaid,
+          remainingAmount: updatedSessionData.remainingAmount,
+          paymentStatus: updatedSessionData.paymentStatus,
+          paymentDate: updatedSessionData.paymentDate
+        } : s
+      )
+      
+      // Recalculate farmer totals
+      const totalAmountDue = updatedSessions
+        .filter(s => s.totalPrice !== null)
+        .reduce((sum, s) => sum + (s.totalPrice || 0), 0)
+      
+      const totalAmountPaid = updatedSessions
+        .reduce((sum, s) => sum + (s.amountPaid || 0), 0)
+      
+      // SIMPLIFIED FARMER STATUS LOGIC (matching backend):
+      // Check if ANY session is not fully paid
+      const hasUnpaidSessions = updatedSessions.some((s: ProcessingSession) => {
+        return (
+          s.totalPrice === null || 
+          s.paymentStatus !== 'paid' || 
+          (s.remainingAmount || 0) > 0
+        )
+      })
+      
+      // Simple status logic: 'pending' if ANY session is unpaid, 'paid' if ALL are paid
+      const farmerPaymentStatus = hasUnpaidSessions ? 'pending' : 'paid'
+
+      console.log('👨‍🌾 Immediate UI Update - Farmer Status:', {
+        farmerName: prevFarmer.name,
+        oldTotalPaid: prevFarmer.totalAmountPaid,
+        newTotalPaid: totalAmountPaid,
+        totalAmountDue: totalAmountDue,
+        oldStatus: prevFarmer.paymentStatus,
+        newStatus: farmerPaymentStatus,
+        hasUnpaidSessions: hasUnpaidSessions
+      })
+      
+      return {
+        ...prevFarmer,
+        sessions: updatedSessions,
+        totalAmountDue,
+        totalAmountPaid,
+        paymentStatus: farmerPaymentStatus
+      }
+    })
+
+    // Update the farmer in processed farmers list
+    setProcessedFarmers(prevFarmers => 
+      prevFarmers.map(farmer => {
+        if (farmer.id === selectedFarmer.id) {
+          const updatedSessions = farmer.sessions.map(s => 
+            s.id === updatedSessionData.id ? {
+              ...s,
+              ...updatedSessionData,
+              totalPrice: updatedSessionData.totalPrice,
+              pricePerKg: updatedSessionData.pricePerKg,
+              amountPaid: updatedSessionData.amountPaid,
+              remainingAmount: updatedSessionData.remainingAmount,
+              paymentStatus: updatedSessionData.paymentStatus,
+              paymentDate: updatedSessionData.paymentDate
+            } : s
+          )
+          
+          // Recalculate farmer totals
+          const totalAmountDue = updatedSessions
+            .filter(s => s.totalPrice !== null)
+            .reduce((sum, s) => sum + (s.totalPrice || 0), 0)
+          
+          const totalAmountPaid = updatedSessions
+            .reduce((sum, s) => sum + (s.amountPaid || 0), 0)
+          
+          // SIMPLIFIED FARMER STATUS LOGIC (matching backend):
+          // Check if ANY session is not fully paid
+          const hasUnpaidSessions = updatedSessions.some((s: ProcessingSession) => {
+            return (
+              s.totalPrice === null || 
+              s.paymentStatus !== 'paid' || 
+              (s.remainingAmount || 0) > 0
+            )
+          })
+          
+          // Simple status logic: 'pending' if ANY session is unpaid, 'paid' if ALL are paid
+          const farmerPaymentStatus = hasUnpaidSessions ? 'pending' : 'paid'
+          
+          return {
+            ...farmer,
+            sessions: updatedSessions,
+            totalAmountDue,
+            totalAmountPaid,
+            paymentStatus: farmerPaymentStatus
+          }
+        }
+        return farmer
+      })
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#FDF5E6]">
@@ -1436,7 +1851,7 @@ export default function OilManagement() {
                         )}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-[#2C3E50]">{farmer.name}</h3>
+                        <h3 className="font-semibold text-[#2C3E50]">{formatFarmerDisplayName(farmer.name, farmer.nickname)}</h3>
                         <p className="text-sm text-gray-600">{farmer.sessions.length} sessions</p>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-sm font-medium text-[#2C3E50]">
@@ -1478,21 +1893,11 @@ export default function OilManagement() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-gray-600">Nom</p>
-                        <p className="font-semibold">{selectedFarmer.name}</p>
+                        <p className="font-semibold">{formatFarmerDisplayName(selectedFarmer.name, selectedFarmer.nickname)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Téléphone</p>
                         <p className="font-semibold">{selectedFarmer.phone || "Non renseigné"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Type</p>
-                        <p className="font-semibold">
-                          {selectedFarmer.type === "large" ? "Grand agriculteur" : "Petit agriculteur"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Prix par kg</p>
-                        <p className="font-semibold">{selectedFarmer.pricePerKg} DT</p>
                       </div>
                     </div>
                   </CardContent>
@@ -1553,13 +1958,20 @@ export default function OilManagement() {
                     </div>
                     
                     {/* Status Indicators */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                         <div className="text-sm font-medium text-green-800 mb-1">Traité et payé</div>
                         <div className="text-lg font-bold text-green-600">
                           {selectedFarmer.sessions.filter(s => (s.oilWeight > 0 || s.processingStatus === "processed") && s.paymentStatus === "paid").length}
                         </div>
                         <div className="text-xs text-green-600">Sessions complètes</div>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                        <div className="text-sm font-medium text-blue-800 mb-1">Paiement partiel</div>
+                        <div className="text-lg font-bold text-blue-600">
+                          {selectedFarmer.sessions.filter(s => (s.oilWeight > 0 || s.processingStatus === "processed") && s.paymentStatus === "partial").length}
+                        </div>
+                        <div className="text-xs text-blue-600">En cours de paiement</div>
                       </div>
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
                         <div className="text-sm font-medium text-yellow-800 mb-1">Traité non payé</div>
@@ -1583,8 +1995,14 @@ export default function OilManagement() {
                       {selectedFarmer.sessions.map((session) => (
                         <Card
                           key={session.id}
-                          className={`${session.paymentStatus !== "paid" ? "cursor-pointer" : "cursor-default"} transition-all hover:shadow-md ${getSessionBorderClass(session)}`}
-                          onClick={() => session.paymentStatus !== "paid" && handleEditSession(session)}
+                          className={`cursor-pointer transition-all hover:shadow-md ${getSessionBorderClass(session)}`}
+                          onClick={() => {
+                            if (session.paymentStatus === "paid") {
+                              handleOpenSessionDetails(session)
+                            } else {
+                              handleEditSession(session)
+                            }
+                          }}
                         >
                           <CardContent className="p-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
@@ -1593,7 +2011,12 @@ export default function OilManagement() {
                                 {getSessionStatusBadge(session)}
                               </div>
                               <div className="flex items-center space-x-2">
-                                {session.paymentStatus !== "paid" && (
+                                {session.paymentStatus === "paid" ? (
+                                  <div className="text-sm text-green-600 font-medium hidden sm:block">
+                                    <Eye className="w-3 h-3 inline mr-1" />
+                                    Cliquer pour voir les détails
+                                  </div>
+                                ) : (
                                   <div className="text-sm text-blue-600 font-medium hidden sm:block">
                                     <Edit className="w-3 h-3 inline mr-1" />
                                     Cliquer pour modifier
@@ -1672,12 +2095,6 @@ export default function OilManagement() {
                                   ) : (
                                     <div className="text-sm text-gray-500">
                                       <span>Aucune boîte trouvée</span>
-                                      <button 
-                                        onClick={() => console.log('Debug session:', session)}
-                                        className="ml-2 text-xs underline text-blue-500"
-                                      >
-                                        Debug
-                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -1692,8 +2109,33 @@ export default function OilManagement() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <p className="text-lg font-bold text-[#2C3E50]">
-                                  Total: {session.totalPrice.toFixed(2)} DT
+                                  Total: {session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'} DT
                                 </p>
+                                {/* Show payment progress for partial payments */}
+                                {session.paymentStatus === "partial" && session.totalPrice && (
+                                  <div className="mt-2 space-y-1">
+                                    <div className="flex items-center justify-between text-sm">
+                                      <span className="text-green-600">Payé:</span>
+                                      <span className="font-semibold text-green-700">{(session.amountPaid || 0).toFixed(2)} DT</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                      <span className="text-red-600">Reste:</span>
+                                      <span className="font-semibold text-red-700">{(session.remainingAmount || 0).toFixed(2)} DT</span>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                      <div 
+                                        className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                        style={{ 
+                                          width: `${Math.min(100, ((session.amountPaid || 0) / session.totalPrice) * 100)}%` 
+                                        }}
+                                      ></div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {Math.round(((session.amountPaid || 0) / session.totalPrice) * 100)}% payé
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                               {(session.processingStatus === "processed" || session.oilWeight > 0) && (
                                 <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
@@ -1710,18 +2152,31 @@ export default function OilManagement() {
                                     <span className="hidden sm:inline">Imprimer</span>
                                     <span className="sm:hidden">Imprimer</span>
                                   </Button>
-                                  {session.paymentStatus === "unpaid" && (
+                                  {(session.paymentStatus === "unpaid" || session.paymentStatus === "partial") && (
                                     <Button
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        setShowPaymentConfirm(session.id)
+                                        handleMarkAsPaid(session.id)
                                       }}
-                                      className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
+                                      className={`${
+                                        session.paymentStatus === "partial" 
+                                          ? "bg-blue-600 hover:bg-blue-700" 
+                                          : "bg-green-600 hover:bg-green-700"
+                                      } flex-1 sm:flex-none`}
                                     >
                                       <CheckCircle className="w-4 h-4 mr-2" />
+                                      {session.paymentStatus === "partial" ? (
+                                        <>
+                                          <span className="hidden sm:inline">Continuer le paiement</span>
+                                          <span className="sm:hidden">Paiement</span>
+                                        </>
+                                      ) : (
+                                        <>
                                       <span className="hidden sm:inline">Marquer comme payé</span>
                                       <span className="sm:hidden">Payé</span>
+                                        </>
+                                      )}
                                     </Button>
                                   )}
                                 </div>
@@ -1882,45 +2337,47 @@ export default function OilManagement() {
         </div>
       )}
 
-      {/* Payment Confirmation Modal */}
-      {showPaymentConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md text-gray-900 mx-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900">Confirmer le paiement</h3>
-            <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir marquer cette session comme payée ?</p>
-              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
-                <Button
-                  onClick={() => handleMarkAsPaid(showPaymentConfirm)}
-                disabled={saving}
-                className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                )}
-                {saving ? 'Traitement...' : 'Confirmer'}
-                </Button>
-              <Button variant="outline" onClick={() => setShowPaymentConfirm(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
-                  Annuler
-                </Button>
-              </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Delete Farmer Confirmation Modal */}
       {showDeleteFarmerConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md text-gray-900 mx-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900">Supprimer l'agriculteur</h3>
-            <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir supprimer cet agriculteur et toutes ses sessions ?</p>
+            <div className="flex items-center mb-4">
+              <AlertCircle className="w-6 h-6 text-red-600 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900">Supprimer l'agriculteur</h3>
+            </div>
+            <div className="mb-6">
+              <p className="text-gray-800 font-medium mb-2">⚠️ Action irréversible</p>
+              <p className="text-gray-600 mb-3">Cette action supprimera définitivement :</p>
+              <ul className="text-sm text-gray-600 space-y-1 ml-4 mb-3">
+                <li>• L'agriculteur et toutes ses informations</li>
+                <li>• Toutes ses sessions de traitement</li>
+                <li>• Tout l'historique des paiements</li>
+                <li>• Les boîtes seront libérées et redeviennent disponibles</li>
+              </ul>
+              <p className="text-red-600 font-medium text-sm">Cette action ne peut pas être annulée.</p>
+            </div>
               <div className="flex space-x-2">
-              <Button onClick={() => handleDeleteFarmer(showDeleteFarmerConfirm)} variant="destructive" className="bg-red-600 hover:bg-red-700 text-white">
+              <Button 
+                onClick={() => handleDeleteFarmer(showDeleteFarmerConfirm)} 
+                disabled={saving}
+                variant="destructive" 
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
                   <Trash2 className="w-4 h-4 mr-2" />
-                Supprimer
+                )}
+                {saving ? 'Suppression...' : 'Supprimer définitivement'}
                 </Button>
-              <Button variant="outline" onClick={() => setShowDeleteFarmerConfirm(null)} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDeleteFarmerConfirm(null)} 
+                disabled={saving}
+                className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+              >
                   Annuler
                 </Button>
               </div>
@@ -1932,8 +2389,58 @@ export default function OilManagement() {
       {showDeleteSessionConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md text-gray-900 mx-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900">Supprimer la session</h3>
-            <p className="text-gray-600 mb-6">Êtes-vous sûr de vouloir supprimer cette session de traitement ?</p>
+            <div className="flex items-center mb-4">
+              <AlertCircle className="w-6 h-6 text-orange-600 mr-3" />
+              <h3 className="text-lg font-semibold text-gray-900">Supprimer la session</h3>
+            </div>
+            <div className="mb-6">
+              {(() => {
+                // Find session details for better confirmation message
+                const sessionToDelete = processedFarmers
+                  .flatMap(f => f.sessions)
+                  .find(s => s.id === showDeleteSessionConfirm)
+                
+                const farmerOfSession = processedFarmers.find(f => 
+                  f.sessions.some(s => s.id === showDeleteSessionConfirm)
+                )
+
+                return (
+                  <>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <p className="text-sm font-medium text-blue-800">Session à supprimer:</p>
+                      <p className="text-sm text-blue-700">
+                        {sessionToDelete?.sessionNumber} - {farmerOfSession?.name}
+                      </p>
+                      {sessionToDelete?.paymentStatus === 'partial' && (
+                        <p className="text-sm text-orange-700 mt-1">
+                          ⚠️ Paiement partiel: {(sessionToDelete.amountPaid || 0).toFixed(2)} DT à rembourser
+                        </p>
+                      )}
+                    </div>
+                    
+                    <p className="text-gray-800 font-medium mb-2">⚠️ Cette action supprimera :</p>
+                    <ul className="text-sm text-gray-600 space-y-1 ml-4 mb-3">
+                      <li>• Cette session de traitement uniquement</li>
+                      <li>• L'historique des paiements de cette session</li>
+                      <li>• Les boîtes utilisées redeviendront disponibles</li>
+                      {sessionToDelete?.paymentStatus === 'partial' && (
+                        <li className="text-orange-600">• ⚠️ Un remboursement sera nécessaire</li>
+                      )}
+                    </ul>
+                    
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
+                      <p className="text-xs text-green-700">
+                        ✅ Les autres sessions de cet agriculteur ne seront pas affectées
+                      </p>
+                    </div>
+                    
+                    <p className="text-orange-600 font-medium text-sm">
+                      Seules les sessions non entièrement payées peuvent être supprimées.
+                    </p>
+                  </>
+                )
+              })()}
+            </div>
               <div className="flex space-x-2">
                 <Button
                 onClick={() => handleDeleteSession(showDeleteSessionConfirm!)}
@@ -1946,9 +2453,14 @@ export default function OilManagement() {
                 ) : (
                   <Trash2 className="w-4 h-4 mr-2" />
                 )}
-                {saving ? 'Suppression...' : 'Supprimer'}
+                {saving ? 'Suppression...' : 'Supprimer cette session'}
                 </Button>
-              <Button variant="outline" onClick={() => setShowDeleteSessionConfirm(null)} disabled={saving} className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDeleteSessionConfirm(null)} 
+                disabled={saving} 
+                className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+              >
                   Annuler
                 </Button>
               </div>
@@ -1977,6 +2489,474 @@ export default function OilManagement() {
               </div>
             </div>
             <PrintInvoice session={printingSession} farmer={selectedFarmer} />
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Payment Modal */}
+      {paymentSession && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto text-gray-900 mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Traitement du paiement</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPaymentSession(null)}
+                disabled={saving}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Session Info */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-medium text-gray-700">Session: {paymentSession.sessionNumber}</p>
+                  <p className="text-gray-600">Agriculteur: {selectedFarmer ? formatFarmerDisplayName(selectedFarmer.name, selectedFarmer.nickname) : ''}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Poids total: {paymentSession.totalBoxWeight} kg</p>
+                  <p className="text-gray-600">Nombre de boîtes: {paymentSession.boxCount}</p>
+                </div>
+              </div>
+
+              {/* Payment Status and History */}
+              {paymentSession.paymentStatus === "partial" && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-blue-800">Paiement partiel en cours</h4>
+                    <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
+                      Partiel
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-blue-600 font-medium">Total dû:</p>
+                      <p className="text-blue-800 font-bold">{paymentSession.totalPrice?.toFixed(2) || 'N/A'} DT</p>
+                    </div>
+                    <div>
+                      <p className="text-blue-600 font-medium">Déjà payé:</p>
+                      <p className="text-green-700 font-bold">{(paymentSession.amountPaid || 0).toFixed(2)} DT</p>
+                    </div>
+                    <div>
+                      <p className="text-blue-600 font-medium">Reste à payer:</p>
+                      <p className="text-red-700 font-bold">{(paymentSession.remainingAmount || 0).toFixed(2)} DT</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Show if this is first payment (unpaid) */}
+              {paymentSession.paymentStatus === "unpaid" && (
+                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline" className="border-orange-300 text-orange-700 bg-orange-50">
+                      Premier paiement
+                    </Badge>
+                    <span className="text-orange-700 text-sm">Définissez le prix et effectuez le premier paiement</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Show if fully paid */}
+              {paymentSession.paymentStatus === "paid" && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">
+                        ✓ Payé intégralement
+                      </Badge>
+                      <span className="text-green-700 text-sm">Cette session est entièrement payée</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-green-600 text-sm">Total payé:</p>
+                      <p className="text-green-800 font-bold">{(paymentSession.amountPaid || 0).toFixed(2)} DT</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Price Per Kg Selection */}
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="pricePerKg" className="text-gray-700 font-medium">
+                  Prix par kg (DT) *
+                  {paymentSession.pricePerKg && (
+                    <span className="ml-2 text-sm text-blue-600 font-normal">
+                      (Prix déjà défini: {paymentSession.pricePerKg.toFixed(2)} DT/kg)
+                    </span>
+                  )}
+                </Label>
+                
+                {/* Show locked price for partial payments */}
+                {paymentSession.pricePerKg && paymentSession.paymentStatus !== "unpaid" ? (
+                  <div className="mt-2 p-3 bg-gray-100 border border-gray-300 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-700">Prix fixé:</span>
+                      <span className="font-bold text-lg text-gray-900">{paymentSession.pricePerKg.toFixed(2)} DT/kg</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Le prix ne peut plus être modifié après le premier paiement
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {/* Preset prices */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[0.20, 0.15, 0.10, 0.05].map((price) => (
+                        <Button
+                          key={price}
+                          type="button"
+                          variant={paymentForm.pricePerKg === price.toString() ? "default" : "outline"}
+                          className={`h-12 ${
+                            paymentForm.pricePerKg === price.toString()
+                              ? "bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white"
+                              : "border-gray-300 hover:bg-gray-50"
+                          }`}
+                          onClick={() => setPaymentForm(prev => ({ ...prev, pricePerKg: price.toString() }))}
+                        >
+                          {price.toFixed(2)} DT
+                        </Button>
+                      ))}
+                    </div>
+                    {/* Custom price input */}
+                    <div>
+                      <Label className="text-sm text-gray-600">Ou saisissez un prix personnalisé:</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Ex: 0.18"
+                        value={paymentForm.pricePerKg}
+                        onChange={(e) => setPaymentForm(prev => ({ ...prev, pricePerKg: e.target.value }))}
+                        className="mt-1 bg-white text-gray-900"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Live Total Calculation */}
+              {calculatedTotal > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-800 font-medium">Total calculé:</span>
+                    <span className="text-2xl font-bold text-blue-900">
+                      {calculatedTotal.toFixed(2)} DT
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-600 mt-1">
+                    {paymentSession.totalBoxWeight} kg × {paymentForm.pricePerKg} DT/kg
+                  </p>
+                </div>
+              )}
+
+              {/* Payment Amount Selection */}
+              {calculatedTotal > 0 && (
+                <div>
+                  <Label className="text-gray-700 font-medium">Montant du paiement</Label>
+                  <div className="mt-2 space-y-3">
+                    {/* For partial payments, show remaining amount */}
+                    {paymentSession.paymentStatus === "partial" && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-yellow-800 font-medium">Montant restant à payer:</span>
+                          <span className="text-xl font-bold text-yellow-900">
+                            {(paymentSession.remainingAmount || 0).toFixed(2)} DT
+                          </span>
+                        </div>
+                        <p className="text-sm text-yellow-700">
+                          Vous pouvez payer le montant complet restant ou effectuer un autre paiement partiel
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Full payment checkbox - adjust text for partial payments */}
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="fullPayment"
+                        checked={paymentForm.isFullPayment}
+                        onCheckedChange={(checked) => 
+                          setPaymentForm(prev => ({ 
+                            ...prev, 
+                            isFullPayment: checked as boolean,
+                            customAmount: checked ? "" : prev.customAmount
+                          }))
+                        }
+                      />
+                      <Label htmlFor="fullPayment" className="text-gray-700">
+                        {paymentSession.paymentStatus === "partial" 
+                          ? `Payer le montant restant (${(paymentSession.remainingAmount || 0).toFixed(2)} DT)`
+                          : `Paiement complet (${calculatedTotal.toFixed(2)} DT)`
+                        }
+                      </Label>
+                    </div>
+
+                    {/* Partial payment input */}
+                    {!paymentForm.isFullPayment && (
+                      <div>
+                        <Label className="text-sm text-gray-600">Montant partiel (DT):</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max={paymentSession.paymentStatus === "partial" 
+                            ? (paymentSession.remainingAmount || 0) 
+                            : calculatedTotal
+                          }
+                          placeholder={paymentSession.paymentStatus === "partial" 
+                            ? `Max: ${(paymentSession.remainingAmount || 0).toFixed(2)}` 
+                            : `Max: ${calculatedTotal.toFixed(2)}`
+                          }
+                          value={paymentForm.customAmount}
+                          onChange={(e) => setPaymentForm(prev => ({ ...prev, customAmount: e.target.value }))}
+                          className="mt-1 bg-white text-gray-900 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
+                        />
+                        {paymentForm.customAmount && parseFloat(paymentForm.customAmount) > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {paymentSession.paymentStatus === "partial" ? (
+                              <p className="text-sm text-blue-600">
+                                Nouveau reste à payer: {((paymentSession.remainingAmount || 0) - parseFloat(paymentForm.customAmount)).toFixed(2)} DT
+                              </p>
+                            ) : (
+                              <p className="text-sm text-orange-600">
+                                Reste à payer: {(calculatedTotal - parseFloat(paymentForm.customAmount)).toFixed(2)} DT
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Optional fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="paymentMethod" className="text-gray-700">
+                    Méthode de paiement (optionnel)
+                  </Label>
+                  <Select 
+                    value={paymentForm.paymentMethod} 
+                    onValueChange={(value) => setPaymentForm(prev => ({ ...prev, paymentMethod: value }))}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Sélectionner..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Espèces</SelectItem>
+                      <SelectItem value="bank">Virement bancaire</SelectItem>
+                      <SelectItem value="check">Chèque</SelectItem>
+                      <SelectItem value="other">Autre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="notes" className="text-gray-700">
+                    Notes (optionnel)
+                  </Label>
+                  <Input
+                    id="notes"
+                    placeholder="Notes sur le paiement..."
+                    value={paymentForm.notes}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                    className="bg-white text-gray-900"
+                  />
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 pt-4 border-t">
+                <Button
+                  onClick={handleProcessPayment}
+                  disabled={saving || !paymentForm.pricePerKg || calculatedTotal <= 0}
+                  className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                  )}
+                  {saving ? 'Traitement...' : 
+                   paymentForm.isFullPayment ? 'Confirmer le paiement complet' : 'Confirmer le paiement partiel'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPaymentSession(null)} 
+                  disabled={saving}
+                  className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 flex-1 sm:flex-none"
+                >
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Details Modal */}
+      {sessionDetailsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto text-gray-900 mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                <Eye className="w-5 h-5 mr-2 text-green-600" />
+                Détails de la session
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSessionDetailsModal(null)
+                  setSessionPaymentHistory([])
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Session Overview */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-2">Informations de la session</h4>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="text-gray-600">Session:</span> <span className="font-medium">{sessionDetailsModal.sessionNumber}</span></p>
+                    <p><span className="text-gray-600">Agriculteur:</span> <span className="font-medium">{selectedFarmer ? formatFarmerDisplayName(selectedFarmer.name, selectedFarmer.nickname) : ''}</span></p>
+                    <p><span className="text-gray-600">Date de création:</span> <span className="font-medium">{new Date(sessionDetailsModal.createdAt).toLocaleDateString('fr-FR')}</span></p>
+                    <p><span className="text-gray-600">Date de traitement:</span> <span className="font-medium">{sessionDetailsModal.date || 'Non définie'}</span></p>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-2">Statut et montants</h4>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="text-gray-600">Statut:</span> {getSessionStatusBadge(sessionDetailsModal)}</p>
+                    <p><span className="text-gray-600">Prix par kg:</span> <span className="font-bold text-green-600">{sessionDetailsModal.pricePerKg?.toFixed(2) || 'Non défini'} DT/kg</span></p>
+                    <p><span className="text-gray-600">Montant total:</span> <span className="font-bold text-blue-600">{sessionDetailsModal.totalPrice?.toFixed(2) || 'Non défini'} DT</span></p>
+                    <p><span className="text-gray-600">Montant payé:</span> <span className="font-bold text-green-600">{(sessionDetailsModal.amountPaid || 0).toFixed(2)} DT</span></p>
+                    {sessionDetailsModal.paymentStatus === "partial" && (
+                      <p><span className="text-gray-600">Reste à payer:</span> <span className="font-bold text-red-600">{(sessionDetailsModal.remainingAmount || 0).toFixed(2)} DT</span></p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Processing Details */}
+            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-6">
+              {/* Box Information */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                  <Package className="w-4 h-4 mr-2 text-blue-600" />
+                  Boîtes traitées
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <p><span className="text-gray-600">Nombre de boîtes:</span> <span className="font-medium">{sessionDetailsModal.boxCount}</span></p>
+                  <p><span className="text-gray-600">Poids total des olives:</span> <span className="font-medium">{sessionDetailsModal.totalBoxWeight} kg</span></p>
+                  <p><span className="text-gray-600">Huile extraite:</span> <span className="font-medium text-green-600">{sessionDetailsModal.oilWeight > 0 ? `${sessionDetailsModal.oilWeight} kg` : 'Non extraite'}</span></p>
+                  {sessionDetailsModal.oilWeight > 0 && (
+                    <p><span className="text-gray-600">Rendement:</span> <span className="font-medium text-green-600">{((sessionDetailsModal.oilWeight / sessionDetailsModal.totalBoxWeight) * 100).toFixed(1)}%</span></p>
+                  )}
+                </div>
+                
+                {/* Box IDs */}
+                {sessionDetailsModal.boxIds && sessionDetailsModal.boxIds.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-gray-600 text-sm mb-2">Numéros des boîtes:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {sessionDetailsModal.boxIds.map((boxId, index) => (
+                        <Badge key={index} variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-800">
+                          {boxId}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            
+
+            {/* Payment History */}
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-800 mb-4 flex items-center">
+                <Calendar className="w-4 h-4 mr-2 text-purple-600" />
+                Historique des paiements
+                <Badge variant="outline" className="ml-2 bg-purple-50 text-purple-700 border-purple-200">
+                  {sessionPaymentHistory.length} transaction{sessionPaymentHistory.length > 1 ? 's' : ''}
+                </Badge>
+              </h4>
+
+              {loadingSessionDetails ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  <span className="ml-2 text-gray-600">Chargement de l'historique...</span>
+                </div>
+              ) : sessionPaymentHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {sessionPaymentHistory.map((transaction, index) => (
+                    <div key={transaction.id || index} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <p className="text-gray-600 font-medium">Date</p>
+                          <p className="font-semibold">{new Date(transaction.paymentDate || transaction.createdAt).toLocaleDateString('fr-FR')}</p>
+                          <p className="text-xs text-gray-500">{new Date(transaction.paymentDate || transaction.createdAt).toLocaleTimeString('fr-FR')}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600 font-medium">Montant</p>
+                          <p className="font-bold text-green-600 text-lg">{Number(transaction.amount || 0).toFixed(2)} DT</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600 font-medium">Méthode</p>
+                          <p className="font-semibold">{transaction.paymentMethod || 'Non spécifiée'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600 font-medium">Notes</p>
+                          <p className="font-medium text-gray-800">{transaction.notes || 'Aucune note'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>Aucun historique de paiement disponible</p>
+                  <p className="text-sm">Les détails des paiements apparaîtront ici</p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 mt-6 pt-4 border-t">
+              {sessionDetailsModal.paymentStatus !== "paid" && (
+                <Button
+                  onClick={() => {
+                    setSessionDetailsModal(null)
+                    setSessionPaymentHistory([])
+                    handleMarkAsPaid(sessionDetailsModal.id)
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white flex-1 sm:flex-none"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Continuer le paiement
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setSessionDetailsModal(null)
+                  setSessionPaymentHistory([])
+                }}
+                className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 flex-1 sm:flex-none"
+              >
+                Fermer
+              </Button>
+            </div>
           </div>
         </div>
       )}

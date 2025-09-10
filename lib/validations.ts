@@ -5,27 +5,53 @@ export const createFarmerSchema = z.object({
   name: z.string()
     .min(2, "Le nom doit contenir au moins 2 caractères")
     .max(100, "Le nom ne peut pas dépasser 100 caractères")
-    .refine((val) => val.trim().split(/\s+/).length >= 2, {
-      message: "Le nom doit contenir au moins deux mots (Prénom Nom)",
+    .refine((val) => {
+      const words = val.trim().split(/\s+/)
+      return words.length >= 2
+    }, {
+      message: "Le nom doit contenir au moins deux mots",
+    })
+    .refine((val) => {
+      const words = val.trim().split(/\s+/)
+      return words.every(word => word.length >= 3)
+    }, {
+      message: "Chaque mot du nom doit contenir au moins 3 lettres",
     }),
-  phone: z.string().regex(/^[\+]? [0-9\s\-()]+$/, "Format de téléphone invalide").optional().or(z.literal("")),
+  nickname: z.string().optional(),
+  phone: z.string()
+    .regex(/^[0-9]{8}$/, "Le numéro de téléphone doit contenir exactement 8 chiffres")
+    .optional()
+    .or(z.literal("")),
   type: z.enum(['small', 'large'], {
     required_error: "Le type d'agriculteur est requis",
-  }),
-  pricePerKg: z.number().min(0.01, "Le prix par kg doit être supérieur à 0").max(10, "Le prix par kg semble trop élevé").optional()
+  })
+  // Removed pricePerKg - each session now has flexible pricing
 })
 
 export const updateFarmerSchema = z.object({
   name: z.string()
     .min(2, "Le nom doit contenir au moins 2 caractères")
     .max(100, "Le nom ne peut pas dépasser 100 caractères")
-    .refine((val) => val.trim().split(/\s+/).length >= 2, {
-      message: "Le nom doit contenir au moins deux mots (Prénom Nom)",
+    .refine((val) => {
+      const words = val.trim().split(/\s+/)
+      return words.length >= 2
+    }, {
+      message: "Le nom doit contenir au moins deux mots",
+    })
+    .refine((val) => {
+      const words = val.trim().split(/\s+/)
+      return words.every(word => word.length >= 3)
+    }, {
+      message: "Chaque mot du nom doit contenir au moins 3 lettres",
     })
     .optional(),
-  phone: z.string().regex(/^[\+]? [0-9\s\-()]+$/, "Format de téléphone invalide").optional().or(z.literal("")),
-  type: z.enum(['small', 'large']).optional(),
-  pricePerKg: z.number().min(0.01, "Le prix par kg doit être supérieur à 0").max(10, "Le prix par kg semble trop élevé").optional()
+  nickname: z.string().optional(),
+  phone: z.string()
+    .regex(/^[0-9]{8}$/, "Le numéro de téléphone doit contenir exactement 8 chiffres")
+    .optional()
+    .or(z.literal("")),
+  type: z.enum(['small', 'large']).optional()
+  // Removed pricePerKg - each session now has flexible pricing
 })
 
 // Box validation schemas
@@ -72,7 +98,7 @@ export const createSessionSchema = z.object({
   boxIds: z.array(z.string()).min(1, "Au moins une boîte est requise"),
   totalBoxWeight: z.number().min(0.1, "Le poids total doit être supérieur à 0"),
   boxCount: z.number().int().min(1, "Le nombre de boîtes doit être supérieur à 0"),
-  totalPrice: z.number().min(0, "Le prix total ne peut pas être négatif")
+  // totalPrice removed - will be calculated during payment
 })
 
 export const completeSessionSchema = z.object({

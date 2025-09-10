@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       oilWeight: Number(result.oilWeight),
       totalBoxWeight: Number(result.totalBoxWeight),
       totalPrice: Number(result.totalPrice),
-      pricePerKg: Number(result.farmer?.pricePerKg || 0.15),
+      pricePerKg: Number(result.pricePerKg || 0), // Use session's pricePerKg, not farmer's
       farmer: {
         ...result.farmer,
         type: result.farmer.type.toLowerCase(),

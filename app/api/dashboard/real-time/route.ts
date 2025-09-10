@@ -47,13 +47,13 @@ export async function GET() {
         }
       }),
       
-      // Today's revenue
+      // Today's revenue (include both paid and partial payments)
       prisma.processingSession.aggregate({
         where: {
           createdAt: { gte: todayStart, lte: todayEnd },
-          paymentStatus: 'PAID'
+          paymentStatus: { in: ['PAID', 'PARTIAL'] } // Include partial payments
         },
-        _sum: { totalPrice: true }
+        _sum: { amountPaid: true } // Use amountPaid to include partial payments
       }),
       
       // Latest activity (just 3 items for real-time updates)
@@ -85,7 +85,7 @@ export async function GET() {
         inUseBoxes,
         boxUtilization: Math.round((inUseBoxes / 600) * 100),
         todaySessionsCount,
-        todayRevenue: Number(todayRevenue._sum.totalPrice || 0),
+        todayRevenue: Number(todayRevenue._sum.amountPaid || 0),
         chkaraCount: chkaraCount
       },
       

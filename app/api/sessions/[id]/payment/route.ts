@@ -14,23 +14,47 @@ interface RouteParams {
   }
 }
 
-// PUT /api/sessions/[id]/payment - Toggle payment status
+// PUT /api/sessions/[id]/payment - Process payment with flexible pricing
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const sessionId = uuidSchema.parse(params.id)
     const body = await request.json()
-    const { status } = body
+    const { pricePerKg, amountPaid, paymentMethod, notes } = body
 
-    if (!status || !['paid', 'unpaid'].includes(status)) {
+    // Validate required fields
+    if (!pricePerKg || pricePerKg <= 0) {
       return NextResponse.json(
-        createErrorResponse('Statut de paiement invalide. Utilisez "paid" ou "unpaid"'),
+        createErrorResponse('Prix par kg requis et doit être supérieur à 0'),
         { status: 400 }
       )
     }
 
+    if (amountPaid === undefined || amountPaid === null || amountPaid < 0) {
+      console.error('❌ Payment validation error:', {
+        amountPaid,
+        pricePerKg,
+        body
+      })
+      return NextResponse.json(
+        createErrorResponse('Montant payé requis et doit être supérieur ou égal à 0'),
+        { status: 400 }
+      )
+    }
+
+    console.log('✅ Payment validation passed:', {
+      sessionId,
+      pricePerKg,
+      amountPaid,
+      paymentMethod,
+      notes
+    })
+
     // Check if session exists
     const existingSession = await prisma.processingSession.findUnique({
-      where: { id: sessionId }
+      where: { id: sessionId },
+      include: {
+        paymentTransactions: true
+      }
     })
 
     if (!existingSession) {
@@ -41,65 +65,127 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check if session is processed (can only pay processed sessions)
-    // Allow payment for sessions with oil weight > 0 even if status is still PENDING
     const isProcessed = existingSession.processingStatus === 'PROCESSED' || Number(existingSession.oilWeight) > 0
     if (!isProcessed) {
       return NextResponse.json(
-        createErrorResponse('Impossible de modifier le paiement d\'une session non traitée'),
+        createErrorResponse('Impossible de traiter le paiement d\'une session non traitée'),
         { status: 400 }
       )
     }
 
-    // Update payment status
-    const updateData: any = {
-      paymentStatus: status.toUpperCase()
+    // Calculate total price based on weight and price per kg
+    const totalPrice = Number(existingSession.totalBoxWeight) * Number(pricePerKg)
+    
+    // Calculate current total paid amount
+    const currentPaidAmount = Number(existingSession.amountPaid) || 0
+    const newTotalPaid = currentPaidAmount + Number(amountPaid)
+    
+    // Validate payment doesn't exceed total
+    if (newTotalPaid > totalPrice) {
+      return NextResponse.json(
+        createErrorResponse(`Le montant payé (${newTotalPaid.toFixed(2)} DT) dépasse le total dû (${totalPrice.toFixed(2)} DT)`),
+        { status: 400 }
+      )
     }
 
-    if (status === 'paid') {
-      updateData.paymentDate = new Date()
+    // Determine payment status
+    let paymentStatus: string
+    if (newTotalPaid >= totalPrice) {
+      paymentStatus = 'PAID'  // Full payment
     } else {
-      updateData.paymentDate = null
+      paymentStatus = 'PARTIAL'  // Partial payment
     }
 
-    const updatedSession = await prisma.processingSession.update({
-      where: { id: sessionId },
-      data: updateData,
-      include: {
-        farmer: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            type: true,
-            pricePerKg: true
+    // Calculate remaining amount
+    const remainingAmount = Math.max(0, totalPrice - newTotalPaid)
+
+    // Use database transaction for consistency
+    const result = await prisma.$transaction(async (tx) => {
+      // Create payment transaction record
+      await tx.paymentTransaction.create({
+        data: {
+          sessionId: sessionId,
+          amount: Number(amountPaid),
+          paymentMethod: paymentMethod || null,
+          notes: notes || null
+        }
+      })
+
+      // Update session with pricing and payment info
+      const updateData: any = {
+        pricePerKg: Number(pricePerKg),
+        totalPrice: totalPrice,
+        amountPaid: newTotalPaid,
+        remainingAmount: remainingAmount,
+        paymentStatus: paymentStatus
+      }
+
+      // Set payment date only when fully paid
+      if (paymentStatus === 'PAID') {
+        updateData.paymentDate = new Date()
+      }
+
+      const updatedSession = await tx.processingSession.update({
+        where: { id: sessionId },
+        data: updateData,
+        include: {
+          farmer: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              type: true
+            }
+          },
+          paymentTransactions: {
+            orderBy: { createdAt: 'desc' }
           }
         }
-      }
+      })
+
+      return updatedSession
     })
 
     // Update farmer totals
     await updateFarmerTotals(existingSession.farmerId, prisma)
 
     // Trigger dashboard update
-    await triggerDashboardUpdate(`Payment status changed to ${status} for session ${updatedSession.sessionNumber}`)
+    await triggerDashboardUpdate(`Payment processed for session ${existingSession.sessionNumber}`)
 
+    // Format response
     const formattedSession = {
-      ...updatedSession,
-      processingStatus: updatedSession.processingStatus.toLowerCase(),
-      paymentStatus: updatedSession.paymentStatus.toLowerCase(),
-      oilWeight: Number(updatedSession.oilWeight),
-      totalBoxWeight: Number(updatedSession.totalBoxWeight),
-      totalPrice: Number(updatedSession.totalPrice),
+      ...result,
+      paymentStatus: result.paymentStatus.toLowerCase(),
+      processingStatus: result.processingStatus.toLowerCase(),
+      oilWeight: Number(result.oilWeight),
+      totalBoxWeight: Number(result.totalBoxWeight),
+      totalPrice: Number(result.totalPrice),
+      pricePerKg: Number(result.pricePerKg),
+      amountPaid: Number(result.amountPaid),
+      remainingAmount: Number(result.remainingAmount),
       farmer: {
-        ...updatedSession.farmer,
-        type: updatedSession.farmer.type.toLowerCase(),
-        pricePerKg: Number(updatedSession.farmer.pricePerKg)
+        ...result.farmer,
+        type: result.farmer.type.toLowerCase()
       }
     }
 
-    const message = status === 'paid' 
-      ? 'Session marquée comme payée' 
-      : 'Session marquée comme non payée'
+    console.log('🔍 Payment API Response Debug:', {
+      sessionId: sessionId,
+      totalPrice: formattedSession.totalPrice,
+      amountPaid: formattedSession.amountPaid,
+      remainingAmount: formattedSession.remainingAmount,
+      paymentStatus: formattedSession.paymentStatus,
+      rawResult: {
+        totalPrice: result.totalPrice,
+        amountPaid: result.amountPaid,
+        remainingAmount: result.remainingAmount,
+        paymentStatus: result.paymentStatus
+      }
+    })
+
+    const message = paymentStatus === 'PAID' 
+      ? 'Paiement complet effectué avec succès!'
+      : `Paiement partiel de ${amountPaid} DT enregistré. Reste à payer: ${remainingAmount.toFixed(2)} DT`
 
     return NextResponse.json(
       createSuccessResponse(formattedSession, message)
@@ -107,15 +193,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        createErrorResponse('ID de session invalide'),
+        createErrorResponse('Données invalides: ' + (error as any).errors.map((e: any) => e.message).join(', ')),
         { status: 400 }
       )
     }
     
-    console.error('Error updating payment status:', error)
+    console.error('Error processing payment:', error)
     return NextResponse.json(
-      createErrorResponse('Erreur lors de la mise à jour du statut de paiement'),
+      createErrorResponse('Erreur lors du traitement du paiement'),
       { status: 500 }
     )
   }
 }
+

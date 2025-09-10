@@ -25,6 +25,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           select: {
             id: true,
             name: true,
+            nickname: true,
             phone: true,
             type: true,
             pricePerKg: true
@@ -36,6 +37,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           },
           orderBy: {
             box: { id: 'asc' }
+          }
+        },
+        paymentTransactions: {
+          orderBy: {
+            createdAt: 'desc'
           }
         }
       }
@@ -56,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       oilWeight: Number(session.oilWeight),
       totalBoxWeight: Number(session.totalBoxWeight),
       totalPrice: Number(session.totalPrice),
-      pricePerKg: Number(session.farmer?.pricePerKg || 0.15),
+      pricePerKg: Number(session.pricePerKg || 0), // Use session's pricePerKg, not farmer's
       farmer: {
         ...session.farmer,
         type: session.farmer.type.toLowerCase(),
@@ -171,7 +177,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       oilWeight: Number(updatedSession.oilWeight),
       totalBoxWeight: Number(updatedSession.totalBoxWeight),
       totalPrice: Number(updatedSession.totalPrice),
-      pricePerKg: Number(updatedSession.farmer?.pricePerKg || 0.15),
+      pricePerKg: Number(updatedSession.pricePerKg || 0), // Use session's pricePerKg, not farmer's
       farmer: {
         ...updatedSession.farmer,
         type: updatedSession.farmer.type.toLowerCase(),
@@ -221,37 +227,76 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Check if session is paid (prevent deletion of paid sessions only)
     if (existingSession.paymentStatus === 'PAID') {
       return NextResponse.json(
-        createErrorResponse('Impossible de supprimer une session déjà payée'),
+        createErrorResponse('Impossible de supprimer une session payée. Veuillez d\'abord rembourser le client.'),
         { status: 400 }
       )
     }
+
+    // Calculate refund information for partial payments
+    const refundAmount = Number(existingSession.amountPaid || 0)
+    const wasPartiallyPaid = existingSession.paymentStatus === 'PARTIAL' && refundAmount > 0
+
+    console.log('🗑️ Session Deletion Info:', {
+      sessionId: sessionId,
+      sessionNumber: existingSession.sessionNumber,
+      farmerId: existingSession.farmerId,
+      paymentStatus: existingSession.paymentStatus,
+      totalPrice: existingSession.totalPrice,
+      amountPaid: existingSession.amountPaid,
+      refundAmount: refundAmount,
+      wasPartiallyPaid: wasPartiallyPaid,
+      boxCount: existingSession.sessionBoxes.length
+    })
 
     // Delete session in transaction (will also restore boxes)
     await prisma.$transaction(async (tx: any) => {
       // Get box IDs from session
       const boxIds = existingSession.sessionBoxes.map((sb: any) => sb.boxId)
 
-      // Restore boxes to unprocessed state
-      await tx.box.updateMany({
-        where: { id: { in: boxIds } },
-        data: {
-          isProcessed: false,
-          isSelected: false,
-          processingSessionId: null
-        }
-      })
+      console.log('📦 Releasing boxes:', boxIds)
 
-      // Delete session (cascades to sessionBoxes)
+      // Restore boxes to available state (remove assignment)
+      if (boxIds.length > 0) {
+        await tx.box.updateMany({
+          where: { id: { in: boxIds } },
+          data: {
+            status: 'AVAILABLE',
+            currentFarmerId: null,
+            currentWeight: null,
+            assignedAt: null,
+            isSelected: false
+          }
+        })
+      }
+
+      // Delete session (cascades to sessionBoxes and paymentTransactions)
       await tx.processingSession.delete({
         where: { id: sessionId }
       })
+
+      console.log('✅ Session deleted successfully')
     })
 
-    // Update farmer totals
+    // Update farmer totals after session deletion
+    console.log('🔄 Updating farmer totals after session deletion...')
     await updateFarmerTotals(existingSession.farmerId, prisma)
 
+    // Prepare response message
+    let successMessage = 'Session supprimée avec succès'
+    if (wasPartiallyPaid) {
+      successMessage += ` - Remboursement nécessaire: ${refundAmount.toFixed(2)} DT`
+    }
+    if (existingSession.sessionBoxes.length > 0) {
+      successMessage += ` - ${existingSession.sessionBoxes.length} boîtes libérées`
+    }
+
     return NextResponse.json(
-      createSuccessResponse(null, 'Session supprimée avec succès')
+      createSuccessResponse({
+        deletedSessionId: sessionId,
+        refundAmount: refundAmount,
+        wasPartiallyPaid: wasPartiallyPaid,
+        boxesReleased: existingSession.sessionBoxes.length
+      }, successMessage)
     )
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') {

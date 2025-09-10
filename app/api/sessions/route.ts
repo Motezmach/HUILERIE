@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               name: true,
+              nickname: true,
               phone: true,
               type: true,
               pricePerKg: true
@@ -128,11 +129,11 @@ export async function GET(request: NextRequest) {
           oilWeight: session.oilWeight ? Number(session.oilWeight) : 0,
           totalBoxWeight: session.totalBoxWeight ? Number(session.totalBoxWeight) : 0,
           totalPrice: session.totalPrice ? Number(session.totalPrice) : 0,
-          pricePerKg: session.pricePerKg ? Number(session.pricePerKg) : 0.15,
+          pricePerKg: session.pricePerKg ? Number(session.pricePerKg) : null, // Return null, not 0.15
       farmer: query.includeFarmer && session.farmer ? {
         ...session.farmer,
             type: session.farmer.type?.toLowerCase() || 'small',
-            pricePerKg: session.farmer.pricePerKg ? Number(session.farmer.pricePerKg) : 0.15
+            pricePerKg: session.farmer.pricePerKg ? Number(session.farmer.pricePerKg) : null // Return null, not 0.15
       } : undefined,
           sessionBoxes: query.includeBoxes && session.sessionBoxes ? session.sessionBoxes.map((sb: any) => ({
             id: sb.id,
@@ -231,8 +232,9 @@ export async function POST(request: NextRequest) {
           sessionNumber,
           totalBoxWeight: validatedData.totalBoxWeight,
           boxCount: validatedData.boxCount,
-          totalPrice: validatedData.totalPrice,
-          pricePerKg: farmer.pricePerKg
+          // totalPrice and pricePerKg will be set during payment process
+          // totalPrice: null (default)
+          // pricePerKg: null (default)
         }
       })
 
