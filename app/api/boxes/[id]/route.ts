@@ -84,16 +84,24 @@ export async function PUT(
 
     // Handle ID changes (since ID is primary key, we need special handling)
     if (validatedData.id && validatedData.id !== boxId) {
-      // Check if new ID already exists
+      // Check if new ID already exists AND is in use by another farmer
       const duplicateBox = await prisma.box.findUnique({
         where: { id: validatedData.id }
       })
 
-      if (duplicateBox) {
+      // Only block if the duplicate box is actually in use by a farmer
+      if (duplicateBox && duplicateBox.status === 'IN_USE' && duplicateBox.currentFarmerId) {
         return NextResponse.json(
-          createErrorResponse(`L'ID ${validatedData.id} est déjà utilisé par une autre boîte`),
+          createErrorResponse(`L'ID ${validatedData.id} est déjà utilisé par une autre boîte assignée à un agriculteur`),
           { status: 400 }
         )
+      }
+      
+      // If duplicate exists but is AVAILABLE, we need to delete it first
+      if (duplicateBox && duplicateBox.status === 'AVAILABLE') {
+        await prisma.box.delete({
+          where: { id: validatedData.id }
+        })
       }
 
       // Create new box with new ID and delete old one (transaction)

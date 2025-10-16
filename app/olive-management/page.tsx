@@ -53,6 +53,7 @@ import {
   PackagePlus,
   Menu,
   ArrowLeft,
+  Printer,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -128,6 +129,7 @@ export default function OliveManagement() {
   const bulkWeightRefs = useRef<Array<HTMLInputElement | null>>([])
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<"farmers" | "boxes">("farmers")
+  const [printingFarmers, setPrintingFarmers] = useState(false)
 
   // Form states
   const [farmerForm, setFarmerForm] = useState({
@@ -453,37 +455,16 @@ export default function OliveManagement() {
       }
       // "all" shows everyone
 
-      return matchesSearch && matchesFilter
+      // Filter by today's date if showTodayOnly is true
+      const matchesToday = showTodayOnly ? isToday(farmer.dateAdded) : true
+
+      return matchesSearch && matchesFilter && matchesToday
     })
-  }, [farmers, searchTerm, filterType])
+  }, [farmers, searchTerm, filterType, showTodayOnly])
 
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
-    const newShowTodayOnly = !showTodayOnly
-    setShowTodayOnly(newShowTodayOnly)
-    
-    // If activating today filter, auto-select first today's farmer
-    if (newShowTodayOnly) {
-      const todaysFarmers = farmers.filter(farmer => {
-        const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
-        
-        // Use the same filter logic as in filteredFarmers
-        let matchesFilter = true
-        if (filterType === "needs-treatment") {
-          matchesFilter = hasBoxesWithoutWeight(farmer) || farmer.boxes.length === 0
-        } else if (filterType === "ready") {
-          matchesFilter = farmer.boxes.length > 0 && !hasBoxesWithoutWeight(farmer)
-        }
-        
-        const matchesToday = isToday(farmer.dateAdded)
-        
-        return matchesSearch && matchesFilter && matchesToday
-      })
-      
-      if (todaysFarmers.length > 0) {
-        setSelectedFarmer(todaysFarmers[0])
-      }
-    }
+    setShowTodayOnly(!showTodayOnly)
   }
 
   // Validation function for farmer form
@@ -525,7 +506,7 @@ export default function OliveManagement() {
         name: farmerForm.name.trim(),
         nickname: farmerForm.nickname.trim() || undefined,
         phone: farmerForm.phone.trim() || undefined,
-        type: farmerForm.type,
+      type: farmerForm.type,
       })
 
       if (response.success) {
@@ -540,7 +521,7 @@ export default function OliveManagement() {
         setFarmers((prev) => [...prev, farmerWithBoxes])
         setFarmerForm({ name: "", nickname: "", phone: "", type: "small" })
         setFarmerFormErrors({}) // Clear errors on success
-        setIsAddFarmerOpen(false)
+    setIsAddFarmerOpen(false)
         showNotification(`Agriculteur ${newFarmer.name} ajouté avec succès`, "success")
       } else {
         showNotification(response.error || 'Erreur lors de la création', 'error')
@@ -579,15 +560,15 @@ export default function OliveManagement() {
         if (currentFarmer && (!updatedFarmer.boxes || updatedFarmer.boxes.length === 0) && currentFarmer.boxes.length > 0) {
           updatedFarmer.boxes = currentFarmer.boxes
         }
-
+        
         setFarmers((prev) => prev.map((f) => (f.id === selectedFarmer.id ? updatedFarmer : f)))
         
         // Update selected farmer reference
         setSelectedFarmer(updatedFarmer)
         setFarmerForm({ name: "", nickname: "", phone: "", type: "small" })
         setFarmerFormErrors({}) // Clear errors on success
-        setIsEditFarmerOpen(false)
-        showNotification("Agriculteur mis à jour avec succès!", "success")
+    setIsEditFarmerOpen(false)
+    showNotification("Agriculteur mis à jour avec succès!", "success")
       } else {
         showNotification(response.error || 'Erreur lors de la mise à jour', 'error')
       }
@@ -1693,8 +1674,8 @@ export default function OliveManagement() {
                 </Dialog>
                 </div>
 
-                {/* Today filter button */}
-                <div className="flex items-center pt-2 border-t border-gray-100">
+                {/* Today filter button and Print icon on same line */}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <Button
                     size="sm"
                     variant={showTodayOnly ? "default" : "outline"}
@@ -1713,6 +1694,25 @@ export default function OliveManagement() {
                         {filteredFarmers.length}
                       </span>
                     )}
+                  </Button>
+                  
+                  {/* Print button */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setPrintingFarmers(true)
+                      setTimeout(() => {
+                        window.print()
+                        setTimeout(() => {
+                          setPrintingFarmers(false)
+                        }, 500)
+                      }, 100)
+                    }}
+                    className="h-10 w-10 p-0 text-gray-500 hover:text-[#6B8E4B] hover:bg-[#6B8E4B]/10 transition-colors"
+                    title="Imprimer la liste des agriculteurs"
+                  >
+                    <Printer className="w-5 h-5" />
                   </Button>
                 </div>
               </div>
@@ -3096,6 +3096,178 @@ export default function OliveManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Print All Farmers Component - Hidden until print is triggered */}
+      {printingFarmers && (
+        <PrintAllFarmers farmers={filteredFarmers} />
+      )}
+    </div>
+  )
+}
+
+const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
+  return (
+    <div className="print-all-farmers">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-all-farmers, .print-all-farmers * {
+            visibility: visible;
+          }
+          
+          .print-all-farmers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 15mm !important;
+            box-sizing: border-box !important;
+            font-size: 11px !important;
+            line-height: 1.3 !important;
+            font-family: Arial, sans-serif !important;
+            background: white !important;
+            overflow: hidden !important;
+            page-break-after: avoid !important;
+          }
+          
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+          
+          .farmers-table {
+            width: 100% !important;
+            font-size: 10px !important;
+            border-collapse: collapse !important;
+            margin: 10px 0 !important;
+          }
+          
+          .farmers-table th,
+          .farmers-table td {
+            border: 1px solid #333 !important;
+            padding: 8px 6px !important;
+            text-align: left !important;
+            vertical-align: middle !important;
+          }
+          
+          .farmers-table th {
+            background-color: #6B8E4B !important;
+            color: white !important;
+            font-weight: bold !important;
+            font-size: 11px !important;
+          }
+          
+          .print-header-title {
+            font-size: 22px !important;
+            margin-bottom: 10px !important;
+            font-weight: bold !important;
+          }
+          
+          .print-footer {
+            margin-top: 15px !important;
+            padding-top: 10px !important;
+            border-top: 2px solid #6B8E4B !important;
+            text-align: center !important;
+            font-size: 9px !important;
+          }
+          
+          .stats-summary {
+            background-color: #f3f4f6 !important;
+            border: 2px solid #6B8E4B !important;
+            padding: 10px !important;
+            border-radius: 4px !important;
+            margin-bottom: 15px !important;
+          }
+        }
+        
+        .print-all-farmers {
+          display: none;
+        }
+        
+        @media print {
+          .print-all-farmers {
+            display: block !important;
+          }
+        }
+        `
+      }} />
+
+      <div>
+        {/* Header */}
+        <div className="border-b-2 border-[#6B8E4B] pb-3 mb-4 flex justify-between items-start">
+          <div>
+            <h1 className="print-header-title text-2xl font-bold text-[#2C3E50]">HUILERIE MASMOUDI</h1>
+            <p className="text-sm text-gray-600">Adresse: Tunis, Mahdia</p>
+            <p className="text-sm text-gray-600 font-semibold">Liste des Agriculteurs</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-600">Date d'impression:</p>
+            <p className="text-sm font-bold">{new Date().toLocaleDateString('fr-FR')}</p>
+            <p className="text-xs text-gray-500">{new Date().toLocaleTimeString('fr-FR')}</p>
+          </div>
+        </div>
+
+        {/* Summary Statistics */}
+        <div className="stats-summary mb-4">
+          <div className="text-center">
+            <p className="text-xs text-gray-600 mb-1">Total Agriculteurs</p>
+            <p className="text-2xl font-bold text-[#2C3E50]">{farmers.length}</p>
+          </div>
+        </div>
+
+        {/* Farmers Table */}
+        <table className="farmers-table">
+          <thead>
+            <tr>
+              <th style={{ width: '8%' }}>N°</th>
+              <th style={{ width: '30%' }}>Nom Complet</th>
+              <th style={{ width: '20%' }}>Surnom</th>
+              <th style={{ width: '18%' }}>Téléphone</th>
+              <th style={{ width: '12%' }}>Boîtes</th>
+              <th style={{ width: '12%' }}>Date d'ajout</th>
+            </tr>
+          </thead>
+          <tbody>
+            {farmers.map((farmer, index) => (
+              <tr key={farmer.id}>
+                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
+                <td style={{ fontWeight: 'bold' }}>{farmer.name}</td>
+                <td>{farmer.nickname || '-'}</td>
+                <td>{farmer.phone || '-'}</td>
+                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                  {farmer.boxes?.length || 0}
+                </td>
+                <td>{new Date(farmer.dateAdded).toLocaleDateString('fr-FR')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Footer */}
+        <div className="print-footer">
+          <p className="font-semibold text-[#2C3E50] mb-1">
+            HUILERIE MASMOUDI - Votre partenaire pour une huile d'olive de qualité
+          </p>
+          <p className="text-gray-500">
+            Document généré automatiquement - {farmers.length} agriculteur(s) répertorié(s)
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

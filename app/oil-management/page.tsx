@@ -96,6 +96,7 @@ export default function OilManagement() {
   const [showDeleteFarmerConfirm, setShowDeleteFarmerConfirm] = useState<string | null>(null)
   const [showDeleteSessionConfirm, setShowDeleteSessionConfirm] = useState<string | null>(null)
   const [printingSession, setPrintingSession] = useState<ProcessingSession | null>(null)
+  const [printingAllSessions, setPrintingAllSessions] = useState<ProcessedFarmer | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [user, setUser] = useState<any>(null)
@@ -176,7 +177,7 @@ export default function OilManagement() {
               pricePerKg: 0, // Not used anymore - pricing is per-session
               sessions: [],
               totalAmountDue: 0,
-              totalAmountPaid: 0,
+      totalAmountPaid: 0,
               paymentStatus: "pending" as const,
               lastProcessingDate: ""
             }
@@ -364,7 +365,7 @@ export default function OilManagement() {
                 id: farmer.id,
                 name: farmer.name,
                 nickname: farmer.nickname || null,
-                phone: farmer.phone || "",
+              phone: farmer.phone || "",
                 type: farmer.type,
                 pricePerKg: 0, // Not used anymore - pricing is per-session
               sessions: [{
@@ -818,14 +819,14 @@ export default function OilManagement() {
 
       if (response.success) {
         // Remove farmer from local state
-        setProcessedFarmers(prev => prev.filter(f => f.id !== farmerId))
+    setProcessedFarmers(prev => prev.filter(f => f.id !== farmerId))
         
         // Clear selection if this farmer was selected
         if (selectedFarmer?.id === farmerId) {
           setSelectedFarmer(null)
         }
         
-        setShowDeleteFarmerConfirm(null)
+    setShowDeleteFarmerConfirm(null)
         showNotification("Agriculteur et toutes ses sessions supprimés avec succès!", "success")
       } else {
         showNotification(response.error || "Erreur lors de la suppression", "error")
@@ -885,7 +886,7 @@ export default function OilManagement() {
         }
 
         showNotification(message, "success")
-        setShowDeleteSessionConfirm(null)
+    setShowDeleteSessionConfirm(null)
       } else {
         showNotification(response.error || "Erreur lors de la suppression", "error")
       }
@@ -973,6 +974,18 @@ export default function OilManagement() {
 
   const handlePrintReceipt = (session: ProcessingSession) => {
     setPrintingSession(session)
+  }
+
+  const handlePrintAllSessions = (farmer: ProcessedFarmer) => {
+    setPrintingAllSessions(farmer)
+    // Trigger print after a short delay to allow the component to render
+    setTimeout(() => {
+      window.print()
+      // Close the print component after printing
+      setTimeout(() => {
+        setPrintingAllSessions(null)
+      }, 500)
+    }, 100)
   }
 
   const getSessionStatusBadge = (session: ProcessingSession) => {
@@ -1426,6 +1439,369 @@ export default function OilManagement() {
       </div>
     </div>
   )
+
+  const PrintAllSessions = ({ farmer }: { farmer: ProcessedFarmer }) => {
+    // Calculate summary statistics
+    const completedSessions = farmer.sessions.filter(s => s.oilWeight > 0 || s.processingStatus === "processed")
+    const paidSessions = completedSessions.filter(s => s.paymentStatus === "paid")
+    const partialSessions = completedSessions.filter(s => s.paymentStatus === "partial")
+    const unpaidSessions = completedSessions.filter(s => s.paymentStatus === "unpaid")
+    
+    const totalBoxes = farmer.sessions.reduce((sum, s) => sum + s.boxCount, 0)
+    const totalBoxWeight = farmer.sessions.reduce((sum, s) => sum + s.totalBoxWeight, 0)
+    const totalOilWeight = completedSessions.reduce((sum, s) => sum + s.oilWeight, 0)
+    const averageYield = totalBoxWeight > 0 ? (totalOilWeight / totalBoxWeight) * 100 : 0
+    
+    return (
+      <div className="print-all-sessions">
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          @media print {
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            
+            body * {
+              visibility: hidden;
+            }
+            
+            .print-all-sessions, .print-all-sessions * {
+              visibility: visible;
+            }
+            
+            .print-all-sessions {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 210mm !important;
+              height: 297mm !important;
+              margin: 0 !important;
+              padding: 12mm !important;
+              box-sizing: border-box !important;
+              font-size: 10px !important;
+              line-height: 1.2 !important;
+              font-family: Arial, sans-serif !important;
+              background: white !important;
+              overflow: hidden !important;
+              page-break-after: avoid !important;
+            }
+            
+            @page {
+              size: A4;
+              margin: 0;
+            }
+            
+            .no-print {
+              display: none !important;
+            }
+            
+            .sessions-table {
+              width: 100% !important;
+              font-size: 8px !important;
+              border-collapse: collapse !important;
+              margin: 8px 0 !important;
+            }
+            
+            .sessions-table th,
+            .sessions-table td {
+              border: 1px solid #333 !important;
+              padding: 4px 3px !important;
+              text-align: center !important;
+              vertical-align: middle !important;
+            }
+            
+            .sessions-table th {
+              background-color: #6B8E4B !important;
+              color: white !important;
+              font-weight: bold !important;
+              font-size: 9px !important;
+            }
+            
+            .print-header-title {
+              font-size: 20px !important;
+              margin-bottom: 10px !important;
+              font-weight: bold !important;
+            }
+            
+            .farmer-info-box {
+              background-color: #f3f4f6 !important;
+              border: 2px solid #6B8E4B !important;
+              padding: 8px !important;
+              border-radius: 4px !important;
+              margin-bottom: 10px !important;
+            }
+            
+            .stats-grid {
+              display: grid !important;
+              grid-template-columns: repeat(4, 1fr) !important;
+              gap: 6px !important;
+              margin: 8px 0 !important;
+            }
+            
+            .stat-box {
+              border: 1px solid #d1d5db !important;
+              padding: 6px !important;
+              text-align: center !important;
+              border-radius: 3px !important;
+              background-color: #f9fafb !important;
+            }
+            
+            .stat-label {
+              font-size: 8px !important;
+              color: #6b7280 !important;
+              margin-bottom: 2px !important;
+            }
+            
+            .stat-value {
+              font-size: 12px !important;
+              font-weight: bold !important;
+              color: #1f2937 !important;
+            }
+            
+            .summary-section {
+              background-color: #fef3c7 !important;
+              border: 2px solid #f59e0b !important;
+              padding: 8px !important;
+              border-radius: 4px !important;
+              margin-top: 10px !important;
+            }
+            
+            .summary-title {
+              font-size: 12px !important;
+              font-weight: bold !important;
+              color: #92400e !important;
+              margin-bottom: 6px !important;
+              text-align: center !important;
+            }
+            
+            .summary-grid {
+              display: grid !important;
+              grid-template-columns: repeat(3, 1fr) !important;
+              gap: 8px !important;
+            }
+            
+            .summary-item {
+              text-align: center !important;
+              background-color: white !important;
+              border: 1px solid #d1d5db !important;
+              padding: 6px !important;
+              border-radius: 3px !important;
+            }
+            
+            .print-footer {
+              margin-top: 10px !important;
+              padding-top: 8px !important;
+              border-top: 2px solid #6B8E4B !important;
+              text-align: center !important;
+              font-size: 8px !important;
+            }
+            
+            .status-badge {
+              padding: 2px 6px !important;
+              border-radius: 3px !important;
+              font-size: 7px !important;
+              font-weight: bold !important;
+            }
+            
+            .status-paid {
+              background-color: #d1fae5 !important;
+              color: #065f46 !important;
+            }
+            
+            .status-partial {
+              background-color: #dbeafe !important;
+              color: #1e40af !important;
+            }
+            
+            .status-unpaid {
+              background-color: #fef3c7 !important;
+              color: #92400e !important;
+            }
+            
+            .status-pending {
+              background-color: #fed7aa !important;
+              color: #9a3412 !important;
+            }
+          }
+          
+          .print-all-sessions {
+            display: none;
+          }
+          
+          @media print {
+            .print-all-sessions {
+              display: block !important;
+            }
+          }
+          `
+        }} />
+
+        <div>
+          {/* Header */}
+          <div className="border-b-2 border-[#6B8E4B] pb-2 mb-3 flex justify-between items-start">
+            <div>
+              <h1 className="print-header-title text-2xl font-bold text-[#2C3E50]">HUILERIE MASMOUDI</h1>
+              <p className="text-xs text-gray-600">Adresse: Tunis, Mahdia</p>
+              <p className="text-xs text-gray-600">Rapport de Sessions Complètes</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-600">Date d'impression:</p>
+              <p className="text-sm font-bold">{new Date().toLocaleDateString('fr-FR')}</p>
+              <p className="text-xs text-gray-500">{new Date().toLocaleTimeString('fr-FR')}</p>
+            </div>
+          </div>
+
+          {/* Farmer Information */}
+          <div className="farmer-info-box">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#2C3E50] mb-1">
+                  {formatFarmerInvoiceName(farmer.name)}
+                </h2>
+                <p className="text-xs text-gray-600">
+                  {farmer.phone && <><strong>Téléphone:</strong> {farmer.phone}</>}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-600 mb-1"><strong>Nombre total de sessions:</strong></p>
+                <p className="text-2xl font-bold text-[#2C3E50]">{farmer.sessions.length}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Statistics Grid */}
+          <div className="stats-grid">
+            <div className="stat-box" style={{ backgroundColor: '#d1fae5', borderColor: '#10b981' }}>
+              <div className="stat-label" style={{ color: '#065f46' }}>Payées</div>
+              <div className="stat-value" style={{ color: '#065f46' }}>{paidSessions.length}</div>
+            </div>
+            <div className="stat-box" style={{ backgroundColor: '#dbeafe', borderColor: '#3b82f6' }}>
+              <div className="stat-label" style={{ color: '#1e40af' }}>Partielles</div>
+              <div className="stat-value" style={{ color: '#1e40af' }}>{partialSessions.length}</div>
+            </div>
+            <div className="stat-box" style={{ backgroundColor: '#fef3c7', borderColor: '#f59e0b' }}>
+              <div className="stat-label" style={{ color: '#92400e' }}>Non payées</div>
+              <div className="stat-value" style={{ color: '#92400e' }}>{unpaidSessions.length}</div>
+            </div>
+            <div className="stat-box" style={{ backgroundColor: '#fed7aa', borderColor: '#ea580c' }}>
+              <div className="stat-label" style={{ color: '#9a3412' }}>En attente</div>
+              <div className="stat-value" style={{ color: '#9a3412' }}>{farmer.sessions.length - completedSessions.length}</div>
+            </div>
+          </div>
+
+          {/* Sessions Table */}
+          <table className="sessions-table">
+            <thead>
+              <tr>
+                <th style={{ width: '8%' }}>N° Session</th>
+                <th style={{ width: '10%' }}>Date</th>
+                <th style={{ width: '7%' }}>Boîtes</th>
+                <th style={{ width: '10%' }}>Poids Total (kg)</th>
+                <th style={{ width: '10%' }}>Huile (kg)</th>
+                <th style={{ width: '8%' }}>Rendement</th>
+                <th style={{ width: '10%' }}>Prix/kg (DT)</th>
+                <th style={{ width: '10%' }}>Total (DT)</th>
+                <th style={{ width: '10%' }}>Payé (DT)</th>
+                <th style={{ width: '10%' }}>Reste (DT)</th>
+                <th style={{ width: '7%' }}>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {farmer.sessions.map((session, index) => {
+                const isProcessed = session.oilWeight > 0 || session.processingStatus === "processed"
+                const yield_percent = session.totalBoxWeight > 0 ? (session.oilWeight / session.totalBoxWeight) * 100 : 0
+                
+                return (
+                  <tr key={session.id}>
+                    <td style={{ fontWeight: 'bold' }}>{session.sessionNumber}</td>
+                    <td>{session.date ? new Date(session.date).toLocaleDateString('fr-FR') : '-'}</td>
+                    <td>{session.boxCount}</td>
+                    <td>{session.totalBoxWeight.toFixed(2)}</td>
+                    <td style={{ fontWeight: 'bold' }}>{isProcessed ? session.oilWeight.toFixed(2) : '-'}</td>
+                    <td>{isProcessed ? `${yield_percent.toFixed(1)}%` : '-'}</td>
+                    <td>{session.pricePerKg ? session.pricePerKg.toFixed(2) : '-'}</td>
+                    <td style={{ fontWeight: 'bold' }}>
+                      {session.totalPrice ? session.totalPrice.toFixed(2) : '-'}
+                    </td>
+                    <td style={{ color: '#065f46', fontWeight: 'bold' }}>
+                      {(session.amountPaid || 0).toFixed(2)}
+                    </td>
+                    <td style={{ color: session.remainingAmount && session.remainingAmount > 0 ? '#dc2626' : '#6b7280', fontWeight: 'bold' }}>
+                      {(session.remainingAmount || 0).toFixed(2)}
+                    </td>
+                    <td>
+                      {!isProcessed ? (
+                        <span className="status-badge status-pending">En attente</span>
+                      ) : session.paymentStatus === "paid" ? (
+                        <span className="status-badge status-paid">Payé</span>
+                      ) : session.paymentStatus === "partial" ? (
+                        <span className="status-badge status-partial">Partiel</span>
+                      ) : (
+                        <span className="status-badge status-unpaid">Non payé</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+
+          {/* Summary Section */}
+          <div className="summary-section">
+            <div className="summary-title">RÉCAPITULATIF FINANCIER</div>
+            <div className="summary-grid">
+              <div className="summary-item">
+                <div className="text-xs text-gray-600 mb-1">Montant Total Dû</div>
+                <div className="text-lg font-bold text-[#2C3E50]">{farmer.totalAmountDue.toFixed(2)} DT</div>
+              </div>
+              <div className="summary-item">
+                <div className="text-xs text-green-700 mb-1">Total Payé</div>
+                <div className="text-lg font-bold text-green-600">{farmer.totalAmountPaid.toFixed(2)} DT</div>
+              </div>
+              <div className="summary-item">
+                <div className="text-xs text-red-700 mb-1">Montant Restant</div>
+                <div className="text-lg font-bold text-red-600">
+                  {(farmer.totalAmountDue - farmer.totalAmountPaid).toFixed(2)} DT
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-3 pt-3 border-t border-amber-300">
+              <div className="grid grid-cols-4 gap-3 text-center text-xs">
+                <div>
+                  <p className="text-gray-600 mb-1">Total Boîtes</p>
+                  <p className="font-bold text-sm">{totalBoxes}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 mb-1">Poids Total Olives</p>
+                  <p className="font-bold text-sm">{totalBoxWeight.toFixed(2)} kg</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 mb-1">Total Huile</p>
+                  <p className="font-bold text-sm">{totalOilWeight.toFixed(2)} kg</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 mb-1">Rendement Moyen</p>
+                  <p className="font-bold text-sm">{averageYield.toFixed(2)}%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="print-footer">
+            <p className="font-semibold text-[#2C3E50] mb-1">
+              HUILERIE MASMOUDI - Votre partenaire pour une huile d'olive de qualité
+            </p>
+            <p className="text-gray-500">
+              Document généré automatiquement - Pour toute question, veuillez contacter l'huilerie
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Function to immediately update session and farmer in UI state
   const updateSessionInState = (updatedSessionData: any) => {
@@ -1922,16 +2298,28 @@ export default function OilManagement() {
                           </div>
                           <CardTitle className="text-[#2C3E50]">Sessions de traitement</CardTitle>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRebuild(selectedFarmer.id)}
-                          className="border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white"
-                        >
-                          <RotateCcw className="w-4 h-4 mr-2" />
-                          <span className="hidden sm:inline">Reconstruire</span>
-                          <span className="sm:hidden">Reconstruire</span>
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handlePrintAllSessions(selectedFarmer)}
+                            className="border-[#2C3E50] text-[#2C3E50] hover:bg-[#2C3E50] hover:text-white"
+                          >
+                            <Printer className="w-4 h-4 mr-2" />
+                            <span className="hidden sm:inline">Imprimer</span>
+                            <span className="sm:hidden">Imprimer</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRebuild(selectedFarmer.id)}
+                            className="border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            <span className="hidden sm:inline">Reconstruire</span>
+                            <span className="sm:hidden">Reconstruire</span>
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardHeader>
@@ -2359,12 +2747,12 @@ export default function OilManagement() {
               <p className="text-red-600 font-medium text-sm">Cette action ne peut pas être annulée.</p>
             </div>
               <div className="flex space-x-2">
-              <Button 
+                <Button
                 onClick={() => handleDeleteFarmer(showDeleteFarmerConfirm)} 
                 disabled={saving}
                 variant="destructive" 
                 className="bg-red-600 hover:bg-red-700 text-white"
-              >
+                >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
@@ -2392,7 +2780,7 @@ export default function OilManagement() {
             <div className="flex items-center mb-4">
               <AlertCircle className="w-6 h-6 text-orange-600 mr-3" />
               <h3 className="text-lg font-semibold text-gray-900">Supprimer la session</h3>
-            </div>
+              </div>
             <div className="mb-6">
               {(() => {
                 // Find session details for better confirmation message
@@ -2416,7 +2804,7 @@ export default function OilManagement() {
                           ⚠️ Paiement partiel: {(sessionToDelete.amountPaid || 0).toFixed(2)} DT à rembourser
                         </p>
                       )}
-                    </div>
+          </div>
                     
                     <p className="text-gray-800 font-medium mb-2">⚠️ Cette action supprimera :</p>
                     <ul className="text-sm text-gray-600 space-y-1 ml-4 mb-3">
@@ -2491,6 +2879,11 @@ export default function OilManagement() {
             <PrintInvoice session={printingSession} farmer={selectedFarmer} />
           </div>
         </div>
+      )}
+
+      {/* Print All Sessions Component - Hidden until print is triggered */}
+      {printingAllSessions && (
+        <PrintAllSessions farmer={printingAllSessions} />
       )}
 
       {/* Enhanced Payment Modal */}

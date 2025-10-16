@@ -257,16 +257,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
       // Restore boxes to available state (remove assignment)
       if (boxIds.length > 0) {
-        await tx.box.updateMany({
-          where: { id: { in: boxIds } },
-          data: {
+      await tx.box.updateMany({
+        where: { id: { in: boxIds } },
+        data: {
             status: 'AVAILABLE',
             currentFarmerId: null,
             currentWeight: null,
             assignedAt: null,
             isSelected: false
-          }
-        })
+        }
+      })
       }
 
       // Delete session (cascades to sessionBoxes and paymentTransactions)

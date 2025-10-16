@@ -165,23 +165,23 @@ export async function DELETE(
         await tx.processingSession.deleteMany({
           where: { farmerId: farmerId }
         })
-      }
+    }
 
-      // Make farmer's boxes available for other farmers
+    // Make farmer's boxes available for other farmers
       await tx.box.updateMany({
-        where: { currentFarmerId: farmerId },
-        data: { 
-          currentFarmerId: null,
-          currentWeight: null,
-          assignedAt: null,
-          status: 'AVAILABLE',
-          isSelected: false
-        }
-      })
+      where: { currentFarmerId: farmerId },
+      data: { 
+        currentFarmerId: null,
+        currentWeight: null,
+        assignedAt: null,
+        status: 'AVAILABLE',
+        isSelected: false
+      }
+    })
 
       // Delete farmer
       await tx.farmer.delete({
-        where: { id: farmerId }
+      where: { id: farmerId }
       })
     })
 
