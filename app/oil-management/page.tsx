@@ -98,6 +98,13 @@ export default function OilManagement() {
   const [showDeleteSessionConfirm, setShowDeleteSessionConfirm] = useState<string | null>(null)
   const [printingSession, setPrintingSession] = useState<ProcessingSession | null>(null)
   const [printingAllSessions, setPrintingAllSessions] = useState<ProcessedFarmer | null>(null)
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set())
+  const [isBulkPaymentDialogOpen, setIsBulkPaymentDialogOpen] = useState(false)
+  const [bulkPaymentForm, setBulkPaymentForm] = useState({
+    pricePerKg: "",
+    paymentDate: new Date().toISOString().split('T')[0],
+    amountPaid: ""
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [user, setUser] = useState<any>(null)
@@ -134,6 +141,11 @@ export default function OilManagement() {
     // Load sessions on component mount
     loadSessions()
   }, [])
+
+  // Clear selected sessions when farmer changes
+  useEffect(() => {
+    setSelectedSessions(new Set())
+  }, [selectedFarmer?.id])
 
   const handleLogout = async () => {
     try {
@@ -363,12 +375,17 @@ export default function OilManagement() {
             await handleNewFarmerSession(farmerIdFromUrl, sessionIdFromUrl, processedFarmersArray)
           }
         }
+
+        // Return the processed farmers array for immediate use in other functions
+        return processedFarmersArray
       } else {
         showNotification("Erreur lors du chargement des sessions", "error")
+        return []
       }
     } catch (error) {
       console.error('Error loading sessions:', error)
       showNotification("Erreur de connexion au serveur", "error")
+      return []
     } finally {
       setLoading(false)
     }
@@ -750,7 +767,7 @@ export default function OilManagement() {
 
     // Validate payment doesn't exceed remaining amount for partial payments
     if (paymentSession.paymentStatus === "partial" && amountPaid > (paymentSession.remainingAmount || 0)) {
-      showNotification(`Le montant ne peut pas dépasser le montant restant (${(paymentSession.remainingAmount || 0).toFixed(2)} DT)`, "error")
+      showNotification(`Le montant ne peut pas dépasser le montant restant (${(paymentSession.remainingAmount || 0).toFixed(3)} DT)`, "error")
       return
     }
 
@@ -795,8 +812,15 @@ export default function OilManagement() {
         }, 100)
 
         // Optional: Reload sessions in background for data consistency (reduced delay)
-        setTimeout(() => {
-          loadSessions()
+        setTimeout(async () => {
+          const updatedFarmers = await loadSessions()
+          // Update selected farmer with fresh data if still selected
+          if (selectedFarmer) {
+            const updatedFarmer = updatedFarmers.find(f => f.id === selectedFarmer.id)
+            if (updatedFarmer) {
+              setSelectedFarmer(updatedFarmer)
+            }
+          }
         }, 2000)
       } else {
         showNotification(data.error || "Erreur lors du traitement du paiement", "error")
@@ -917,7 +941,7 @@ export default function OilManagement() {
         let message = "Session supprimée avec succès!"
         
         if (refundInfo?.wasPartiallyPaid && refundInfo?.refundAmount > 0) {
-          message += ` 💰 Remboursement nécessaire: ${refundInfo.refundAmount.toFixed(2)} DT`
+          message += ` 💰 Remboursement nécessaire: ${refundInfo.refundAmount.toFixed(3)} DT`
         }
         
         if (refundInfo?.boxesReleased > 0) {
@@ -1030,6 +1054,134 @@ export default function OilManagement() {
         setPrintingAllSessions(null)
       }, 500)
     }, 100)
+  }
+
+  // Bulk payment handlers
+  const handleToggleSessionSelection = (sessionId: string) => {
+    setSelectedSessions(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId)
+      } else {
+        newSet.add(sessionId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAllUnpaidSessions = () => {
+    if (!selectedFarmer) return
+    
+    const unpaidSessions = selectedFarmer.sessions.filter(s => 
+      (s.oilWeight > 0 || s.processingStatus === "processed") && 
+      s.paymentStatus === "unpaid"
+    )
+    
+    if (selectedSessions.size === unpaidSessions.length) {
+      // Deselect all
+      setSelectedSessions(new Set())
+    } else {
+      // Select all unpaid
+      setSelectedSessions(new Set(unpaidSessions.map(s => s.id)))
+    }
+  }
+
+  const handleOpenBulkPayment = () => {
+    if (selectedSessions.size === 0) return
+    
+    // Calculate suggested price based on selected sessions
+    const sessionsToProcess = selectedFarmer?.sessions.filter(s => selectedSessions.has(s.id)) || []
+    const avgPrice = sessionsToProcess.reduce((sum, s) => sum + (s.pricePerKg || 0), 0) / sessionsToProcess.length
+    
+    setBulkPaymentForm({
+      pricePerKg: avgPrice > 0 ? avgPrice.toFixed(3) : "",
+      paymentDate: new Date().toISOString().split('T')[0],
+      amountPaid: ""
+    })
+    setIsBulkPaymentDialogOpen(true)
+  }
+
+  const handleBulkPayment = async () => {
+    if (!selectedFarmer || selectedSessions.size === 0) return
+
+    const pricePerKg = parseFloat(bulkPaymentForm.pricePerKg)
+    const customAmount = bulkPaymentForm.amountPaid ? parseFloat(bulkPaymentForm.amountPaid) : null
+
+    if (isNaN(pricePerKg) || pricePerKg <= 0) {
+      showNotification("Le prix par kg doit être supérieur à 0", "error")
+      return
+    }
+
+    if (customAmount !== null && (isNaN(customAmount) || customAmount < 0)) {
+      showNotification("Le montant payé ne peut pas être négatif", "error")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const sessionIds = Array.from(selectedSessions)
+      const sessionsToProcess = selectedFarmer.sessions.filter(s => sessionIds.includes(s.id))
+      
+      // Calculate totals based on OLIVE weight (not oil weight)
+      const totalOliveWeight = sessionsToProcess.reduce((sum, session) => sum + session.totalBoxWeight, 0)
+      const totalOilWeight = sessionsToProcess.reduce((sum, session) => sum + session.oilWeight, 0)
+      const totalBoxes = sessionsToProcess.reduce((sum, session) => sum + session.boxCount, 0)
+      const allBoxIds = sessionsToProcess.flatMap(session => session.boxIds)
+      
+      // Calculate total price based on olive weight
+      const totalPrice = totalOliveWeight * pricePerKg
+      const amountPaid = customAmount !== null ? customAmount : totalPrice
+      
+      // Determine payment status
+      const paymentStatus = amountPaid >= totalPrice ? 'paid' : 'partial'
+
+      // Create one combined session via API
+      const response = await fetch('/api/sessions/bulk-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          farmerId: selectedFarmer.id,
+          sessionIds: sessionIds,
+          pricePerKg: pricePerKg,
+          amountPaid: amountPaid,
+          paymentDate: bulkPaymentForm.paymentDate,
+          totalBoxWeight: totalOliveWeight,
+          totalOilWeight: totalOilWeight,
+          boxCount: totalBoxes,
+          boxIds: allBoxIds
+        })
+      })
+
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Erreur lors du paiement groupé')
+      }
+
+      // Close dialog first for immediate feedback
+      setIsBulkPaymentDialogOpen(false)
+      setSelectedSessions(new Set())
+      
+      // Show success notification immediately
+      showNotification(
+        `${sessionIds.length} sessions groupées en 1 session ${paymentStatus === 'paid' ? 'payée' : 'partiellement payée'}`, 
+        "success"
+      )
+      
+      // Reload data and immediately update selected farmer
+      const updatedFarmers = await loadSessions()
+      
+      // Find and reselect farmer from the fresh data
+      const updatedFarmer = updatedFarmers.find(f => f.id === selectedFarmer.id)
+      if (updatedFarmer) {
+        setSelectedFarmer(updatedFarmer)
+      }
+    } catch (error) {
+      console.error('Error processing bulk payment:', error)
+      showNotification(error instanceof Error ? error.message : 'Erreur lors du paiement groupé', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const getSessionStatusBadge = (session: ProcessingSession) => {
@@ -1260,7 +1412,7 @@ export default function OilManagement() {
             <p className="font-semibold text-lg">{formatFarmerInvoiceName(farmer.name)}</p>
             {farmer.phone && <p className="text-gray-600">{farmer.phone}</p>}
             <p className="text-sm text-gray-600 mt-2">
-              <strong>Tarif:</strong> {session.pricePerKg ? session.pricePerKg.toFixed(2) : 'Non défini'} DT/kg
+              <strong>Tarif:</strong> {session.pricePerKg ? session.pricePerKg.toFixed(3) : 'Non défini'} DT/kg
             </p>
           </div>
         </div>
@@ -1297,16 +1449,16 @@ export default function OilManagement() {
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-gray-600">Montant total:</span>
-                    <span className="font-semibold ml-1">{session.totalPrice.toFixed(2)} DT</span>
+                    <span className="font-semibold ml-1">{session.totalPrice.toFixed(3)} DT</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Montant payé:</span>
-                    <span className="font-semibold ml-1 text-green-600">{(session.amountPaid || 0).toFixed(2)} DT</span>
+                    <span className="font-semibold ml-1 text-green-600">{(session.amountPaid || 0).toFixed(3)} DT</span>
                   </div>
                   {session.paymentStatus === "partial" && (
                     <div className="col-span-2">
                       <span className="text-gray-600">Reste à payer:</span>
-                      <span className="font-semibold ml-1 text-red-600">{(session.remainingAmount || 0).toFixed(2)} DT</span>
+                      <span className="font-semibold ml-1 text-red-600">{(session.remainingAmount || 0).toFixed(3)} DT</span>
                     </div>
                   )}
                 </div>
@@ -1392,8 +1544,8 @@ export default function OilManagement() {
               </td>
               <td className="font-semibold">{session.boxCount}</td>
               <td className="font-semibold">{session.totalBoxWeight.toFixed(1)}</td>
-              <td className="font-semibold">{session.pricePerKg ? session.pricePerKg.toFixed(2) : 'Non défini'}</td>
-              <td className="font-bold text-lg">{session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'}</td>
+              <td className="font-semibold">{session.pricePerKg ? session.pricePerKg.toFixed(3) : 'Non défini'}</td>
+              <td className="font-bold text-lg">{session.totalPrice ? session.totalPrice.toFixed(3) : 'Non défini'}</td>
             </tr>
           </tbody>
         </table>
@@ -1407,13 +1559,13 @@ export default function OilManagement() {
               <div className="bg-gray-100 p-2 border-b border-gray-300">
                 <div className="flex justify-between">
                   <span className="font-medium">Sous-total:</span>
-                  <span className="font-semibold">{session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'} DT</span>
+                  <span className="font-semibold">{session.totalPrice ? session.totalPrice.toFixed(3) : 'Non défini'} DT</span>
                 </div>
               </div>
               <div className="total-section bg-[#F4D03F] p-3">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-lg">TOTAL À PAYER:</span>
-                  <span className="text-xl font-bold text-[#2C3E50]">{session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'} DT</span>
+                  <span className="text-xl font-bold text-[#2C3E50]">{session.totalPrice ? session.totalPrice.toFixed(3) : 'Non défini'} DT</span>
                 </div>
               </div>
             </div>
@@ -1452,15 +1604,15 @@ export default function OilManagement() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div className="bg-white p-3 rounded border border-yellow-200 payment-amount-box">
               <p className="text-yellow-700 font-medium">Montant Total:</p>
-              <p className="text-xl font-bold text-yellow-900">{session.totalPrice.toFixed(2)} DT</p>
+              <p className="text-xl font-bold text-yellow-900">{session.totalPrice.toFixed(3)} DT</p>
             </div>
             <div className="bg-white p-3 rounded border border-green-200 payment-amount-box">
               <p className="text-green-700 font-medium">Déjà Payé:</p>
-              <p className="text-xl font-bold text-green-800">{(session.amountPaid || 0).toFixed(2)} DT</p>
+              <p className="text-xl font-bold text-green-800">{(session.amountPaid || 0).toFixed(3)} DT</p>
             </div>
             <div className="bg-white p-3 rounded border border-red-200 payment-amount-box">
               <p className="text-red-700 font-medium">Reste à Payer:</p>
-              <p className="text-xl font-bold text-red-800">{(session.remainingAmount || 0).toFixed(2)} DT</p>
+              <p className="text-xl font-bold text-red-800">{(session.remainingAmount || 0).toFixed(3)} DT</p>
             </div>
           </div>
         </div>
@@ -1764,15 +1916,15 @@ export default function OilManagement() {
                     <td>{session.totalBoxWeight.toFixed(2)}</td>
                     <td style={{ fontWeight: 'bold' }}>{isProcessed ? session.oilWeight.toFixed(2) : '-'}</td>
                     <td>{isProcessed ? `${yield_percent.toFixed(1)}%` : '-'}</td>
-                    <td>{session.pricePerKg ? session.pricePerKg.toFixed(2) : '-'}</td>
+                    <td>{session.pricePerKg ? session.pricePerKg.toFixed(3) : '-'}</td>
                     <td style={{ fontWeight: 'bold' }}>
-                      {session.totalPrice ? session.totalPrice.toFixed(2) : '-'}
+                      {session.totalPrice ? session.totalPrice.toFixed(3) : '-'}
                     </td>
                     <td style={{ color: '#065f46', fontWeight: 'bold' }}>
-                      {(session.amountPaid || 0).toFixed(2)}
+                      {(session.amountPaid || 0).toFixed(3)}
                     </td>
                     <td style={{ color: session.remainingAmount && session.remainingAmount > 0 ? '#dc2626' : '#6b7280', fontWeight: 'bold' }}>
-                      {(session.remainingAmount || 0).toFixed(2)}
+                      {(session.remainingAmount || 0).toFixed(3)}
                     </td>
                     <td>
                       {!isProcessed ? (
@@ -1797,16 +1949,16 @@ export default function OilManagement() {
             <div className="summary-grid">
               <div className="summary-item">
                 <div className="text-xs text-gray-600 mb-1">Montant Total Dû</div>
-                <div className="text-lg font-bold text-[#2C3E50]">{farmer.totalAmountDue.toFixed(2)} DT</div>
+                <div className="text-lg font-bold text-[#2C3E50]">{farmer.totalAmountDue.toFixed(3)} DT</div>
               </div>
               <div className="summary-item">
                 <div className="text-xs text-green-700 mb-1">Total Payé</div>
-                <div className="text-lg font-bold text-green-600">{farmer.totalAmountPaid.toFixed(2)} DT</div>
+                <div className="text-lg font-bold text-green-600">{farmer.totalAmountPaid.toFixed(3)} DT</div>
               </div>
               <div className="summary-item">
                 <div className="text-xs text-red-700 mb-1">Montant Restant</div>
                 <div className="text-lg font-bold text-red-600">
-                  {(farmer.totalAmountDue - farmer.totalAmountPaid).toFixed(2)} DT
+                  {(farmer.totalAmountDue - farmer.totalAmountPaid).toFixed(3)} DT
                 </div>
               </div>
             </div>
@@ -2284,7 +2436,7 @@ export default function OilManagement() {
                         <p className="text-sm text-gray-600">{farmer.sessions.length} sessions</p>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-sm font-medium text-[#2C3E50]">
-                            {farmer.totalAmountDue.toFixed(2)} DT
+                            {farmer.totalAmountDue.toFixed(3)} DT
                           </span>
                           <Badge variant={farmer.paymentStatus === "paid" ? "default" : "destructive"}>
                             {farmer.paymentStatus === "paid" ? "Payé" : "En attente"}
@@ -2387,13 +2539,13 @@ export default function OilManagement() {
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Total dû</p>
                         <p className="text-2xl font-bold text-[#2C3E50]">
-                          {selectedFarmer.totalAmountDue.toFixed(2)} DT
+                          {selectedFarmer.totalAmountDue.toFixed(3)} DT
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Total payé</p>
                         <p className="text-2xl font-bold text-green-600">
-                          {selectedFarmer.totalAmountPaid.toFixed(2)} DT
+                          {selectedFarmer.totalAmountPaid.toFixed(3)} DT
                         </p>
                       </div>
                     </div>
@@ -2431,13 +2583,60 @@ export default function OilManagement() {
                     </div>
                   </CardContent>
 
+                  {/* Bulk Payment Actions */}
+                  {selectedFarmer.sessions.some(s => (s.oilWeight > 0 || s.processingStatus === "processed") && s.paymentStatus === "unpaid") && (
+                    <CardContent className="border-t border-gray-200 bg-gradient-to-r from-yellow-50 to-white">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleSelectAllUnpaidSessions}
+                            className="border-yellow-500 text-yellow-700 hover:bg-yellow-50"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            {selectedSessions.size === selectedFarmer.sessions.filter(s => (s.oilWeight > 0 || s.processingStatus === "processed") && s.paymentStatus === "unpaid").length
+                              ? "Tout désélectionner"
+                              : "Tout sélectionner"}
+                          </Button>
+                          {selectedSessions.size > 0 && (
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                              {selectedSessions.size} sélectionnée(s)
+                            </Badge>
+                          )}
+                        </div>
+                        {selectedSessions.size > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={handleOpenBulkPayment}
+                            className="bg-green-600 hover:bg-green-700 shadow-md"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Marquer comme payé ({selectedSessions.size})
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  )}
+
                   <CardContent>
                     <div className="space-y-4">
-                      {selectedFarmer.sessions.map((session) => (
+                      {selectedFarmer.sessions.map((session) => {
+                        const isUnpaidProcessed = (session.oilWeight > 0 || session.processingStatus === "processed") && session.paymentStatus === "unpaid"
+                        const isSelected = selectedSessions.has(session.id)
+                        
+                        return (
                         <Card
                           key={session.id}
-                          className={`cursor-pointer transition-all hover:shadow-md ${getSessionBorderClass(session)}`}
-                          onClick={() => {
+                          className={`transition-all hover:shadow-md ${getSessionBorderClass(session)} ${
+                            isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/30' : isUnpaidProcessed ? 'cursor-pointer' : 'cursor-pointer'
+                          }`}
+                          onClick={(e) => {
+                            // If clicking on checkbox, don't trigger card click
+                            if ((e.target as HTMLElement).closest('.session-checkbox')) {
+                              return
+                            }
+                            
                             if (session.paymentStatus === "paid") {
                               handleOpenSessionDetails(session)
                             } else {
@@ -2448,6 +2647,16 @@ export default function OilManagement() {
                           <CardContent className="p-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
                               <div className="flex items-center space-x-3">
+                                {isUnpaidProcessed && (
+                                  <div className="session-checkbox">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => handleToggleSessionSelection(session.id)}
+                                      className="border-yellow-500 data-[state=checked]:bg-yellow-600 data-[state=checked]:border-yellow-600"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                )}
                                 <h4 className="font-semibold text-[#2C3E50]">Session {session.sessionNumber}</h4>
                                 {getSessionStatusBadge(session)}
                               </div>
@@ -2550,18 +2759,18 @@ export default function OilManagement() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <p className="text-lg font-bold text-[#2C3E50]">
-                                  Total: {session.totalPrice ? session.totalPrice.toFixed(2) : 'Non défini'} DT
+                                  Total: {session.totalPrice ? session.totalPrice.toFixed(3) : 'Non défini'} DT
                                 </p>
                                 {/* Show payment progress for partial payments */}
                                 {session.paymentStatus === "partial" && session.totalPrice && (
                                   <div className="mt-2 space-y-1">
                                     <div className="flex items-center justify-between text-sm">
                                       <span className="text-green-600">Payé:</span>
-                                      <span className="font-semibold text-green-700">{(session.amountPaid || 0).toFixed(2)} DT</span>
+                                      <span className="font-semibold text-green-700">{(session.amountPaid || 0).toFixed(3)} DT</span>
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                       <span className="text-red-600">Reste:</span>
-                                      <span className="font-semibold text-red-700">{(session.remainingAmount || 0).toFixed(2)} DT</span>
+                                      <span className="font-semibold text-red-700">{(session.remainingAmount || 0).toFixed(3)} DT</span>
                                     </div>
                                     {/* Progress bar */}
                                     <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
@@ -2625,7 +2834,8 @@ export default function OilManagement() {
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
+                        )
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -2854,7 +3064,7 @@ export default function OilManagement() {
                       </p>
                       {sessionToDelete?.paymentStatus === 'partial' && (
                         <p className="text-sm text-orange-700 mt-1">
-                          ⚠️ Paiement partiel: {(sessionToDelete.amountPaid || 0).toFixed(2)} DT à rembourser
+                          ⚠️ Paiement partiel: {(sessionToDelete.amountPaid || 0).toFixed(3)} DT à rembourser
                         </p>
                       )}
           </div>
@@ -2980,15 +3190,15 @@ export default function OilManagement() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                     <div>
                       <p className="text-blue-600 font-medium">Total dû:</p>
-                      <p className="text-blue-800 font-bold">{paymentSession.totalPrice?.toFixed(2) || 'N/A'} DT</p>
+                      <p className="text-blue-800 font-bold">{paymentSession.totalPrice?.toFixed(3) || 'N/A'} DT</p>
                     </div>
                     <div>
                       <p className="text-blue-600 font-medium">Déjà payé:</p>
-                      <p className="text-green-700 font-bold">{(paymentSession.amountPaid || 0).toFixed(2)} DT</p>
+                      <p className="text-green-700 font-bold">{(paymentSession.amountPaid || 0).toFixed(3)} DT</p>
                     </div>
                     <div>
                       <p className="text-blue-600 font-medium">Reste à payer:</p>
-                      <p className="text-red-700 font-bold">{(paymentSession.remainingAmount || 0).toFixed(2)} DT</p>
+                      <p className="text-red-700 font-bold">{(paymentSession.remainingAmount || 0).toFixed(3)} DT</p>
                     </div>
                   </div>
                 </div>
@@ -3018,7 +3228,7 @@ export default function OilManagement() {
                     </div>
                     <div className="text-right">
                       <p className="text-green-600 text-sm">Total payé:</p>
-                      <p className="text-green-800 font-bold">{(paymentSession.amountPaid || 0).toFixed(2)} DT</p>
+                      <p className="text-green-800 font-bold">{(paymentSession.amountPaid || 0).toFixed(3)} DT</p>
                     </div>
                   </div>
                 </div>
@@ -3032,7 +3242,7 @@ export default function OilManagement() {
                   Prix par kg (DT) *
                   {paymentSession.pricePerKg && (
                     <span className="ml-2 text-sm text-blue-600 font-normal">
-                      (Prix déjà défini: {paymentSession.pricePerKg.toFixed(2)} DT/kg)
+                      (Prix déjà défini: {paymentSession.pricePerKg.toFixed(3)} DT/kg)
                     </span>
                   )}
                 </Label>
@@ -3042,7 +3252,7 @@ export default function OilManagement() {
                   <div className="mt-2 p-3 bg-gray-100 border border-gray-300 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="text-gray-700">Prix fixé:</span>
-                      <span className="font-bold text-lg text-gray-900">{paymentSession.pricePerKg.toFixed(2)} DT/kg</span>
+                      <span className="font-bold text-lg text-gray-900">{paymentSession.pricePerKg.toFixed(3)} DT/kg</span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
                       Le prix ne peut plus être modifié après le premier paiement
@@ -3051,8 +3261,8 @@ export default function OilManagement() {
                 ) : (
                   <div className="mt-2 space-y-2">
                     {/* Preset prices */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[0.20, 0.15, 0.10, 0.05].map((price) => (
+                    <div className="grid grid-cols-3 gap-2">
+                      {[0.200, 0.180, 0.150].map((price) => (
                         <Button
                           key={price}
                           type="button"
@@ -3064,7 +3274,7 @@ export default function OilManagement() {
                           }`}
                           onClick={() => setPaymentForm(prev => ({ ...prev, pricePerKg: price.toString() }))}
                         >
-                          {price.toFixed(2)} DT
+                          {price.toFixed(3)} DT
                         </Button>
                       ))}
                     </div>
@@ -3073,9 +3283,9 @@ export default function OilManagement() {
                       <Label className="text-sm text-gray-600">Ou saisissez un prix personnalisé:</Label>
                       <Input
                         type="number"
-                        step="0.01"
+                        step="0.001"
                         min="0"
-                        placeholder="Ex: 0.18"
+                        placeholder="Ex: 0.180"
                         value={paymentForm.pricePerKg}
                         onChange={(e) => setPaymentForm(prev => ({ ...prev, pricePerKg: e.target.value }))}
                         className="mt-1 bg-white text-gray-900"
@@ -3091,7 +3301,7 @@ export default function OilManagement() {
                   <div className="flex items-center justify-between">
                     <span className="text-blue-800 font-medium">Total calculé:</span>
                     <span className="text-2xl font-bold text-blue-900">
-                      {calculatedTotal.toFixed(2)} DT
+                      {calculatedTotal.toFixed(3)} DT
                     </span>
                   </div>
                   <p className="text-sm text-blue-600 mt-1">
@@ -3111,7 +3321,7 @@ export default function OilManagement() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-yellow-800 font-medium">Montant restant à payer:</span>
                           <span className="text-xl font-bold text-yellow-900">
-                            {(paymentSession.remainingAmount || 0).toFixed(2)} DT
+                            {(paymentSession.remainingAmount || 0).toFixed(3)} DT
                           </span>
                         </div>
                         <p className="text-sm text-yellow-700">
@@ -3135,8 +3345,8 @@ export default function OilManagement() {
                       />
                       <Label htmlFor="fullPayment" className="text-gray-700">
                         {paymentSession.paymentStatus === "partial" 
-                          ? `Payer le montant restant (${(paymentSession.remainingAmount || 0).toFixed(2)} DT)`
-                          : `Paiement complet (${calculatedTotal.toFixed(2)} DT)`
+                          ? `Payer le montant restant (${(paymentSession.remainingAmount || 0).toFixed(3)} DT)`
+                          : `Paiement complet (${calculatedTotal.toFixed(3)} DT)`
                         }
                       </Label>
                     </div>
@@ -3147,15 +3357,15 @@ export default function OilManagement() {
                         <Label className="text-sm text-gray-600">Montant partiel (DT):</Label>
                         <Input
                           type="number"
-                          step="0.01"
-                          min="0.01"
+                          step="0.001"
+                          min="0.001"
                           max={paymentSession.paymentStatus === "partial" 
                             ? (paymentSession.remainingAmount || 0) 
                             : calculatedTotal
                           }
                           placeholder={paymentSession.paymentStatus === "partial" 
-                            ? `Max: ${(paymentSession.remainingAmount || 0).toFixed(2)}` 
-                            : `Max: ${calculatedTotal.toFixed(2)}`
+                            ? `Max: ${(paymentSession.remainingAmount || 0).toFixed(3)}` 
+                            : `Max: ${calculatedTotal.toFixed(3)}`
                           }
                           value={paymentForm.customAmount}
                           onChange={(e) => setPaymentForm(prev => ({ ...prev, customAmount: e.target.value }))}
@@ -3165,11 +3375,11 @@ export default function OilManagement() {
                           <div className="mt-2 space-y-1">
                             {paymentSession.paymentStatus === "partial" ? (
                               <p className="text-sm text-blue-600">
-                                Nouveau reste à payer: {((paymentSession.remainingAmount || 0) - parseFloat(paymentForm.customAmount)).toFixed(2)} DT
+                                Nouveau reste à payer: {((paymentSession.remainingAmount || 0) - parseFloat(paymentForm.customAmount)).toFixed(3)} DT
                               </p>
                             ) : (
                               <p className="text-sm text-orange-600">
-                                Reste à payer: {(calculatedTotal - parseFloat(paymentForm.customAmount)).toFixed(2)} DT
+                                Reste à payer: {(calculatedTotal - parseFloat(paymentForm.customAmount)).toFixed(3)} DT
                               </p>
                             )}
                           </div>
@@ -3281,11 +3491,11 @@ export default function OilManagement() {
                   <h4 className="font-semibold text-gray-800 mb-2">Statut et montants</h4>
                   <div className="space-y-1 text-sm">
                     <p><span className="text-gray-600">Statut:</span> {getSessionStatusBadge(sessionDetailsModal)}</p>
-                    <p><span className="text-gray-600">Prix par kg:</span> <span className="font-bold text-green-600">{sessionDetailsModal.pricePerKg?.toFixed(2) || 'Non défini'} DT/kg</span></p>
-                    <p><span className="text-gray-600">Montant total:</span> <span className="font-bold text-blue-600">{sessionDetailsModal.totalPrice?.toFixed(2) || 'Non défini'} DT</span></p>
-                    <p><span className="text-gray-600">Montant payé:</span> <span className="font-bold text-green-600">{(sessionDetailsModal.amountPaid || 0).toFixed(2)} DT</span></p>
+                    <p><span className="text-gray-600">Prix par kg:</span> <span className="font-bold text-green-600">{sessionDetailsModal.pricePerKg?.toFixed(3) || 'Non défini'} DT/kg</span></p>
+                    <p><span className="text-gray-600">Montant total:</span> <span className="font-bold text-blue-600">{sessionDetailsModal.totalPrice?.toFixed(3) || 'Non défini'} DT</span></p>
+                    <p><span className="text-gray-600">Montant payé:</span> <span className="font-bold text-green-600">{(sessionDetailsModal.amountPaid || 0).toFixed(3)} DT</span></p>
                     {sessionDetailsModal.paymentStatus === "partial" && (
-                      <p><span className="text-gray-600">Reste à payer:</span> <span className="font-bold text-red-600">{(sessionDetailsModal.remainingAmount || 0).toFixed(2)} DT</span></p>
+                      <p><span className="text-gray-600">Reste à payer:</span> <span className="font-bold text-red-600">{(sessionDetailsModal.remainingAmount || 0).toFixed(3)} DT</span></p>
                     )}
                   </div>
                 </div>
@@ -3354,7 +3564,7 @@ export default function OilManagement() {
                         </div>
                         <div>
                           <p className="text-gray-600 font-medium">Montant</p>
-                          <p className="font-bold text-green-600 text-lg">{Number(transaction.amount || 0).toFixed(2)} DT</p>
+                          <p className="font-bold text-green-600 text-lg">{Number(transaction.amount || 0).toFixed(3)} DT</p>
                         </div>
                         <div>
                           <p className="text-gray-600 font-medium">Méthode</p>
@@ -3402,6 +3612,208 @@ export default function OilManagement() {
               >
                 Fermer
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Payment Dialog */}
+      {isBulkPaymentDialogOpen && selectedFarmer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6 rounded-t-lg">
+              <h3 className="text-2xl font-bold flex items-center">
+                <CheckCircle className="w-6 h-6 mr-2" />
+                Paiement Groupé - {selectedSessions.size} Session(s)
+              </h3>
+              <p className="text-green-100 text-sm mt-1">
+                {selectedFarmer.name}
+              </p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Sessions Summary */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-semibold text-yellow-800 mb-3 flex items-center">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Sessions sélectionnées
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {selectedFarmer.sessions
+                    .filter(s => selectedSessions.has(s.id))
+                    .map(session => (
+                      <div key={session.id} className="flex items-center justify-between bg-white border border-yellow-200 rounded p-2 text-sm">
+                        <div>
+                          <span className="font-semibold">Session {session.sessionNumber}</span>
+                          <span className="text-gray-500 ml-2">{session.oilWeight} kg</span>
+                        </div>
+                        <span className="text-gray-600">{session.totalBoxWeight} kg olives</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Calculation Summary */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-3">Calculs</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-700">Total olives:</span>
+                    <span className="font-bold text-blue-700">
+                      {selectedFarmer.sessions
+                        .filter(s => selectedSessions.has(s.id))
+                        .reduce((sum, s) => sum + s.totalBoxWeight, 0)
+                        .toFixed(2)} kg
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-700">Total huile produite:</span>
+                    <span className="font-bold text-green-700">
+                      {selectedFarmer.sessions
+                        .filter(s => selectedSessions.has(s.id))
+                        .reduce((sum, s) => sum + s.oilWeight, 0)
+                        .toFixed(2)} kg
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-700">Total boîtes:</span>
+                    <span className="font-bold text-gray-700">
+                      {selectedFarmer.sessions
+                        .filter(s => selectedSessions.has(s.id))
+                        .reduce((sum, s) => sum + s.boxCount, 0)} boîtes
+                    </span>
+                  </div>
+                  {bulkPaymentForm.pricePerKg && (
+                    <div className="flex justify-between text-lg font-bold pt-2 border-t border-blue-200">
+                      <span className="text-gray-800">Montant total:</span>
+                      <span className="text-green-600">
+                        {(
+                          selectedFarmer.sessions
+                            .filter(s => selectedSessions.has(s.id))
+                            .reduce((sum, s) => sum + s.totalBoxWeight, 0) *
+                          parseFloat(bulkPaymentForm.pricePerKg)
+                        ).toFixed(3)} DT
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800">
+                    <p className="font-semibold mb-1">Ces sessions seront combinées en une seule</p>
+                    <p className="text-green-700">
+                      Les {selectedSessions.size} sessions sélectionnées seront groupées en 1 session {' '}
+                      {bulkPaymentForm.amountPaid && parseFloat(bulkPaymentForm.amountPaid) < (
+                        selectedFarmer.sessions
+                          .filter(s => selectedSessions.has(s.id))
+                          .reduce((sum, s) => sum + s.totalBoxWeight, 0) * 
+                        (bulkPaymentForm.pricePerKg ? parseFloat(bulkPaymentForm.pricePerKg) : 0)
+                      ) ? (
+                        <Badge className="bg-blue-500">partiellement payée</Badge>
+                      ) : (
+                        <Badge className="bg-green-500">entièrement payée</Badge>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Form */}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="bulkPricePerKg" className="text-sm font-medium flex items-center">
+                    Prix par kg d'olives *
+                    <Badge variant="outline" className="ml-2 text-xs bg-blue-50">
+                      Appliqué au total des olives
+                    </Badge>
+                  </Label>
+                  <Input
+                    id="bulkPricePerKg"
+                    type="number"
+                    step="0.001"
+                    value={bulkPaymentForm.pricePerKg}
+                    onChange={(e) => setBulkPaymentForm({ ...bulkPaymentForm, pricePerKg: e.target.value })}
+                    placeholder="Ex: 0.200"
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Ce prix sera multiplié par le poids total des olives ({selectedFarmer.sessions
+                      .filter(s => selectedSessions.has(s.id))
+                      .reduce((sum, s) => sum + s.totalBoxWeight, 0)
+                      .toFixed(2)} kg)
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="bulkPaymentDate" className="text-sm font-medium">
+                    Date de paiement *
+                  </Label>
+                  <Input
+                    id="bulkPaymentDate"
+                    type="date"
+                    value={bulkPaymentForm.paymentDate}
+                    onChange={(e) => setBulkPaymentForm({ ...bulkPaymentForm, paymentDate: e.target.value })}
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="bulkAmountPaid" className="text-sm font-medium flex items-center">
+                    Montant payé (optionnel)
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Laisser vide pour paiement complet
+                    </Badge>
+                  </Label>
+                  <Input
+                    id="bulkAmountPaid"
+                    type="number"
+                    step="0.001"
+                    value={bulkPaymentForm.amountPaid}
+                    onChange={(e) => setBulkPaymentForm({ ...bulkPaymentForm, amountPaid: e.target.value })}
+                    placeholder="Laisser vide pour paiement complet"
+                    className="mt-2"
+                  />
+                  {bulkPaymentForm.amountPaid && bulkPaymentForm.pricePerKg && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Paiement partiel: Les sessions seront marquées comme partiellement payées
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  onClick={handleBulkPayment}
+                  disabled={saving}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-6 text-lg"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Traitement...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      Confirmer le paiement
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkPaymentDialogOpen(false)}
+                  disabled={saving}
+                  className="px-6"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Annuler
+                </Button>
+              </div>
             </div>
           </div>
         </div>

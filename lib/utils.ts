@@ -295,7 +295,8 @@ export function transformBoxFromDb(box: any) {
     weight: Number(box.currentWeight || 0),
     selected: box.isSelected || false,
     status: box.status.toLowerCase(),
-    currentFarmerId: box.currentFarmerId
+    currentFarmerId: box.currentFarmerId,
+    createdAt: box.createdAt
   }
 }
 

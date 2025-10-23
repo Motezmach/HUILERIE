@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Users,
   Package,
@@ -61,6 +62,8 @@ interface DashboardMetrics {
   averageOilExtraction: number
   metricDate: string
   chkaraCount: number
+  todayOilWeight?: number
+  todayOliveWeight?: number
 }
 
 interface RecentActivity {
@@ -133,6 +136,16 @@ export default function Dashboard() {
   // Activity modal states
   const [showAllActivities, setShowAllActivities] = useState(false)
   const [activitySearchTerm, setActivitySearchTerm] = useState('')
+  
+  // Date filter state
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false)
+  const [dateFilterMode, setDateFilterMode] = useState<'single' | 'range'>('single')
+  const [singleDate, setSingleDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ 
+    from: new Date().toISOString().split('T')[0], 
+    to: new Date().toISOString().split('T')[0] 
+  })
+  const [activeDateFilter, setActiveDateFilter] = useState<{ mode: 'single' | 'range'; from: string; to: string } | null>(null)
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -260,7 +273,20 @@ export default function Dashboard() {
 
   const fetchDashboardData = async (refresh = false) => {
     try {
-      const url = `/api/dashboard${refresh ? '?refresh=true' : ''}`
+      const params = new URLSearchParams()
+      if (refresh) params.append('refresh', 'true')
+      
+      // Add date filter parameters
+      if (activeDateFilter) {
+        if (activeDateFilter.mode === 'single') {
+          params.append('date', activeDateFilter.from)
+        } else {
+          params.append('dateFrom', activeDateFilter.from)
+          params.append('dateTo', activeDateFilter.to)
+        }
+      }
+      
+      const url = `/api/dashboard${params.toString() ? '?' + params.toString() : ''}`
       const response = await fetch(url)
       
       if (!response.ok) {
@@ -326,6 +352,13 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
+  // Reload data when date filter changes
+  useEffect(() => {
+    if (activeDateFilter) {
+      fetchDashboardData(true)
+    }
+  }, [activeDateFilter])
+
   const handleRefresh = async () => {
     setRefreshing(true)
     await Promise.all([
@@ -379,11 +412,73 @@ export default function Dashboard() {
     }
   }
 
+  // Date filter handlers
+  const handleApplyDateFilter = async () => {
+    // Set filter and close dialog immediately for instant feedback
+    if (dateFilterMode === 'single') {
+      setActiveDateFilter({ mode: 'single', from: singleDate, to: singleDate })
+    } else {
+      setActiveDateFilter({ mode: 'range', from: dateRange.from, to: dateRange.to })
+    }
+    setIsDateFilterOpen(false)
+    
+    // Data will auto-refresh via useEffect
+  }
+
+  const handleClearDateFilter = async () => {
+    // Clear filter state immediately for instant UI feedback
+    setActiveDateFilter(null)
+    setSingleDate(new Date().toISOString().split('T')[0])
+    setDateRange({ 
+      from: new Date().toISOString().split('T')[0], 
+      to: new Date().toISOString().split('T')[0] 
+    })
+    setIsDateFilterOpen(false)
+    
+    // Immediately fetch fresh data (will use today's data since activeDateFilter is null)
+    setRefreshing(true)
+    await fetchDashboardData(true)
+    setRefreshing(false)
+  }
+
+  const handleQuickFilter = async (type: 'today' | 'yesterday' | 'thisWeek' | 'thisMonth') => {
+    const today = new Date()
+    let from = ''
+    let to = new Date().toISOString().split('T')[0]
+    
+    switch (type) {
+      case 'today':
+        from = to
+        break
+      case 'yesterday':
+        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
+        from = yesterday.toISOString().split('T')[0]
+        to = from
+        break
+      case 'thisWeek':
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - today.getDay())
+        from = weekStart.toISOString().split('T')[0]
+        break
+      case 'thisMonth':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+        from = monthStart.toISOString().split('T')[0]
+        break
+    }
+    
+    // Set filter and close dialog immediately
+    setActiveDateFilter({ mode: 'range', from, to })
+    setIsDateFilterOpen(false)
+    
+    // Data will auto-refresh via useEffect
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-TN', {
       style: 'currency',
       currency: 'TND',
-      minimumFractionDigits: 0,
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
     }).format(amount)
   }
 
@@ -652,31 +747,51 @@ export default function Dashboard() {
 
   if (!data) return null
 
+  // Get filter display text
+  const getFilterDisplayText = () => {
+    if (!activeDateFilter) return "Aujourd'hui"
+    
+    if (activeDateFilter.mode === 'single') {
+      const date = new Date(activeDateFilter.from)
+      return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    } else {
+      const from = new Date(activeDateFilter.from)
+      const to = new Date(activeDateFilter.to)
+      if (activeDateFilter.from === activeDateFilter.to) {
+        return from.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      }
+      return `${from.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} - ${to.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`
+    }
+  }
+
   // Enhanced metrics with detailed revenue and session information
   const metrics = [
     {
-      title: "Total Agriculteurs",
+      title: activeDateFilter ? `Agriculteurs ${getFilterDisplayText()}` : "Total Agriculteurs",
       value: data.metrics.totalFarmers.toString(),
       change: data.trends.farmersChange,
-      changeText: data.trends.farmersChange >= 0 ? `+${data.trends.farmersChange} aujourd'hui` : `${data.trends.farmersChange} aujourd'hui`,
+      changeText: activeDateFilter 
+        ? `${data.metrics.totalFarmers} ajouté(s)` 
+        : (data.trends.farmersChange >= 0 ? `+${data.trends.farmersChange} aujourd'hui` : `${data.trends.farmersChange} aujourd'hui`),
       icon: Users,
       color: "text-blue-600",
       changeColor: data.trends.farmersChange >= 0 ? "text-green-600" : "text-red-600",
       changeIcon: data.trends.farmersChange >= 0 ? TrendingUp : TrendingDown,
     },
     {
-      title: "Boîtes Disponibles",
-      value: data.metrics.activeBoxes.toString(),
-      change: data.boxUtilization.percentage,
-      changeText: `${data.boxUtilization.used}/${data.boxUtilization.total} utilisées`,
-      icon: Package,
+      title: activeDateFilter ? `Production ${getFilterDisplayText()}` : "Production Aujourd'hui",
+      value: "", // Will be custom rendered
+      change: 0,
+      changeText: "",
+      icon: Activity,
       color: "text-yellow-600",
-      hasResetButton: true, // Add this flag to identify the box card
-      chkaraCount: data.metrics.chkaraCount || 0, // Add Chkara count
+      isProductionCard: true, // Flag for custom rendering
+      todayOilWeight: data.metrics.todayOilWeight || 0,
+      todayOliveWeight: data.metrics.todayOliveWeight || 0,
     },
     // Enhanced Revenue Card
     {
-      title: "Revenus du Jour",
+      title: activeDateFilter ? `Revenus ${getFilterDisplayText()}` : "Revenus du Jour",
       value: formatCurrency(data.metrics.todayRevenue),
       change: data.trends.revenueChange,
       changeText: data.trends.revenueChange >= 0 ? `+${formatCurrency(data.trends.revenueChange)}` : formatCurrency(data.trends.revenueChange),
@@ -797,12 +912,54 @@ export default function Dashboard() {
         {/* Main Content */}
         <main className="flex-1 p-6 animate-fadeIn">
           <div className="mb-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="animate-slideInUp">
                 <h2 className="text-3xl font-bold text-[#2C3E50] mb-2">Tableau de bord</h2>
-                <p className="text-gray-600">Bon retour! Voici ce qui se passe dans votre usine aujourd'hui.</p>
+                <p className="text-gray-600">
+                  {activeDateFilter 
+                    ? `Données ${activeDateFilter.mode === 'single' ? 'du' : 'de la période'} ${getFilterDisplayText()}` 
+                    : "Bon retour! Voici ce qui se passe dans votre usine aujourd'hui."}
+                </p>
               </div>
-              <div className="flex items-center space-x-4 animate-slideInDown">
+              <div className="flex flex-wrap items-center gap-3 animate-slideInDown">
+                {/* Modern Date Filter Button */}
+                <Button
+                  onClick={() => setIsDateFilterOpen(true)}
+                  variant={activeDateFilter ? "default" : "outline"}
+                  className={`transition-all shadow-md ${
+                    activeDateFilter 
+                      ? "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white border-0" 
+                      : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50 hover:border-blue-400"
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  {activeDateFilter ? (
+                    <>
+                      <span className="font-semibold">{getFilterDisplayText()}</span>
+                      <Badge variant="secondary" className="ml-2 bg-white/20 text-white border-0">
+                        Actif
+                      </Badge>
+                    </>
+                  ) : (
+                    "Filtrer par date"
+                  )}
+                </Button>
+
+                {activeDateFilter && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleClearDateFilter}
+                    className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                    title="Réinitialiser le filtre"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Effacer
+                  </Button>
+                )}
+
+                <Separator orientation="vertical" className="h-8 hidden md:block" />
+
                 <div className="flex items-center space-x-2 text-sm text-gray-500">
                   <Clock className="w-4 h-4" />
                   <span>Dernière mise à jour: {lastRefresh ? formatDate(lastRefresh.toISOString()) : formatDate(data.lastUpdated)}</span>
@@ -855,14 +1012,35 @@ export default function Dashboard() {
                     </div>
                     
                     {/* Main Value with Enhanced Styling */}
-                    <div className="flex items-baseline space-x-1">
-                      <p className="text-2xl font-black text-[#2C3E50] group-hover:text-[#6B8E4B] transition-colors duration-300">
-                        {metric.value}
-                      </p>
-                    </div>
+                    {(metric as any).isProductionCard ? (
+                      <div className="space-y-3 mt-2">
+                        {/* Oil Collected */}
+                        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                          <div>
+                            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Huile Collectée</p>
+                            <p className="text-2xl font-black text-green-600 mt-1">{(metric as any).todayOilWeight?.toFixed(2) || '0.00'} <span className="text-sm font-medium">kg</span></p>
+                          </div>
+                          <Activity className="w-8 h-8 text-green-400 opacity-50" />
+                        </div>
+                        {/* Olive Collected */}
+                        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200">
+                          <div>
+                            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Olives Collectées</p>
+                            <p className="text-2xl font-black text-amber-600 mt-1">{(metric as any).todayOliveWeight?.toFixed(2) || '0.00'} <span className="text-sm font-medium">kg</span></p>
+                          </div>
+                          <Package className="w-8 h-8 text-amber-400 opacity-50" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-baseline space-x-1">
+                        <p className="text-2xl font-black text-[#2C3E50] group-hover:text-[#6B8E4B] transition-colors duration-300">
+                          {metric.value}
+                        </p>
+                      </div>
+                    )}
                     
                     {/* Creative Chkara Count Display */}
-                    {metric.chkaraCount !== undefined && metric.chkaraCount > 0 && (
+                    {(metric as any).chkaraCount !== undefined && (metric as any).chkaraCount > 0 && (
                       <div className="flex items-center justify-center mt-2 mb-1">
                         <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-full shadow-sm">
                           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
@@ -870,7 +1048,7 @@ export default function Dashboard() {
                             Chkara
                           </span>
                           <span className="text-xs font-black text-blue-800 bg-blue-200 px-1.5 py-0.5 rounded-full">
-                            {metric.chkaraCount}
+                            {(metric as any).chkaraCount}
                           </span>
                         </div>
                       </div>
@@ -917,36 +1095,11 @@ export default function Dashboard() {
                     )}
 
                     {/* Regular Change Text with Theme Colors */}
-                    {!metric.enhanced && (
+                    {!metric.enhanced && !(metric as any).isProductionCard && metric.changeText && (
                       <div className="flex items-center space-x-1 pt-1">
                         <p className={`text-xs font-bold ${metric.changeColor || 'text-[#6B8E4B]'} uppercase tracking-wider`}>
                           {metric.changeText}
                         </p>
-                      </div>
-                    )}
-
-                    {/* Reset Button for Boxes Card */}
-                    {metric.hasResetButton && data.boxUtilization.used > 0 && (
-                      <div className="pt-2 mt-2 border-t border-[#6B8E4B]/10">
-                        <Button
-                          onClick={resetBoxes}
-                          disabled={resettingBoxes}
-                          size="sm"
-                          variant="outline"
-                          className="w-full h-8 text-xs font-bold border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white transition-all duration-200 transform hover:scale-105"
-                        >
-                          {resettingBoxes ? (
-                            <>
-                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                              Réinitialisation...
-                            </>
-                          ) : (
-                            <>
-                              <RotateCcw className="w-3 h-3 mr-1" />
-                              Réinitialiser boîtes d'usine
-                            </>
-                          )}
-                        </Button>
                       </div>
                     )}
                   </div>
@@ -1571,6 +1724,184 @@ export default function Dashboard() {
                   className="bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white"
                 >
                   Fermer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modern Date Filter Dialog */}
+      {isDateFilterOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-slideInUp">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-white p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold flex items-center">
+                    <Calendar className="w-7 h-7 mr-3" />
+                    Filtrer par Période
+                  </h3>
+                  <p className="text-blue-100 text-sm mt-1">
+                    Sélectionnez une date ou une période pour filtrer les données
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsDateFilterOpen(false)}
+                  className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Quick Filters */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Filtres Rapides</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleQuickFilter('today')}
+                    className="h-16 flex-col border-2 border-green-300 hover:bg-green-50 hover:border-green-400 transition-all"
+                  >
+                    <Calendar className="w-5 h-5 text-green-600 mb-1" />
+                    <span className="text-xs font-semibold text-green-700">Aujourd'hui</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleQuickFilter('yesterday')}
+                    className="h-16 flex-col border-2 border-amber-300 hover:bg-amber-50 hover:border-amber-400 transition-all"
+                  >
+                    <Clock className="w-5 h-5 text-amber-600 mb-1" />
+                    <span className="text-xs font-semibold text-amber-700">Hier</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleQuickFilter('thisWeek')}
+                    className="h-16 flex-col border-2 border-blue-300 hover:bg-blue-50 hover:border-blue-400 transition-all"
+                  >
+                    <BarChart3 className="w-5 h-5 text-blue-600 mb-1" />
+                    <span className="text-xs font-semibold text-blue-700">Cette Semaine</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleQuickFilter('thisMonth')}
+                    className="h-16 flex-col border-2 border-purple-300 hover:bg-purple-50 hover:border-purple-400 transition-all"
+                  >
+                    <Calendar className="w-5 h-5 text-purple-600 mb-1" />
+                    <span className="text-xs font-semibold text-purple-700">Ce Mois</span>
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Mode Selection */}
+              <div>
+                <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Filtre Personnalisé</h4>
+                <div className="flex gap-2 mb-4">
+                  <Button
+                    variant={dateFilterMode === 'single' ? 'default' : 'outline'}
+                    onClick={() => setDateFilterMode('single')}
+                    className={`flex-1 h-12 transition-all ${
+                      dateFilterMode === 'single'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                        : 'border-2 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Date Unique
+                  </Button>
+                  <Button
+                    variant={dateFilterMode === 'range' ? 'default' : 'outline'}
+                    onClick={() => setDateFilterMode('range')}
+                    className={`flex-1 h-12 transition-all ${
+                      dateFilterMode === 'range'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                        : 'border-2 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Période (De/À)
+                  </Button>
+                </div>
+
+                {/* Date Inputs */}
+                {dateFilterMode === 'single' ? (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                    <Label htmlFor="singleDate" className="text-sm font-semibold text-blue-800 mb-2 block">
+                      Sélectionner une date
+                    </Label>
+                    <Input
+                      id="singleDate"
+                      type="date"
+                      value={singleDate}
+                      onChange={(e) => setSingleDate(e.target.value)}
+                      className="h-12 text-base font-medium border-2 border-blue-300 focus:border-blue-500"
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-4">
+                    <div>
+                      <Label htmlFor="fromDate" className="text-sm font-semibold text-blue-800 mb-2 block">
+                        Date de début
+                      </Label>
+                      <Input
+                        id="fromDate"
+                        type="date"
+                        value={dateRange.from}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                        className="h-12 text-base font-medium border-2 border-blue-300 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="toDate" className="text-sm font-semibold text-blue-800 mb-2 block">
+                        Date de fin
+                      </Label>
+                      <Input
+                        id="toDate"
+                        type="date"
+                        value={dateRange.to}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                        className="h-12 text-base font-medium border-2 border-blue-300 focus:border-blue-500"
+                      />
+                    </div>
+                    {/* Range preview */}
+                    {dateRange.from && dateRange.to && (
+                      <div className="bg-white border border-blue-300 rounded-lg p-3">
+                        <p className="text-xs font-semibold text-blue-700 mb-1">Période sélectionnée:</p>
+                        <p className="text-sm font-bold text-blue-900">
+                          {new Date(dateRange.from).toLocaleDateString('fr-FR')} → {new Date(dateRange.to).toLocaleDateString('fr-FR')}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {Math.ceil((new Date(dateRange.to).getTime() - new Date(dateRange.from).getTime()) / (1000 * 60 * 60 * 24)) + 1} jour(s)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t-2 border-gray-200">
+                <Button
+                  onClick={handleApplyDateFilter}
+                  className="flex-1 h-14 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white text-lg font-semibold shadow-lg"
+                >
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Appliquer le Filtre
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDateFilterOpen(false)}
+                  className="px-6 h-14 border-2 border-gray-300 hover:bg-gray-50"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Annuler
                 </Button>
               </div>
             </div>

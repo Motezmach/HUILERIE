@@ -82,6 +82,7 @@ interface Box {
   selected: boolean
   status: "available" | "in_use"
   currentFarmerId?: string
+  createdAt?: string
 }
 
 interface BulkBoxEntry {
@@ -111,6 +112,8 @@ export default function OliveManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [showTodayOnly, setShowTodayOnly] = useState(false)
+  const [dateRangeFilter, setDateRangeFilter] = useState<{ from: string; to: string }>({ from: "", to: "" })
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false)
   const [isAddFarmerOpen, setIsAddFarmerOpen] = useState(false)
   const [isEditFarmerOpen, setIsEditFarmerOpen] = useState(false)
   const [isAddBoxOpen, setIsAddBoxOpen] = useState(false)
@@ -502,14 +505,50 @@ export default function OliveManagement() {
       // Filter by today's date if showTodayOnly is true
       const matchesToday = showTodayOnly ? isToday(farmer.dateAdded) : true
 
-      return matchesSearch && matchesFilter && matchesToday
+      // Filter by date range if specified
+      let matchesDateRange = true
+      if (dateRangeFilter.from || dateRangeFilter.to) {
+        const farmerDate = new Date(farmer.dateAdded)
+        farmerDate.setHours(0, 0, 0, 0) // Reset time for date comparison
+        
+        if (dateRangeFilter.from) {
+          const fromDate = new Date(dateRangeFilter.from)
+          fromDate.setHours(0, 0, 0, 0)
+          matchesDateRange = matchesDateRange && farmerDate >= fromDate
+        }
+        
+        if (dateRangeFilter.to) {
+          const toDate = new Date(dateRangeFilter.to)
+          toDate.setHours(23, 59, 59, 999) // End of day
+          matchesDateRange = matchesDateRange && farmerDate <= toDate
+        }
+      }
+
+      return matchesSearch && matchesFilter && matchesToday && matchesDateRange
     })
-  }, [farmers, searchTerm, filterType, showTodayOnly])
+  }, [farmers, searchTerm, filterType, showTodayOnly, dateRangeFilter])
 
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
     setShowTodayOnly(!showTodayOnly)
   }
+
+  // Handle date range filter
+  const handleApplyDateFilter = () => {
+    setIsDateFilterOpen(false)
+    // If date filter is applied, disable "today only" filter
+    if (dateRangeFilter.from || dateRangeFilter.to) {
+      setShowTodayOnly(false)
+    }
+  }
+
+  const handleClearDateFilter = () => {
+    setDateRangeFilter({ from: "", to: "" })
+    setIsDateFilterOpen(false)
+  }
+
+  // Check if date filter is active
+  const isDateFilterActive = dateRangeFilter.from || dateRangeFilter.to
 
   // Validation function for farmer form
   const validateFarmerForm = () => {
@@ -1729,25 +1768,118 @@ export default function OliveManagement() {
 
                 {/* Today filter button and Print icon on same line */}
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                  <Button
-                    size="sm"
-                    variant={showTodayOnly ? "default" : "outline"}
-                    onClick={handleTodayFilterToggle}
-                    className={`transition-all duration-200 ${
-                      showTodayOnly 
-                        ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-sm" 
-                        : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 hover:shadow-sm"
-                    }`}
-                    title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
-                  >
-                    <Calendar className="w-4 h-4 mr-1" />
-                    Aujourd'hui
-                    {showTodayOnly && (
-                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
-                        {filteredFarmers.length}
-                      </span>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={showTodayOnly ? "default" : "outline"}
+                      onClick={handleTodayFilterToggle}
+                      disabled={isDateFilterActive}
+                      className={`transition-all duration-200 ${
+                        showTodayOnly 
+                          ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-sm" 
+                          : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 hover:shadow-sm"
+                      }`}
+                      title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
+                    >
+                      <Calendar className="w-4 h-4 mr-1" />
+                      Aujourd'hui
+                      {showTodayOnly && (
+                        <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                          {filteredFarmers.length}
+                        </span>
+                      )}
+                    </Button>
+
+                    {/* Date Range Filter */}
+                    <Dialog open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant={isDateFilterActive ? "default" : "outline"}
+                          className={`transition-all duration-200 ${
+                            isDateFilterActive
+                              ? "bg-blue-500 hover:bg-blue-600 text-white border-blue-500 shadow-sm"
+                              : "border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 hover:shadow-sm"
+                          }`}
+                          title="Filtrer par période"
+                        >
+                          <Calendar className="w-4 h-4 mr-1" />
+                          Période
+                          {isDateFilterActive && (
+                            <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                              {filteredFarmers.length}
+                            </span>
+                          )}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-lg font-bold text-[#2C3E50] flex items-center">
+                            <Calendar className="w-5 h-5 mr-2 text-blue-600" />
+                            Filtrer par Période
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div>
+                            <Label htmlFor="fromDate" className="text-sm font-medium">Date de début</Label>
+                            <Input
+                              id="fromDate"
+                              type="date"
+                              value={dateRangeFilter.from}
+                              onChange={(e) => setDateRangeFilter(prev => ({ ...prev, from: e.target.value }))}
+                              className="mt-2"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="toDate" className="text-sm font-medium">Date de fin</Label>
+                            <Input
+                              id="toDate"
+                              type="date"
+                              value={dateRangeFilter.to}
+                              onChange={(e) => setDateRangeFilter(prev => ({ ...prev, to: e.target.value }))}
+                              className="mt-2"
+                            />
+                          </div>
+
+                          {/* Active filter summary */}
+                          {isDateFilterActive && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                              <p className="text-xs font-semibold text-blue-800 mb-1">Filtre actif:</p>
+                              <p className="text-sm text-blue-700">
+                                {dateRangeFilter.from && dateRangeFilter.to
+                                  ? `Du ${new Date(dateRangeFilter.from).toLocaleDateString('fr-FR')} au ${new Date(dateRangeFilter.to).toLocaleDateString('fr-FR')}`
+                                  : dateRangeFilter.from
+                                    ? `À partir du ${new Date(dateRangeFilter.from).toLocaleDateString('fr-FR')}`
+                                    : `Jusqu'au ${new Date(dateRangeFilter.to).toLocaleDateString('fr-FR')}`
+                                }
+                              </p>
+                              <p className="text-xs text-blue-600 mt-1">
+                                {filteredFarmers.length} agriculteur(s) trouvé(s)
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 pt-4">
+                            <Button
+                              onClick={handleApplyDateFilter}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Appliquer
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={handleClearDateFilter}
+                              className="flex-1"
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Effacer
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   
                   {/* Print button */}
                   <Button
@@ -1848,6 +1980,18 @@ export default function OliveManagement() {
                         <div className="flex items-center space-x-2 mt-1">
                           <Package className="w-4 h-4 text-gray-400" />
                           <span className="text-sm text-gray-600">{farmer.boxes.length} boîtes</span>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <span className="text-xs text-gray-500 font-semibold">
+                            {new Date(farmer.dateAdded).toLocaleString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-col space-y-1">
@@ -2497,6 +2641,17 @@ export default function OliveManagement() {
                                     </span>
                                   )}
                                 </p>
+                                {box.createdAt && (
+                                  <p className="text-xs text-gray-500 mt-2 font-bold">
+                                    {new Date(box.createdAt).toLocaleString('fr-FR', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                )}
                                 {box.status !== "in_use" && (
                                   <p className="text-xs text-orange-600 mt-1 font-medium">✓ {box.status === "available" ? "Disponible" : "Traitée"}</p>
                                 )}
@@ -2550,7 +2705,7 @@ export default function OliveManagement() {
                           >
                             <CardContent className="p-3">
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
+                                  <div className="flex items-center space-x-4">
                                   <Checkbox
                                     checked={box.selected}
                                     disabled={box.status !== "in_use"}
@@ -2569,6 +2724,17 @@ export default function OliveManagement() {
                                           </span>
                                         )}
                                       </p>
+                                      {box.createdAt && (
+                                        <p className="text-xs text-gray-500 mt-1 font-bold">
+                                          {new Date(box.createdAt).toLocaleString('fr-FR', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                        </p>
+                                      )}
                                       {box.status !== "in_use" && (
                                         <p className="text-xs text-orange-600 font-medium">✓ {box.status === "available" ? "Disponible" : "Traitée"}</p>
                                       )}

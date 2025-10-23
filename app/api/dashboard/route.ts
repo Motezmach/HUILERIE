@@ -11,13 +11,35 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const refresh = searchParams.get('refresh') === 'true'
+    const dateParam = searchParams.get('date')
+    const dateFromParam = searchParams.get('dateFrom')
+    const dateToParam = searchParams.get('dateTo')
     
-    console.log('📊 Dashboard API called', { refresh, timestamp: new Date().toISOString() })
+    console.log('📊 Dashboard API called', { refresh, dateParam, dateFromParam, dateToParam, timestamp: new Date().toISOString() })
 
     // Get current date ranges
     const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+    let todayStart: Date
+    let todayEnd: Date
+    
+    // Handle different filter modes
+    if (dateFromParam && dateToParam) {
+      // Range filter
+      todayStart = new Date(dateFromParam)
+      todayStart.setHours(0, 0, 0, 0)
+      todayEnd = new Date(dateToParam)
+      todayEnd.setHours(23, 59, 59, 999)
+    } else if (dateParam) {
+      // Single date filter
+      todayStart = new Date(dateParam)
+      todayStart.setHours(0, 0, 0, 0)
+      todayEnd = new Date(dateParam)
+      todayEnd.setHours(23, 59, 59, 999)
+    } else {
+      // Default: today
+      todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+    }
     
     const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000)
     const yesterdayEnd = new Date(todayStart.getTime() - 1)
@@ -48,10 +70,19 @@ export async function GET(request: NextRequest) {
       // Recent activity
       recentSessions,
       recentFarmers,
-      recentPayments
+      recentPayments,
+      
+      // Today's oil and olive weights
+      todayOilAndOlive
     ] = await Promise.all([
-      // Total farmers count
-      prisma.farmer.count(),
+      // Total farmers count (filtered by date if applicable)
+      prisma.farmer.count(
+        dateParam || dateFromParam ? {
+          where: {
+            createdAt: { gte: todayStart, lte: todayEnd }
+          }
+        } : undefined
+      ),
       
       // Total boxes in database
       prisma.box.count(),
@@ -163,6 +194,18 @@ export async function GET(request: NextRequest) {
         include: {
           farmer: { select: { name: true } }
         }
+      }),
+      
+      // Today's oil and olive weights
+      prisma.processingSession.aggregate({
+        where: {
+          createdAt: { gte: todayStart, lte: todayEnd },
+          processingStatus: 'PROCESSED'
+        },
+        _sum: {
+          oilWeight: true,
+          totalBoxWeight: true
+        }
       })
     ])
 
@@ -207,7 +250,9 @@ export async function GET(request: NextRequest) {
       totalRevenue: Number(totalRevenue._sum.amountPaid || 0), // Fixed to use amountPaid
       averageOilExtraction: Number(avgOilExtraction._avg.oilWeight || 0),
       metricDate: todayStart.toISOString(),
-      chkaraCount: chkaraCount // Add Chkara count
+      chkaraCount: chkaraCount, // Add Chkara count
+      todayOilWeight: Number(todayOilAndOlive._sum.oilWeight || 0),
+      todayOliveWeight: Number(todayOilAndOlive._sum.totalBoxWeight || 0)
     }
 
     // Calculate box utilization

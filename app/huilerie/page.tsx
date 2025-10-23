@@ -793,7 +793,7 @@ export default function HuileriePage() {
                           ! {safe.pendingOilCount}
                         </Badge>
                       )}
-                    </CardTitle>
+                </CardTitle>
                     <Badge variant="secondary" className="bg-white/20 text-white">
                       {safe.isActive ? 'Actif' : 'Inactif'}
                     </Badge>
@@ -801,7 +801,7 @@ export default function HuileriePage() {
                   {safe.description && (
                     <p className="text-sm text-white/80 mt-2">{safe.description}</p>
                   )}
-                </CardHeader>
+              </CardHeader>
                 <CardContent className="p-6">
                 <div className="space-y-4">
                     {/* Capacity Progress */}
@@ -1026,7 +1026,7 @@ export default function HuileriePage() {
                                       className="mt-1"
                                     />
                     </div>
-                    </div>
+                </div>
 
                     <div>
                                   <Label className="text-xs text-gray-600">Notes</Label>
@@ -1059,18 +1059,18 @@ export default function HuileriePage() {
                                 {/* Pending Oil Banner */}
                                 {isPending && (
                                   <div className="mb-4 p-3 bg-amber-100 border border-amber-400 rounded-lg">
-                                    <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                                       <div className="flex items-center">
                                         <AlertCircle className="w-5 h-5 text-amber-600 mr-2" />
                                         <p className="text-sm font-semibold text-amber-800">
                                           En attente de production d'huile
                                         </p>
-                                      </div>
+                    </div>
                                       <Badge className="bg-amber-500 text-white">
                                         Cliquez pour ajouter
                                       </Badge>
-                                    </div>
-                                  </div>
+                    </div>
+                  </div>
                                 )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1081,11 +1081,11 @@ export default function HuileriePage() {
                                       <p className="text-xs text-gray-500">{purchase.farmerPhone}</p>
                                     )}
                       </div>
-                                  <div>
+                      <div>
                                     <p className="text-sm text-gray-600">Date</p>
                                     <p className="font-semibold">{new Date(purchase.purchaseDate).toLocaleDateString('fr-FR')}</p>
                       </div>
-                                  <div>
+                      <div>
                                     <p className="text-sm text-gray-600">Olives Achetées</p>
                                     <p className="font-semibold">{purchase.oliveWeight.toFixed(2)} kg</p>
                                     <p className="text-xs text-gray-500">{purchase.pricePerKg.toFixed(2)} DT/kg</p>
@@ -1096,25 +1096,25 @@ export default function HuileriePage() {
                                       <div className="flex items-center">
                                         <p className="font-semibold text-amber-600">En attente</p>
                                         <AlertCircle className="w-4 h-4 ml-2 text-amber-500" />
-                                      </div>
+                        </div>
                                     ) : (
                                       <>
                                         <p className="font-semibold text-green-600">{purchase.oilProduced?.toFixed(2)} kg</p>
                                         <p className="text-xs text-gray-500">Rendement: {purchase.yieldPercentage?.toFixed(1)}%</p>
                                       </>
                                     )}
-                      </div>
+                        </div>
                                   <div>
                                     <p className="text-sm text-gray-600">Coût Total</p>
                                     <p className="font-bold text-amber-600">{purchase.totalCost.toFixed(2)} DT</p>
-                      </div>
+                        </div>
                                   {purchase.notes && (
                                     <div>
                                       <p className="text-sm text-gray-600">Notes</p>
                                       <p className="text-sm text-gray-800">{purchase.notes}</p>
-                                    </div>
+                        </div>
                                   )}
-                    </div>
+                      </div>
 
                                 {/* Edit Button - Only show if not pending */}
                                 {!isPending && (
@@ -1210,23 +1210,23 @@ export default function HuileriePage() {
                               <p className="text-xs text-gray-500">{purchase.farmerPhone}</p>
                             )}
                       </div>
-
+                      
                           {/* Date & Quantities */}
                           <div className="space-y-2">
-                            <div>
+                      <div>
                               <p className="text-sm text-gray-600">Date</p>
                               <p className="font-semibold">{new Date(purchase.purchaseDate).toLocaleDateString('fr-FR')}</p>
-                            </div>
-                            <div>
+                      </div>
+                      <div>
                               <p className="text-sm text-gray-600">Olives Achetées</p>
                               <p className="font-semibold">{purchase.oliveWeight.toFixed(2)} kg</p>
                               <p className="text-xs text-gray-500">{purchase.pricePerKg.toFixed(2)} DT/kg</p>
                             </div>
                       </div>
-
+                      
                           {/* Oil & Cost */}
                           <div className="space-y-2">
-                            <div>
+                      <div>
                               <p className="text-sm text-gray-600">Huile Produite</p>
                               {purchase.oilProduced ? (
                                 <>
@@ -1236,11 +1236,11 @@ export default function HuileriePage() {
                               ) : (
                                 <p className="font-semibold text-amber-600">En attente</p>
                               )}
-                            </div>
+                      </div>
                             <div>
                               <p className="text-sm text-gray-600">Coût Total</p>
                               <p className="font-bold text-amber-600">{purchase.totalCost.toFixed(2)} DT</p>
-                            </div>
+                    </div>
                       </div>
                         </div>
                         {purchase.notes && (
@@ -1355,8 +1355,8 @@ export default function HuileriePage() {
                     <p><strong>Fournisseur:</strong> {purchases.find(p => p.id === addingOilToPurchaseId)?.farmerName}</p>
                     <p><strong>Olives:</strong> {purchases.find(p => p.id === addingOilToPurchaseId)?.oliveWeight.toFixed(2)} kg</p>
                     <p><strong>Date:</strong> {new Date(purchases.find(p => p.id === addingOilToPurchaseId)!.purchaseDate).toLocaleDateString('fr-FR')}</p>
-                  </div>
-                </div>
+                      </div>
+                      </div>
 
                 {/* Oil Input */}
                 <div>
@@ -1376,7 +1376,7 @@ export default function HuileriePage() {
                       Rendement: {((parseFloat(addOilForm.oilProduced) / purchases.find(p => p.id === addingOilToPurchaseId)!.oliveWeight) * 100).toFixed(1)}%
                     </p>
                   )}
-                </div>
+                  </div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4">
@@ -1391,7 +1391,7 @@ export default function HuileriePage() {
                       <Save className="w-4 h-4 mr-2" />
                     )}
                     {creating ? 'Enregistrement...' : 'Enregistrer l\'Huile'}
-                  </Button>
+                      </Button>
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1402,11 +1402,11 @@ export default function HuileriePage() {
                   >
                     <X className="w-4 h-4 mr-2" />
                     Annuler
-                  </Button>
-                </div>
+                      </Button>
+                    </div>
               </>
             )}
-          </div>
+                  </div>
         </DialogContent>
       </Dialog>
 
@@ -1420,7 +1420,7 @@ export default function HuileriePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-                      <div>
+                    <div>
               <Label htmlFor="safeName">Nom du Coffre *</Label>
               <Input
                 id="safeName"
@@ -1428,7 +1428,7 @@ export default function HuileriePage() {
                 onChange={(e) => setSafeForm({...safeForm, name: e.target.value})}
                 placeholder="Ex: Coffre Principal A"
               />
-                      </div>
+                    </div>
                       <div>
               <Label htmlFor="capacity">Capacité (kg) *</Label>
               <Input
@@ -1439,8 +1439,8 @@ export default function HuileriePage() {
                 onChange={(e) => setSafeForm({...safeForm, capacity: e.target.value})}
                 placeholder="Ex: 1000"
               />
-                      </div>
-                      <div>
+                    </div>
+                    <div>
               <Label htmlFor="description">Description (optionnelle)</Label>
               <Textarea
                 id="description"
@@ -1449,7 +1449,7 @@ export default function HuileriePage() {
                 placeholder="Ex: Coffre pour huile extra vierge"
                 rows={3}
               />
-                      </div>
+                    </div>
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleCreateSafe}
@@ -1530,10 +1530,10 @@ export default function HuileriePage() {
                   placeholder="Ex: 2.50"
                 />
                     </div>
-                    </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+                      <div>
                 <Label htmlFor="oilProduced">Huile Produite (kg) <span className="text-amber-600">(optionnel)</span></Label>
                 <Input
                   id="oilProduced"
@@ -1554,7 +1554,7 @@ export default function HuileriePage() {
                     ℹ️ Laissez vide pour ajouter l'huile plus tard
                   </p>
                 )}
-              </div>
+                      </div>
                       <div>
                 <Label htmlFor="safeId">Coffre de Stockage *</Label>
                 <Select value={purchaseForm.safeId} onValueChange={(value) => setPurchaseForm({...purchaseForm, safeId: value})}>
@@ -1632,7 +1632,7 @@ export default function HuileriePage() {
                   <Save className="w-4 h-4 mr-2" />
                 )}
                 {creating ? 'Enregistrement...' : !purchaseForm.oilProduced ? 'Enregistrer (Sans Huile)' : 'Enregistrer l\'Achat'}
-              </Button>
+                        </Button>
               <Button
                 variant="outline"
                 onClick={() => setIsCreatePurchaseOpen(false)}
@@ -1786,7 +1786,7 @@ const PrintSafePurchases = ({ safe, purchases }: { safe: OilSafe; purchases: Pur
           <div className="stat-box">
             <div className="stat-label">Total Achats</div>
             <div className="stat-value">{purchases.length}</div>
-                    </div>
+                </div>
           <div className="stat-box">
             <div className="stat-label">Total Olives</div>
             <div className="stat-value">{totalOlives.toFixed(1)} kg</div>
@@ -1881,8 +1881,8 @@ const PrintSafePurchases = ({ safe, purchases }: { safe: OilSafe; purchases: Pur
           <p style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
             Document généré automatiquement - {purchases.length} achat(s) pour le coffre "{safe.name}"
           </p>
-                </div>
-                      </div>
+                    </div>
+                  </div>
                       </div>
   )
 }
@@ -1997,8 +1997,8 @@ const PrintAllPurchases = ({ purchases, safes }: { purchases: Purchase[]; safes:
                 {new Date().toLocaleDateString('fr-FR')} {new Date().toLocaleTimeString('fr-FR')}
               </p>
             </div>
-          </div>
-        </div>
+                    </div>
+                  </div>
 
         {/* Global Summary */}
         <div className="summary-box">
@@ -2009,15 +2009,15 @@ const PrintAllPurchases = ({ purchases, safes }: { purchases: Purchase[]; safes:
             <div>
               <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Total Olives</p>
               <p style={{ fontSize: '14px', fontWeight: 'bold' }}>{totalOlives.toFixed(1)} kg</p>
-            </div>
+                    </div>
             <div>
               <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Total Huile</p>
               <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#16a34a' }}>{totalOil.toFixed(1)} kg</p>
-            </div>
+                  </div>
             <div>
               <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Rendement Moyen</p>
               <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#9333ea' }}>{avgYield.toFixed(1)}%</p>
-            </div>
+                </div>
             <div>
               <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Investissement Total</p>
               <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#d97706' }}>{totalCost.toFixed(0)} DT</p>
