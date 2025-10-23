@@ -174,3 +174,59 @@ enum UserRole {
   USER
   MANAGER
 }
+
+// ==================== FACTORY STOCK MANAGEMENT ====================
+
+model OilSafe {
+  id                   String             @id @default(uuid())
+  name                 String             @unique
+  capacity             Decimal            // Maximum capacity in liters/kg
+  currentStock         Decimal            @default(0) // Current oil stock in liters/kg
+  description          String?            // Optional description
+  isActive             Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  purchases            OlivePurchase[]
+  sales                OilSale[]
+  
+  @@map("oil_safes")
+}
+
+model OlivePurchase {
+  id                   String             @id @default(uuid())
+  purchaseDate         DateTime           @default(now())
+  farmerName           String             // Name of farmer we bought from
+  farmerPhone          String?            // Optional phone number
+  oliveWeight          Decimal            // Weight of olives purchased in kg
+  pricePerKg           Decimal            // Price per kg paid
+  totalCost            Decimal            // Total cost of purchase
+  oilProduced          Decimal?           // Oil produced from these olives in kg (nullable - pending production)
+  yieldPercentage      Decimal?           // Yield percentage (oil/olives * 100) (nullable - pending production)
+  safeId               String             // Which safe stores this oil
+  notes                String?            // Optional notes
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  safe                 OilSafe            @relation(fields: [safeId], references: [id], onDelete: Cascade)
+  
+  @@map("olive_purchases")
+}
+
+model OilSale {
+  id                   String             @id @default(uuid())
+  saleDate             DateTime           @default(now())
+  safeId               String             // Which safe the oil comes from
+  quantity             Decimal            // Quantity of oil sold in liters/kg
+  pricePerKg           Decimal            // Sale price per kg
+  totalRevenue         Decimal            // Total revenue from sale
+  buyer                String?            // Name of buyer (optional)
+  buyerPhone           String?            // Buyer phone (optional)
+  notes                String?            // Optional notes
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  safe                 OilSafe            @relation(fields: [safeId], references: [id], onDelete: Cascade)
+  
+  @@map("oil_sales")
+}

@@ -54,6 +54,7 @@ import {
   Menu,
   ArrowLeft,
   Printer,
+  Download,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -199,6 +200,49 @@ export default function OliveManagement() {
       
       // Force redirect
       window.location.href = '/login'
+    }
+  }
+
+  // Handle Excel export download
+  const handleDownloadCSV = async () => {
+    try {
+      showNotification("Génération de l'export Excel en cours...", "success")
+      
+      // Call the export API
+      const response = await fetch('/api/export/excel', {
+        method: 'GET'
+      })
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération du fichier')
+      }
+
+      // Get the blob from response
+      const blob = await response.blob()
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Get filename from response headers or use default
+      const contentDisposition = response.headers.get('Content-Disposition')
+      const filename = contentDisposition 
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `huilerie_export_${new Date().toISOString().split('T')[0]}.xlsx`
+      
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      showNotification("Export Excel téléchargé avec succès!", "success")
+    } catch (error) {
+      console.error('Error downloading Excel:', error)
+      showNotification("Erreur lors du téléchargement de l'export", "error")
     }
   }
 
@@ -1416,6 +1460,15 @@ export default function OliveManagement() {
               <span className="text-white font-bold text-sm">HM</span>
             </div>
             <h1 className="text-lg sm:text-2xl font-bold text-[#2C3E50] truncate">HUILERIE MASMOUDI</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDownloadCSV}
+              className="h-8 w-8 p-0 text-[#6B8E4B] hover:bg-[#6B8E4B]/10 transition-colors"
+              title="Télécharger l'export Excel de toutes les données"
+            >
+              <Download className="w-5 h-5" />
+            </Button>
           </div>
           <div className="flex items-center space-x-2 sm:space-x-4">
             <Badge variant="outline" className="bg-[#F4D03F] text-[#8B4513] border-[#F4D03F] text-xs sm:text-sm hidden sm:block">
