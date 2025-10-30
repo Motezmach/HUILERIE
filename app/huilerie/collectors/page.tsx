@@ -483,14 +483,17 @@ export default function CollectorsPage() {
 
       {/* Print View */}
       {showPrintView && (
-        <Card className="border-0 shadow-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-amber-600 to-amber-700 text-white print:bg-white print:text-black print:border-b-2 print:border-black">
+        <Card className="print-container border-0 shadow-2xl overflow-hidden">
+          <CardHeader className="print-header bg-gradient-to-r from-amber-600 to-amber-700 text-white">
             <div className="hidden print:block">
               <h1 className="text-3xl font-bold text-center text-black">
                 RAPPORT DE COLLECTE DES OLIVES
               </h1>
               <p className="text-center text-lg mt-2 text-black">
                 Du {new Date(printStartDate).toLocaleDateString('fr-FR')} au {new Date(printEndDate).toLocaleDateString('fr-FR')}
+              </p>
+              <p className="text-center text-sm mt-1 text-gray-600">
+                Imprimé le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
 
@@ -552,49 +555,60 @@ export default function CollectorsPage() {
               return (
                 <div className="space-y-6">
                   {Object.entries(byGroup).map(([groupName, groupCollections]) => {
-                    const totalChakra = groupCollections.reduce((sum, c) => sum + Number(c.totalChakra), 0)
+                    // Calculate raw totals from all collections
+                    const rawTotalChakra = groupCollections.reduce((sum, c) => sum + c.chakraCount, 0)
+                    const rawTotalGalba = groupCollections.reduce((sum, c) => sum + c.galbaCount, 0)
+                    
+                    // Normalize the totals
+                    const normalizedTotals = normalizeQuantities(rawTotalChakra, rawTotalGalba)
                     const totalAmount = groupCollections.reduce((sum, c) => sum + Number(c.totalAmount || 0), 0)
 
                     return (
-                      <div key={groupName} className="border-2 border-gray-300 rounded-lg overflow-hidden">
-                        <div className="bg-gradient-to-r from-amber-100 to-amber-200 p-4 print:bg-gray-200">
-                          <h3 className="text-xl font-bold text-amber-900 print:text-black">{groupName}</h3>
+                      <div key={groupName} className="print-group-section border-2 border-gray-300 rounded-lg overflow-hidden">
+                        <div className="print-group-header bg-gradient-to-r from-amber-100 to-amber-200 p-4">
+                          <h3 className="text-xl font-bold text-amber-900">{groupName}</h3>
                           <div className="flex gap-6 mt-2 text-sm">
-                            <span className="font-semibold">Total: {totalChakra.toFixed(2)} شكارة</span>
+                            <span className="font-semibold">
+                              Total: {normalizedTotals.chakraCount} شكارة {normalizedTotals.galbaCount > 0 && `+ ${normalizedTotals.galbaCount} ق`}
+                            </span>
                             {totalAmount > 0 && <span className="font-semibold">Montant: {totalAmount.toFixed(2)} DT</span>}
+                            <span className="text-gray-600">({groupCollections.length} collectes)</span>
                           </div>
                         </div>
                         
                         <table className="w-full border-collapse text-sm">
                           <thead>
                             <tr className="bg-gray-100">
-                              <th className="border border-gray-400 p-2 text-left">Date</th>
-                              <th className="border border-gray-400 p-2 text-left">Lieu</th>
-                              <th className="border border-gray-400 p-2 text-left">Client</th>
-                              <th className="border border-gray-400 p-2 text-center">شكارة</th>
-                              <th className="border border-gray-400 p-2 text-center">ق</th>
-                              <th className="border border-gray-400 p-2 text-center">Total ش</th>
-                              <th className="border border-gray-400 p-2 text-right">Montant</th>
+                              <th className="border border-gray-400 p-2 text-left" style={{ width: '12%' }}>Date</th>
+                              <th className="border border-gray-400 p-2 text-left" style={{ width: '22%' }}>Lieu</th>
+                              <th className="border border-gray-400 p-2 text-left" style={{ width: '22%' }}>Client</th>
+                              <th className="border border-gray-400 p-2 text-center" style={{ width: '10%' }}>Chakra<br/>(شكارة)</th>
+                              <th className="border border-gray-400 p-2 text-center" style={{ width: '10%' }}>Galba<br/>(ق)</th>
+                              <th className="border border-gray-400 p-2 text-center" style={{ width: '12%' }}>Total<br/>(شكارة)</th>
+                              <th className="border border-gray-400 p-2 text-right" style={{ width: '12%' }}>Montant<br/>(DT)</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {groupCollections.map((c, idx) => (
-                              <tr key={c.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                <td className="border border-gray-400 p-2">
-                                  {new Date(c.collectionDate).toLocaleDateString('fr-FR')}
-                                </td>
-                                <td className="border border-gray-400 p-2">{c.location}</td>
-                                <td className="border border-gray-400 p-2">{c.clientName}</td>
-                                <td className="border border-gray-400 p-2 text-center font-bold">{c.chakraCount}</td>
-                                <td className="border border-gray-400 p-2 text-center font-bold">{c.galbaCount}</td>
-                                <td className="border border-gray-400 p-2 text-center font-bold text-green-700">
-                                  {Number(c.totalChakra).toFixed(2)}
-                                </td>
-                                <td className="border border-gray-400 p-2 text-right">
-                                  {c.totalAmount ? `${Number(c.totalAmount).toFixed(2)} DT` : '-'}
-                                </td>
-                              </tr>
-                            ))}
+                            {groupCollections.map((c, idx) => {
+                              const normalized = normalizeQuantities(c.chakraCount, c.galbaCount)
+                              return (
+                                <tr key={c.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                  <td className="border border-gray-400 p-2">
+                                    {new Date(c.collectionDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                                  </td>
+                                  <td className="border border-gray-400 p-2">{c.location}</td>
+                                  <td className="border border-gray-400 p-2">{c.clientName}</td>
+                                  <td className="border border-gray-400 p-2 text-center font-bold">{c.chakraCount}</td>
+                                  <td className="border border-gray-400 p-2 text-center font-bold">{c.galbaCount}</td>
+                                  <td className="border border-gray-400 p-2 text-center font-bold text-green-700">
+                                    {normalized.chakraCount}{normalized.galbaCount > 0 && ` + ${normalized.galbaCount}ق`}
+                                  </td>
+                                  <td className="border border-gray-400 p-2 text-right">
+                                    {c.totalAmount ? `${Number(c.totalAmount).toFixed(2)}` : '-'}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -610,15 +624,15 @@ export default function CollectorsPage() {
               )
             })()}
 
-            <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-blue-50 rounded-lg border-2 border-amber-200 print:border-black print:bg-white print:mt-8">
+            <div className="print-stats mt-6 p-4 bg-gradient-to-r from-amber-50 to-blue-50 rounded-lg border-2 border-amber-200">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-sm text-gray-600 print:text-black">Total Groupes</p>
-                  <p className="text-2xl font-bold text-amber-700 print:text-black">{activeGroups.length}</p>
+                  <p className="text-sm text-gray-600">Total Groupes Actifs</p>
+                  <p className="stat-value text-2xl font-bold text-amber-700">{activeGroups.length}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 print:text-black">Total Collectes</p>
-                  <p className="text-2xl font-bold text-blue-700 print:text-black">
+                  <p className="text-sm text-gray-600">Total Collectes</p>
+                  <p className="stat-value text-2xl font-bold text-blue-700">
                     {collections.filter(c => {
                       const date = new Date(c.collectionDate).toISOString().split('T')[0]
                       return date >= printStartDate && date <= printEndDate
@@ -626,9 +640,9 @@ export default function CollectorsPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 print:text-black">Date d'impression</p>
-                  <p className="text-lg font-semibold print:text-black">
-                    {new Date().toLocaleDateString('fr-FR')}
+                  <p className="text-sm text-gray-600">Période</p>
+                  <p className="text-lg font-semibold">
+                    {new Date(printStartDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - {new Date(printEndDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
               </div>
@@ -1038,6 +1052,161 @@ export default function CollectorsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          /* Hide everything except print content */
+          body * {
+            visibility: hidden;
+          }
+          
+          /* Only show the print view card and its contents */
+          .print-container,
+          .print-container * {
+            visibility: visible;
+          }
+          
+          .print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+
+          /* Page setup */
+          @page {
+            size: portrait;
+            margin: 15mm 10mm;
+          }
+          
+          body {
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
+
+          /* Hide UI elements */
+          .print\\:hidden {
+            display: none !important;
+          }
+
+          /* Header styling */
+          .print-header {
+            background: white !important;
+            color: black !important;
+            border-bottom: 3px solid black !important;
+            padding: 20px 0 !important;
+            margin-bottom: 20px !important;
+          }
+
+          .print-header h1 {
+            font-size: 28px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            margin-bottom: 10px !important;
+          }
+
+          .print-header p {
+            font-size: 16px !important;
+            text-align: center !important;
+            margin: 5px 0 !important;
+          }
+
+          /* Group section styling */
+          .print-group-section {
+            page-break-inside: avoid;
+            margin-bottom: 25px !important;
+            border: 2px solid black !important;
+            border-radius: 0 !important;
+          }
+
+          .print-group-header {
+            background: #f5f5f5 !important;
+            padding: 15px !important;
+            border-bottom: 2px solid black !important;
+          }
+
+          .print-group-header h3 {
+            font-size: 20px !important;
+            font-weight: bold !important;
+            margin-bottom: 8px !important;
+          }
+
+          .print-group-header span {
+            font-size: 14px !important;
+            font-weight: 600 !important;
+          }
+
+          /* Table styling */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 11px !important;
+          }
+
+          th {
+            background: #e5e5e5 !important;
+            color: black !important;
+            font-weight: bold !important;
+            padding: 10px 8px !important;
+            border: 1px solid black !important;
+            text-align: left !important;
+          }
+
+          td {
+            padding: 8px !important;
+            border: 1px solid #666 !important;
+          }
+
+          tr:nth-child(even) {
+            background: #fafafa !important;
+          }
+
+          tr:nth-child(odd) {
+            background: white !important;
+          }
+
+          /* Footer/Stats styling */
+          .print-stats {
+            background: white !important;
+            border: 2px solid black !important;
+            border-radius: 0 !important;
+            padding: 20px !important;
+            margin-top: 30px !important;
+            page-break-inside: avoid;
+          }
+
+          .print-stats p {
+            color: black !important;
+            margin: 5px 0 !important;
+          }
+
+          .print-stats .stat-value {
+            font-size: 22px !important;
+            font-weight: bold !important;
+          }
+
+          /* Ensure proper breaks */
+          .print-group-section {
+            page-break-after: auto;
+          }
+
+          /* Color adjustments for print */
+          .text-green-700,
+          .text-amber-700,
+          .text-blue-700 {
+            color: black !important;
+            font-weight: bold !important;
+          }
+
+          /* Remove shadows and rounded corners */
+          * {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
