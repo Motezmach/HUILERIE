@@ -12,6 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Users,
   Package,
@@ -47,6 +49,10 @@ import {
   Eye,
   ExternalLink,
   Download,
+  Printer,
+  Trash2,
+  PlusCircle,
+  MinusCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { logout, getCurrentUser, isAuthenticated } from '@/lib/auth-client'
@@ -146,6 +152,16 @@ export default function Dashboard() {
     to: new Date().toISOString().split('T')[0] 
   })
   const [activeDateFilter, setActiveDateFilter] = useState<{ mode: 'single' | 'range'; from: string; to: string } | null>(null)
+
+  // Revenue dialog states
+  const [isRevenueDialogOpen, setIsRevenueDialogOpen] = useState(false)
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [transactionTotals, setTransactionTotals] = useState({ farmerPayments: 0, debits: 0, credits: 0, netRevenue: 0 })
+  const [loadingTransactions, setLoadingTransactions] = useState(false)
+  const [transactionSearchTerm, setTransactionSearchTerm] = useState('')
+  const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false)
+  const [transactionType, setTransactionType] = useState<'DEBIT' | 'CREDIT'>('DEBIT')
+  const [transactionForm, setTransactionForm] = useState({ amount: '', description: '', destination: '' })
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -268,6 +284,106 @@ export default function Dashboard() {
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Error downloading Excel:', error)
+    }
+  }
+
+  const loadTransactions = async () => {
+    setLoadingTransactions(true)
+    try {
+      const params = new URLSearchParams()
+      
+      // Apply active date filter if exists
+      if (activeDateFilter) {
+        if (activeDateFilter.mode === 'single') {
+          params.append('date', activeDateFilter.from)
+        } else {
+          params.append('dateFrom', activeDateFilter.from)
+          params.append('dateTo', activeDateFilter.to)
+        }
+      }
+
+      const response = await fetch(`/api/transactions?${params.toString()}`)
+      const result = await response.json()
+
+      if (result.success) {
+        setTransactions(result.data.transactions)
+        setTransactionTotals(result.data.totals)
+      }
+    } catch (error) {
+      console.error('Error loading transactions:', error)
+    } finally {
+      setLoadingTransactions(false)
+    }
+  }
+
+  const handleOpenRevenueDialog = () => {
+    setIsRevenueDialogOpen(true)
+    loadTransactions()
+  }
+
+  const handleAddTransaction = async () => {
+    const amount = parseFloat(transactionForm.amount)
+    
+    if (isNaN(amount) || amount <= 0) {
+      alert('Veuillez entrer un montant valide')
+      return
+    }
+
+    if (!transactionForm.description.trim()) {
+      alert('Veuillez entrer une description')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: transactionType,
+          amount: amount,
+          description: transactionForm.description.trim(),
+          destination: transactionForm.destination.trim() || null,
+          createdBy: user?.username || null
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setIsAddTransactionOpen(false)
+        setTransactionForm({ amount: '', description: '', destination: '' })
+        loadTransactions()
+        fetchDashboardData(true) // Refresh dashboard to update revenue
+      } else {
+        alert(result.error || 'Erreur lors de la création')
+      }
+    } catch (error) {
+      console.error('Error creating transaction:', error)
+      alert('Erreur de connexion')
+    }
+  }
+
+  const handleDeleteTransaction = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette transaction?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/transactions/${id}`, {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        loadTransactions()
+        fetchDashboardData(true)
+      } else {
+        alert(result.error || 'Erreur lors de la suppression')
+      }
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
+      alert('Erreur de connexion')
     }
   }
 
@@ -986,7 +1102,14 @@ export default function Dashboard() {
           {/* Ultra Modern Themed Dashboard Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {metrics.map((metric, index) => (
-              <Card key={index} className="group relative overflow-hidden border-0 bg-white shadow-lg hover:shadow-xl transition-all duration-500 transform hover:scale-[1.02] hover:-translate-y-1 animate-slideInUp" style={{ animationDelay: `${index * 100}ms` }}>
+              <Card 
+                key={index} 
+                className={`group relative overflow-hidden border-0 bg-white shadow-lg hover:shadow-xl transition-all duration-500 transform hover:scale-[1.02] hover:-translate-y-1 animate-slideInUp ${
+                  metric.title.includes('Revenus') ? 'cursor-pointer' : ''
+                }`}
+                style={{ animationDelay: `${index * 100}ms` }}
+                onClick={() => metric.title.includes('Revenus') && handleOpenRevenueDialog()}
+              >
                 {/* Themed top border */}
                 <div className={`absolute top-0 left-0 right-0 h-1.5 ${metric.color.replace('text-', 'bg-').replace('-600', '-500')} opacity-90 group-hover:opacity-100 transition-all duration-300`}></div>
                 
@@ -1032,11 +1155,11 @@ export default function Dashboard() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-baseline space-x-1">
-                        <p className="text-2xl font-black text-[#2C3E50] group-hover:text-[#6B8E4B] transition-colors duration-300">
-                          {metric.value}
-                        </p>
-                      </div>
+                    <div className="flex items-baseline space-x-1">
+                      <p className="text-2xl font-black text-[#2C3E50] group-hover:text-[#6B8E4B] transition-colors duration-300">
+                        {metric.value}
+                      </p>
+                    </div>
                     )}
                     
                     {/* Creative Chkara Count Display */}
@@ -1908,6 +2031,318 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Revenue Details Dialog */}
+      <Dialog open={isRevenueDialogOpen} onOpenChange={setIsRevenueDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-[#2C3E50] flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <span>Flux de Trésorerie</span>
+                <p className="text-sm font-normal text-gray-500 mt-0.5">
+                  Gestion complète des revenus et dépenses
+                </p>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-6 py-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-green-700 uppercase">Paiements Farmers</p>
+                      <p className="text-2xl font-black text-green-600 mt-1">
+                        {transactionTotals.farmerPayments.toFixed(3)} DT
+                      </p>
+                    </div>
+                    <Users className="w-8 h-8 text-green-400" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-blue-700 uppercase">Débits (+)</p>
+                      <p className="text-2xl font-black text-blue-600 mt-1">
+                        {transactionTotals.debits.toFixed(3)} DT
+                      </p>
+                    </div>
+                    <PlusCircle className="w-8 h-8 text-blue-400" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-rose-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-red-700 uppercase">Crédits (-)</p>
+                      <p className="text-2xl font-black text-red-600 mt-1">
+                        {transactionTotals.credits.toFixed(3)} DT
+                      </p>
+                    </div>
+                    <MinusCircle className="w-8 h-8 text-red-400" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Button
+                  onClick={() => {
+                    setTransactionType('DEBIT')
+                    setIsAddTransactionOpen(true)
+                  }}
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                >
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Ajouter Débit
+                </Button>
+                <Button
+                  onClick={() => {
+                    setTransactionType('CREDIT')
+                    setIsAddTransactionOpen(true)
+                  }}
+                  className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white"
+                >
+                  <MinusCircle className="w-4 h-4 mr-2" />
+                  Ajouter Crédit
+                </Button>
+              </div>
+              <Button
+                onClick={() => window.print()}
+                variant="outline"
+                className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white"
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimer
+              </Button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher par nom, description, destination..."
+                value={transactionSearchTerm}
+                onChange={(e) => setTransactionSearchTerm(e.target.value)}
+                className="pl-10 pr-10 h-12 border-2 border-gray-200 focus:border-[#6B8E4B]"
+              />
+              {transactionSearchTerm && (
+                <button
+                  onClick={() => setTransactionSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Transactions Table */}
+            <Card className="border-2 border-gray-200">
+              <ScrollArea className="h-[400px]">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-gray-50 z-10">
+                    <TableRow>
+                      <TableHead className="font-bold">Date & Heure</TableHead>
+                      <TableHead className="font-bold">Type</TableHead>
+                      <TableHead className="font-bold">Description</TableHead>
+                      <TableHead className="font-bold">Farmer/Destination</TableHead>
+                      <TableHead className="font-bold text-right">Montant</TableHead>
+                      <TableHead className="font-bold text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingTransactions ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#6B8E4B]" />
+                        </TableCell>
+                      </TableRow>
+                    ) : transactions.filter(t => 
+                      transactionSearchTerm === '' ||
+                      t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
+                      (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
+                      (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
+                    ).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                          Aucune transaction trouvée
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      transactions
+                        .filter(t => 
+                          transactionSearchTerm === '' ||
+                          t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
+                          (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
+                          (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
+                        )
+                        .map((transaction) => (
+                          <TableRow key={transaction.id} className="hover:bg-gray-50">
+                            <TableCell className="font-medium">
+                              <div>
+                                <p className="text-sm font-semibold">
+                                  {new Date(transaction.transactionDate).toLocaleDateString('fr-FR')}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(transaction.transactionDate).toLocaleTimeString('fr-FR')}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {transaction.type === 'FARMER_PAYMENT' && (
+                                <Badge className="bg-green-100 text-green-700 border-green-300">
+                                  <Users className="w-3 h-3 mr-1" />
+                                  Paiement
+                                </Badge>
+                              )}
+                              {transaction.type === 'DEBIT' && (
+                                <Badge className="bg-blue-100 text-blue-700 border-blue-300">
+                                  <PlusCircle className="w-3 h-3 mr-1" />
+                                  Débit
+                                </Badge>
+                              )}
+                              {transaction.type === 'CREDIT' && (
+                                <Badge className="bg-red-100 text-red-700 border-red-300">
+                                  <MinusCircle className="w-3 h-3 mr-1" />
+                                  Crédit
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm font-medium">{transaction.description}</p>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm text-gray-600">
+                                {transaction.farmerName || transaction.destination || '-'}
+                              </p>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className={`text-sm font-bold ${
+                                transaction.type === 'CREDIT' ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                {transaction.type === 'CREDIT' ? '-' : '+'}
+                                {Math.abs(Number(transaction.amount)).toFixed(3)} DT
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {transaction.type !== 'FARMER_PAYMENT' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteTransaction(transaction.id)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Transaction Dialog */}
+      <Dialog open={isAddTransactionOpen} onOpenChange={setIsAddTransactionOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2C3E50] flex items-center space-x-2">
+              {transactionType === 'DEBIT' ? (
+                <>
+                  <PlusCircle className="w-5 h-5 text-blue-600" />
+                  <span>Ajouter un Débit</span>
+                </>
+              ) : (
+                <>
+                  <MinusCircle className="w-5 h-5 text-red-600" />
+                  <span>Ajouter un Crédit</span>
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="amount">Montant (DT) *</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.001"
+                value={transactionForm.amount}
+                onChange={(e) => setTransactionForm({ ...transactionForm, amount: e.target.value })}
+                placeholder="Ex: 5000.000"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                value={transactionForm.description}
+                onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })}
+                placeholder={transactionType === 'DEBIT' ? 'Ex: Apport du propriétaire' : 'Ex: Achat de matériel'}
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="destination">
+                {transactionType === 'DEBIT' ? 'Provenance' : 'Destination'}
+              </Label>
+              <Input
+                id="destination"
+                value={transactionForm.destination}
+                onChange={(e) => setTransactionForm({ ...transactionForm, destination: e.target.value })}
+                placeholder={transactionType === 'DEBIT' ? 'Ex: Propriétaire' : 'Ex: Fournisseur XYZ'}
+                className="mt-1"
+              />
+            </div>
+
+            <div className="flex space-x-3 pt-4">
+              <Button
+                onClick={handleAddTransaction}
+                className={`flex-1 ${
+                  transactionType === 'DEBIT'
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
+                    : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700'
+                } text-white`}
+              >
+                {transactionType === 'DEBIT' ? <PlusCircle className="w-4 h-4 mr-2" /> : <MinusCircle className="w-4 h-4 mr-2" />}
+                Enregistrer
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddTransactionOpen(false)
+                  setTransactionForm({ amount: '', description: '', destination: '' })
+                }}
+              >
+                Annuler
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -83,6 +83,7 @@ interface Box {
   status: "available" | "in_use"
   currentFarmerId?: string
   createdAt?: string
+  assignedAt?: string
 }
 
 interface BulkBoxEntry {
@@ -485,7 +486,7 @@ export default function OliveManagement() {
 
   // Filter and search logic
   const filteredFarmers = useMemo(() => {
-    return farmers.filter((farmer) => {
+    const filtered = farmers.filter((farmer) => {
       const term = searchTerm.toLowerCase()
       const matchesName = farmer.name.toLowerCase().includes(term)
       const matchesPhone = farmer.phone?.toLowerCase().includes(term)
@@ -526,8 +527,13 @@ export default function OliveManagement() {
 
       return matchesSearch && matchesFilter && matchesToday && matchesDateRange
     })
-  }, [farmers, searchTerm, filterType, showTodayOnly, dateRangeFilter])
 
+    // Sort by dateAdded (oldest first) so first added farmer appears first
+    return filtered.sort((a, b) => 
+      new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
+    )
+  }, [farmers, searchTerm, filterType, showTodayOnly, dateRangeFilter])
+        
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
     setShowTodayOnly(!showTodayOnly)
@@ -540,8 +546,8 @@ export default function OliveManagement() {
     if (dateRangeFilter.from || dateRangeFilter.to) {
       setShowTodayOnly(false)
     }
-  }
-
+        }
+        
   const handleClearDateFilter = () => {
     setDateRangeFilter({ from: "", to: "" })
     setIsDateFilterOpen(false)
@@ -1769,26 +1775,26 @@ export default function OliveManagement() {
                 {/* Today filter button and Print icon on same line */}
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant={showTodayOnly ? "default" : "outline"}
-                      onClick={handleTodayFilterToggle}
+                  <Button
+                    size="sm"
+                    variant={showTodayOnly ? "default" : "outline"}
+                    onClick={handleTodayFilterToggle}
                       disabled={isDateFilterActive}
-                      className={`transition-all duration-200 ${
-                        showTodayOnly 
-                          ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-sm" 
-                          : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 hover:shadow-sm"
-                      }`}
-                      title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
-                    >
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Aujourd'hui
-                      {showTodayOnly && (
-                        <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
-                          {filteredFarmers.length}
-                        </span>
-                      )}
-                    </Button>
+                    className={`transition-all duration-200 ${
+                      showTodayOnly 
+                        ? "bg-orange-500 hover:bg-orange-600 text-white border-orange-500 shadow-sm" 
+                        : "border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 hover:shadow-sm"
+                    }`}
+                    title={showTodayOnly ? "Afficher tous les agriculteurs" : "Afficher uniquement les agriculteurs d'aujourd'hui"}
+                  >
+                    <Calendar className="w-4 h-4 mr-1" />
+                    Aujourd'hui
+                    {showTodayOnly && (
+                      <span className="ml-1 text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
+                        {filteredFarmers.length}
+                      </span>
+                    )}
+                  </Button>
 
                     {/* Date Range Filter */}
                     <Dialog open={isDateFilterOpen} onOpenChange={setIsDateFilterOpen}>
@@ -2641,9 +2647,9 @@ export default function OliveManagement() {
                                     </span>
                                   )}
                                 </p>
-                                {box.createdAt && (
+                                {box.assignedAt && (
                                   <p className="text-xs text-gray-500 mt-2 font-bold">
-                                    {new Date(box.createdAt).toLocaleString('fr-FR', {
+                                    {new Date(box.assignedAt).toLocaleString('fr-FR', {
                                       day: '2-digit',
                                       month: '2-digit',
                                       year: 'numeric',
@@ -2705,7 +2711,7 @@ export default function OliveManagement() {
                           >
                             <CardContent className="p-3">
                               <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-4">
                                   <Checkbox
                                     checked={box.selected}
                                     disabled={box.status !== "in_use"}
@@ -2724,9 +2730,9 @@ export default function OliveManagement() {
                                           </span>
                                         )}
                                       </p>
-                                      {box.createdAt && (
+                                      {box.assignedAt && (
                                         <p className="text-xs text-gray-500 mt-1 font-bold">
-                                          {new Date(box.createdAt).toLocaleString('fr-FR', {
+                                          {new Date(box.assignedAt).toLocaleString('fr-FR', {
                                             day: '2-digit',
                                             month: '2-digit',
                                             year: 'numeric',

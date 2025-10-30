@@ -76,6 +76,7 @@ interface ProcessingSession {
   pricePerKg: number | null  // Can be null until set during payment
   amountPaid?: number        // Track partial payments
   remainingAmount?: number   // Track remaining balance
+  notes?: string             // Session notes
 }
 
 export default function OilManagement() {
@@ -90,6 +91,7 @@ export default function OilManagement() {
     oilWeight: "",
     date: "",
     paymentDate: "",
+    notes: "",
   })
   const [notification, setNotification] = useState<{ message: string; type: "error" | "success" | "warning" } | null>(
     null,
@@ -262,6 +264,7 @@ export default function OilManagement() {
             pricePerKg: session.pricePerKg ? Number(session.pricePerKg) : null,
             amountPaid: Number(session.amountPaid || 0),
             remainingAmount: Number(session.remainingAmount || 0),
+            notes: session.notes || undefined,
           }
 
           acc[farmerId].sessions.push(transformedSession)
@@ -570,6 +573,7 @@ export default function OilManagement() {
       oilWeight: session.oilWeight > 0 ? session.oilWeight.toString() : "",
       date: session.date || new Date().toISOString().split('T')[0], // Auto-fill today's date if empty
       paymentDate: session.paymentDate || "",
+      notes: session.notes || "",
     })
   }
 
@@ -599,11 +603,12 @@ export default function OilManagement() {
 
     setSaving(true)
     try {
-      // Complete the session with oil weight, processing date, and optional payment date
+      // Complete the session with oil weight, processing date, optional payment date, and notes
       const completeResponse = await sessionsApi.complete(editingSession.id, {
         oilWeight: oilWeight,
         processingDate: sessionForm.date,
-        paymentDate: sessionForm.paymentDate || undefined
+        paymentDate: sessionForm.paymentDate || undefined,
+        notes: sessionForm.notes || undefined
       })
 
       if (!completeResponse.success) {
@@ -619,6 +624,7 @@ export default function OilManagement() {
         processingStatus: "processed" as const,
         paymentStatus: sessionForm.paymentDate ? "paid" as const : "unpaid" as const,
         paymentDate: sessionForm.paymentDate || undefined,
+        notes: sessionForm.notes || undefined,
       }
 
       // Update the selected farmer's sessions immediately
@@ -666,7 +672,7 @@ export default function OilManagement() {
 
       // Clear form and close modal
     setEditingSession(null)
-      setSessionForm({ oilWeight: "", date: "", paymentDate: "" })
+      setSessionForm({ oilWeight: "", date: "", paymentDate: "", notes: "" })
       
       const successMessage = sessionForm.paymentDate 
         ? "Session mise à jour et marquée comme payée!"
@@ -1099,6 +1105,33 @@ export default function OilManagement() {
       amountPaid: ""
     })
     setIsBulkPaymentDialogOpen(true)
+  }
+
+  const handleSendToBase = () => {
+    if (!selectedFarmer || selectedSessions.size === 0) return
+
+    const sessionIds = Array.from(selectedSessions)
+    const sessionsToConvert = selectedFarmer.sessions.filter(s => sessionIds.includes(s.id))
+    
+    // Calculate totals
+    const totalOliveWeight = sessionsToConvert.reduce((sum, s) => sum + s.totalBoxWeight, 0)
+    const totalOilWeight = sessionsToConvert.reduce((sum, s) => sum + s.oilWeight, 0)
+    
+    // Prepare data to pass to Citerne page
+    const purchaseData = {
+      farmerName: selectedFarmer.name,
+      farmerPhone: selectedFarmer.phone || '',
+      oliveWeight: totalOliveWeight.toString(),
+      oilProduced: totalOilWeight.toString(),
+      sessionIds: sessionIds,
+      farmerId: selectedFarmer.id
+    }
+    
+    // Store in sessionStorage for the Citerne page to pick up
+    sessionStorage.setItem('pendingPurchase', JSON.stringify(purchaseData))
+    
+    // Navigate to Citerne page
+    window.location.href = '/huilerie?openPurchase=true'
   }
 
   const handleBulkPayment = async () => {
@@ -2438,7 +2471,10 @@ export default function OilManagement() {
                           <span className="text-sm font-medium text-[#2C3E50]">
                             {farmer.totalAmountDue.toFixed(3)} DT
                           </span>
-                          <Badge variant={farmer.paymentStatus === "paid" ? "default" : "destructive"}>
+                          <Badge 
+                            variant={farmer.paymentStatus === "paid" ? "default" : "destructive"}
+                            className={farmer.paymentStatus === "paid" ? "bg-green-600 hover:bg-green-700" : ""}
+                          >
                             {farmer.paymentStatus === "paid" ? "Payé" : "En attente"}
                           </Badge>
                         </div>
@@ -2514,16 +2550,16 @@ export default function OilManagement() {
                             <span className="hidden sm:inline">Imprimer</span>
                             <span className="sm:hidden">Imprimer</span>
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRebuild(selectedFarmer.id)}
-                            className="border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white"
-                          >
-                            <RotateCcw className="w-4 h-4 mr-2" />
-                            <span className="hidden sm:inline">Reconstruire</span>
-                            <span className="sm:hidden">Reconstruire</span>
-                          </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRebuild(selectedFarmer.id)}
+                          className="border-[#8B4513] text-[#8B4513] hover:bg-[#8B4513] hover:text-white"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          <span className="hidden sm:inline">Reconstruire</span>
+                          <span className="sm:hidden">Reconstruire</span>
+                        </Button>
                         </div>
                       </div>
                     </div>
@@ -2606,14 +2642,24 @@ export default function OilManagement() {
                           )}
                         </div>
                         {selectedSessions.size > 0 && (
-                          <Button
-                            size="sm"
-                            onClick={handleOpenBulkPayment}
-                            className="bg-green-600 hover:bg-green-700 shadow-md"
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Marquer comme payé ({selectedSessions.size})
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={handleOpenBulkPayment}
+                              className="bg-green-600 hover:bg-green-700 shadow-md"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Marquer comme payé ({selectedSessions.size})
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleSendToBase}
+                              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md"
+                            >
+                              <Archive className="w-4 h-4 mr-2" />
+                              Envoyer vers Base ({selectedSessions.size})
+                            </Button>
+                          </>
                         )}
                       </div>
                     </CardContent>
@@ -2787,6 +2833,23 @@ export default function OilManagement() {
                                   </div>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Session Notes */}
+                            {session.notes && (
+                              <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                                <div className="flex items-start space-x-1.5">
+                                  <AlertCircle className="w-3 h-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                                  <div className="flex-1">
+                                    <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Note:</p>
+                                    <p className="text-xs text-blue-900 leading-tight">{session.notes}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                              <div></div>
                               {(session.processingStatus === "processed" || session.oilWeight > 0) && (
                                 <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">
                                   <Button
@@ -2963,6 +3026,19 @@ export default function OilManagement() {
                   onChange={(e) => setSessionForm((prev) => ({ ...prev, paymentDate: e.target.value }))}
                   placeholder="Laisser vide si non payé"
                   className="bg-white text-gray-900"
+                />
+              </div>
+              <div>
+                <Label htmlFor="sessionNotes" className="text-gray-700">
+                  Notes (optionnel)
+                </Label>
+                <textarea
+                  id="sessionNotes"
+                  value={sessionForm.notes}
+                  onChange={(e) => setSessionForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Ajouter des notes pour cette session..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#6B8E4B] focus:border-transparent bg-white text-gray-900"
                 />
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2">

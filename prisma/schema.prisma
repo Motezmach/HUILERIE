@@ -230,3 +230,61 @@ model OilSale {
   
   @@map("oil_sales")
 }
+
+model Transaction {
+  id                   String             @id @default(uuid())
+  type                 TransactionType    // FARMER_PAYMENT, DEBIT, CREDIT
+  amount               Decimal            // Positive for income, negative for expenses
+  description          String             // Description of transaction
+  farmerName           String?            // Farmer name if type is FARMER_PAYMENT
+  farmerId             String?            // Reference to farmer if applicable
+  sessionId            String?            // Reference to session if applicable
+  destination          String?            // For debits/credits: where money came from/went to
+  createdBy            String?            // Admin who created the transaction
+  transactionDate      DateTime           @default(now())
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  @@map("transactions")
+}
+
+enum TransactionType {
+  FARMER_PAYMENT       // Payment received from farmer
+  DEBIT                // Money added to revenue (income)
+  CREDIT               // Money removed from revenue (expense)
+}
+
+model Employee {
+  id                   String             @id @default(uuid())
+  name                 String             // Employee name
+  phone                String?            // Optional phone number
+  position             String?            // Job position
+  hireDate             DateTime           @default(now())
+  isActive             Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  attendance           Attendance[]       // Employee's attendance records
+  
+  @@map("employees")
+}
+
+model Attendance {
+  id                   String             @id @default(uuid())
+  employeeId           String             // Reference to employee
+  date                 DateTime           // Attendance date
+  status               AttendanceStatus   // PRESENT, ABSENT
+  notes                String?            // Optional notes
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  employee             Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  @@unique([employeeId, date], name: "employeeId_date") // One attendance record per employee per day
+  @@map("attendance")
+}
+
+enum AttendanceStatus {
+  PRESENT              // Employee was present
+  ABSENT               // Employee was absent
+}

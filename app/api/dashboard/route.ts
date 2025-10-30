@@ -73,7 +73,13 @@ export async function GET(request: NextRequest) {
       recentPayments,
       
       // Today's oil and olive weights
-      todayOilAndOlive
+      todayOilAndOlive,
+      
+      // Transactions for today (debits and credits)
+      todayTransactions,
+      
+      // All transactions (for total revenue calculation)
+      allTransactions
     ] = await Promise.all([
       // Total farmers count (filtered by date if applicable)
       prisma.farmer.count(
@@ -206,7 +212,17 @@ export async function GET(request: NextRequest) {
           oilWeight: true,
           totalBoxWeight: true
         }
-      })
+      }),
+      
+      // Today's transactions (all types)
+      prisma.transaction.findMany({
+        where: {
+          transactionDate: { gte: todayStart, lte: todayEnd }
+        }
+      }),
+      
+      // All transactions (for total calculation)
+      prisma.transaction.findMany()
     ])
 
     // Process box status counts
@@ -240,14 +256,42 @@ export async function GET(request: NextRequest) {
       }
     })
     
+    // Calculate transaction totals for today
+    const todayFarmerPayments = todayTransactions
+      .filter(t => t.type === 'FARMER_PAYMENT')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+    const todayDebits = todayTransactions
+      .filter(t => t.type === 'DEBIT')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+    const todayCredits = todayTransactions
+      .filter(t => t.type === 'CREDIT')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+    
+    // Calculate transaction totals for all time
+    const totalFarmerPayments = allTransactions
+      .filter(t => t.type === 'FARMER_PAYMENT')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+    const totalDebits = allTransactions
+      .filter(t => t.type === 'DEBIT')
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+    const totalCredits = allTransactions
+      .filter(t => t.type === 'CREDIT')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+    
+    // Calculate today's revenue: Farmer Payments + Debits - Credits
+    const calculatedTodayRevenue = todayFarmerPayments + todayDebits - todayCredits
+    
+    // Calculate total revenue: Farmer Payments + Debits - Credits
+    const calculatedTotalRevenue = totalFarmerPayments + totalDebits - totalCredits
+
     // Calculate metrics
     const metrics = {
       totalFarmers,
       totalBoxes: 600, // Fixed total factory boxes based on your memory
       activeBoxes: availableBoxes, // Available boxes (ready for assignment)
       pendingExtractions,
-      todayRevenue: Number(todayRevenue._sum.amountPaid || 0), // Fixed to use amountPaid
-      totalRevenue: Number(totalRevenue._sum.amountPaid || 0), // Fixed to use amountPaid
+      todayRevenue: calculatedTodayRevenue, // Now includes farmer payments + debits - credits
+      totalRevenue: calculatedTotalRevenue, // Now includes farmer payments + debits - credits
       averageOilExtraction: Number(avgOilExtraction._avg.oilWeight || 0),
       metricDate: todayStart.toISOString(),
       chkaraCount: chkaraCount, // Add Chkara count

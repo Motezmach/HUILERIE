@@ -18,7 +18,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const sessionId = uuidSchema.parse(params.id)
     const body = await request.json()
-    const { oilWeight, processingDate, paymentDate } = completeSessionSchema.parse(body)
+    const { oilWeight, processingDate, paymentDate, notes } = body
 
     // Check if session exists
     const existingSession = await prisma.processingSession.findUnique({
@@ -68,6 +68,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (paymentDate) {
         updateData.paymentStatus = 'PAID'
         updateData.paymentDate = new Date(paymentDate)
+      }
+
+      // Add notes if provided
+      if (notes !== undefined) {
+        updateData.notes = notes || null
       }
 
       const updatedSession = await tx.processingSession.update({

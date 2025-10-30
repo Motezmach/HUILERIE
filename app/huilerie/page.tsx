@@ -78,10 +78,6 @@ interface Purchase {
 
 export default function HuileriePage() {
   const router = useRouter()
-  const [showPasswordDialog, setShowPasswordDialog] = useState(true)
-  const [password, setPassword] = useState('')
-  const [passwordError, setPasswordError] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [user, setUser] = useState<any>(null)
   
   // Data states
@@ -118,40 +114,56 @@ export default function HuileriePage() {
     oilProduced: '',
     safeId: '',
     notes: '',
-    purchaseDate: new Date().toISOString().split('T')[0]
+    purchaseDate: new Date().toISOString().split('T')[0],
+    sessionIds: [] as string[], // Track sessions to delete after purchase
+    farmerId: '' // Track farmer ID for session deletion
   })
 
-  // Initialize user
+  // Initialize user and load data
   useEffect(() => {
     const currentUser = getCurrentUser()
     setUser(currentUser)
     
     if (!currentUser) {
       router.push('/login')
+      return
+    }
+
+    // Load data immediately (password is handled by layout)
+    loadSafes()
+    loadPurchases()
+
+    // Check if coming from oil management with pending purchase
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('openPurchase') === 'true') {
+      const pendingData = sessionStorage.getItem('pendingPurchase')
+      if (pendingData) {
+        try {
+          const purchaseData = JSON.parse(pendingData)
+          // Auto-fill the purchase form
+          setPurchaseForm({
+            farmerName: purchaseData.farmerName,
+            farmerPhone: purchaseData.farmerPhone,
+            oliveWeight: purchaseData.oliveWeight,
+            pricePerKg: '',
+            oilProduced: purchaseData.oilProduced,
+            safeId: '',
+            notes: `Achat depuis ${purchaseData.sessionIds.length} session(s) du farmer`,
+            purchaseDate: new Date().toISOString().split('T')[0],
+            sessionIds: purchaseData.sessionIds,
+            farmerId: purchaseData.farmerId
+          })
+          // Open the dialog
+          setIsCreatePurchaseOpen(true)
+          // Don't clear session storage yet - only after successful purchase
+          // Clean URL
+          window.history.replaceState({}, '', '/huilerie')
+        } catch (error) {
+          console.error('Error parsing pending purchase:', error)
+        }
+      }
     }
   }, [])
-
-  // Load data after password is verified
-  useEffect(() => {
-    if (!showPasswordDialog) {
-      loadSafes()
-      loadPurchases()
-    }
-  }, [showPasswordDialog])
-
-  const handlePasswordSubmit = () => {
-    if (password === '9999') {
-      setShowPasswordDialog(false)
-      setPasswordError('')
-    } else {
-      setPasswordError('Mot de passe incorrect')
-      setPassword('')
-    }
-  }
-
-  const handleBackToDashboard = () => {
-    router.push('/dashboard')
-  }
 
   // Handle Excel export download
   const handleDownloadExcel = async () => {
@@ -221,7 +233,7 @@ export default function HuileriePage() {
       
       if (data.success) {
         setSafes(data.data)
-      } else {
+    } else {
         showNotification(data.error || 'Erreur lors du chargement des coffres', 'error')
       }
     } catch (error) {
@@ -295,14 +307,16 @@ export default function HuileriePage() {
     if (!purchaseForm.farmerName.trim()) {
       showNotification('Le nom du fournisseur est requis', 'error')
       return
-    }
+  }
 
-    const oliveWeight = parseFloat(purchaseForm.oliveWeight)
+    // Olives are now optional when coming from sessions
+    const oliveWeight = purchaseForm.oliveWeight ? parseFloat(purchaseForm.oliveWeight) : null
     const pricePerKg = parseFloat(purchaseForm.pricePerKg)
-    const oilProduced = purchaseForm.oilProduced ? parseFloat(purchaseForm.oilProduced) : null
+    const oilProduced = parseFloat(purchaseForm.oilProduced)
 
-    if (isNaN(oliveWeight) || oliveWeight <= 0) {
-      showNotification('Le poids des olives doit être supérieur à 0', 'error')
+    // Oil is now required
+    if (isNaN(oilProduced) || oilProduced <= 0) {
+      showNotification('La quantité d\'huile produite est requise', 'error')
       return
     }
 
@@ -311,9 +325,9 @@ export default function HuileriePage() {
       return
     }
 
-    // Oil is optional - can be null for pending production
-    if (oilProduced !== null && (isNaN(oilProduced) || oilProduced <= 0)) {
-      showNotification('La quantité d\'huile produite doit être supérieure à 0', 'error')
+    // Olives can be null when coming from sessions (we already have oil)
+    if (oliveWeight !== null && (isNaN(oliveWeight) || oliveWeight <= 0)) {
+      showNotification('Le poids des olives doit être supérieur à 0', 'error')
       return
     }
 
@@ -343,6 +357,26 @@ export default function HuileriePage() {
       
       if (data.success) {
         setPurchases([data.data, ...purchases])
+        
+        // If this purchase was created from sessions, delete those sessions
+        if (purchaseForm.sessionIds.length > 0 && purchaseForm.farmerId) {
+          try {
+            const deletePromises = purchaseForm.sessionIds.map(sessionId =>
+              fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+            )
+            await Promise.all(deletePromises)
+            showNotification(`Achat enregistré! ${purchaseForm.sessionIds.length} session(s) convertie(s) avec succès!`, 'success')
+          } catch (error) {
+            console.error('Error deleting sessions:', error)
+            showNotification('Achat enregistré, mais erreur lors de la suppression des sessions', 'warning')
+          }
+        } else {
+          showNotification('Achat enregistré avec succès!', 'success')
+        }
+
+        // Clear session storage
+        sessionStorage.removeItem('pendingPurchase')
+        
         setIsCreatePurchaseOpen(false)
         setPurchaseForm({
           farmerName: '',
@@ -352,9 +386,10 @@ export default function HuileriePage() {
           oilProduced: '',
           safeId: '',
           notes: '',
-          purchaseDate: new Date().toISOString().split('T')[0]
+          purchaseDate: new Date().toISOString().split('T')[0],
+          sessionIds: [],
+          farmerId: ''
         })
-        showNotification('Achat enregistré avec succès!', 'success')
         loadSafes() // Reload to update stock levels
       } else {
         showNotification(data.error || 'Erreur lors de l\'enregistrement', 'error')
@@ -497,82 +532,9 @@ export default function HuileriePage() {
     ? purchasesWithOil.reduce((sum, p) => sum + (p.yieldPercentage || 0), 0) / purchasesWithOil.length
     : 0
 
-  // Password Dialog
-  if (showPasswordDialog) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#2C3E50] via-[#34495E] to-[#2C3E50] flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-2xl border-2 border-[#F4D03F]">
-          <CardHeader className="text-center bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] text-white rounded-t-lg">
-            <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-[#F4D03F] to-[#F39C12] rounded-full flex items-center justify-center shadow-lg">
-                  <Crown className="w-8 h-8 text-white" />
-                </div>
-              </div>
-            <CardTitle className="text-2xl font-bold flex items-center justify-center">
-              <Lock className="w-6 h-6 mr-2" />
-              Section Propriétaire
-            </CardTitle>
-            <p className="text-sm text-white/80 mt-2">Accès Restreint - Code Requis</p>
-          </CardHeader>
-          <CardContent className="p-6">
-              <div className="space-y-4">
-              <div>
-                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                  Code d'accès
-                </Label>
-                <div className="relative mt-1">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
-                    placeholder="Entrez le code"
-                    className="pr-10"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {passwordError && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {passwordError}
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handlePasswordSubmit}
-                  className="flex-1 bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35]"
-                >
-                  <Lock className="w-4 h-4 mr-2" />
-                  Déverrouiller
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleBackToDashboard}
-                  className="flex-1"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Retour
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  // Main Interface
+  // Main Interface (Password is handled by layout)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FDF5E6] via-[#F8F4E8] to-[#F5F1E3]">
+    <div className="p-6 space-y-6">
       {/* Notification */}
       {notification && (
         <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top">
@@ -588,52 +550,10 @@ export default function HuileriePage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{notification.message}</AlertDescription>
           </Alert>
-        </div>
+            </div>
       )}
 
-      {/* Header */}
-      <header className="bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] shadow-lg">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#F4D03F] to-[#F39C12] rounded-lg flex items-center justify-center shadow-lg">
-                <Crown className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">HUILERIE MASMOUDI</h1>
-                <p className="text-white/80 text-sm">Section Propriétaire</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDownloadExcel}
-                className="h-8 w-8 p-0 text-white hover:bg-white/20 transition-colors"
-                title="Télécharger l'export Excel de toutes les données"
-              >
-                <Download className="w-5 h-5" />
-              </Button>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                <Star className="w-3 h-3 mr-1" />
-                Propriétaire
-              </Badge>
-              <Button
-                onClick={handleBackToDashboard}
-                variant="secondary"
-                size="sm"
-                className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Retour au Dashboard
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="p-6 space-y-6">
+      {/* Content (Header is in layout) */}
         {/* Overview Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
@@ -1316,7 +1236,6 @@ export default function HuileriePage() {
             </CardContent>
           </Card>
         )}
-                  </div>
 
       {/* Print Views */}
       {printingSafe && selectedSafe && (
@@ -1449,7 +1368,7 @@ export default function HuileriePage() {
                 placeholder="Ex: Coffre pour huile extra vierge"
                 rows={3}
               />
-                    </div>
+                  </div>
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleCreateSafe}
@@ -1486,6 +1405,23 @@ export default function HuileriePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Info banner if coming from sessions */}
+            {purchaseForm.sessionIds.length > 0 && (
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <Archive className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                    <p className="font-semibold text-purple-900 mb-1">Achat depuis sessions</p>
+                    <p className="text-sm text-purple-700">
+                      {purchaseForm.sessionIds.length} session(s) seront automatiquement supprimées après la sauvegarde de cet achat.
+                    </p>
+                    <p className="text-xs text-purple-600 mt-1">
+                      ⚠️ Cliquez "Annuler" pour conserver les sessions
+                    </p>
+                    </div>
+                    </div>
+                  </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                 <Label htmlFor="farmerName">Nom du Fournisseur *</Label>
@@ -1509,15 +1445,18 @@ export default function HuileriePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                <Label htmlFor="oliveWeight">Poids des Olives (kg) *</Label>
+                <Label htmlFor="oliveWeight">Poids des Olives (kg) <span className="text-gray-500">(optionnel)</span></Label>
                 <Input
                   id="oliveWeight"
                   type="number"
                   step="0.01"
                   value={purchaseForm.oliveWeight}
                   onChange={(e) => setPurchaseForm({...purchaseForm, oliveWeight: e.target.value})}
-                  placeholder="Ex: 500"
+                  placeholder="Ex: 500 (optionnel)"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Optionnel si l'huile est déjà produite
+                </p>
                     </div>
                     <div>
                 <Label htmlFor="pricePerKg">Prix par kg (DT) *</Label>
@@ -1534,24 +1473,19 @@ export default function HuileriePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                <Label htmlFor="oilProduced">Huile Produite (kg) <span className="text-amber-600">(optionnel)</span></Label>
+                <Label htmlFor="oilProduced">Huile Produite (kg) *</Label>
                 <Input
                   id="oilProduced"
                   type="number"
                   step="0.01"
                   value={purchaseForm.oilProduced}
                   onChange={(e) => setPurchaseForm({...purchaseForm, oilProduced: e.target.value})}
-                  placeholder="Ex: 90 (laisser vide si en attente)"
-                  className={!purchaseForm.oilProduced ? 'border-amber-300' : ''}
+                  placeholder="Ex: 90"
+                  className="border-green-300"
                 />
                 {purchaseForm.oliveWeight && purchaseForm.oilProduced && (
                   <p className="text-xs text-gray-500 mt-1">
                     Rendement: {((parseFloat(purchaseForm.oilProduced) / parseFloat(purchaseForm.oliveWeight)) * 100).toFixed(1)}%
-                  </p>
-                )}
-                {!purchaseForm.oilProduced && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    ℹ️ Laissez vide pour ajouter l'huile plus tard
                   </p>
                 )}
                       </div>

@@ -16,6 +16,9 @@ CREATE TYPE "PaymentStatus" AS ENUM ('UNPAID', 'PARTIAL', 'PAID', 'PENDING');
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'USER', 'MANAGER');
 
+-- CreateEnum
+CREATE TYPE "TransactionType" AS ENUM ('FARMER_PAYMENT', 'DEBIT', 'CREDIT');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
@@ -181,6 +184,24 @@ CREATE TABLE "oil_sales" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "oil_sales_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "transactions" (
+    "id" TEXT NOT NULL,
+    "type" "TransactionType" NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
+    "description" TEXT NOT NULL,
+    "farmerName" TEXT,
+    "farmerId" TEXT,
+    "sessionId" TEXT,
+    "destination" TEXT,
+    "createdBy" TEXT,
+    "transactionDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "transactions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex

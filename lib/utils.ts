@@ -296,7 +296,8 @@ export function transformBoxFromDb(box: any) {
     selected: box.isSelected || false,
     status: box.status.toLowerCase(),
     currentFarmerId: box.currentFarmerId,
-    createdAt: box.createdAt
+    createdAt: box.createdAt,
+    assignedAt: box.assignedAt
   }
 }
 

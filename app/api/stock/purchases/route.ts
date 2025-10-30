@@ -81,9 +81,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!oliveWeight || oliveWeight <= 0) {
+    // Oil is now required
+    if (!oilProduced || oilProduced <= 0) {
       return NextResponse.json(
-        createErrorResponse('Le poids des olives doit être supérieur à 0'),
+        createErrorResponse('La quantité d\'huile produite est requise'),
         { status: 400 }
       )
     }
@@ -95,10 +96,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Oil can be null for pending production
-    if (oilProduced !== undefined && oilProduced !== null && oilProduced <= 0) {
+    // Olives can be null when buying oil directly (sessions conversion)
+    if (oliveWeight !== undefined && oliveWeight !== null && oliveWeight <= 0) {
       return NextResponse.json(
-        createErrorResponse('La quantité d\'huile produite doit être supérieure à 0'),
+        createErrorResponse('Le poids des olives doit être supérieur à 0'),
         { status: 400 }
       )
     }
@@ -133,9 +134,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate totals
-    const totalCost = oliveWeight * pricePerKg
-    const yieldPercentage = oilProduced ? (oilProduced / oliveWeight) * 100 : null
+    // Calculate totals (use oil weight for cost if no olives)
+    const totalCost = oliveWeight ? (oliveWeight * pricePerKg) : (oilProduced * pricePerKg)
+    const yieldPercentage = (oliveWeight && oilProduced) ? (oilProduced / oliveWeight) * 100 : null
 
     // Create purchase and update safe stock in transaction (only if oil is provided)
     const result = await prisma.$transaction(async (tx: any) => {
@@ -144,11 +145,11 @@ export async function POST(request: NextRequest) {
         data: {
           farmerName: farmerName.trim(),
           farmerPhone: farmerPhone?.trim() || null,
-          oliveWeight: oliveWeight,
+          oliveWeight: oliveWeight || 0, // Use 0 if not provided (buying oil directly)
           pricePerKg: pricePerKg,
           totalCost: totalCost,
-          oilProduced: oilProduced || null,
-          yieldPercentage: yieldPercentage,
+          oilProduced: oilProduced,
+          yieldPercentage: yieldPercentage || 0,
           safeId: safeId,
           notes: notes?.trim() || null,
           purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date()

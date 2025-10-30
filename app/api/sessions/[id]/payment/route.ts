@@ -53,7 +53,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const existingSession = await prisma.processingSession.findUnique({
       where: { id: sessionId },
       include: {
-        paymentTransactions: true
+        paymentTransactions: true,
+        farmer: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       }
     })
 
@@ -108,6 +114,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           amount: Number(amountPaid),
           paymentMethod: paymentMethod || null,
           notes: notes || null
+        }
+      })
+
+      // Create revenue transaction for tracking (FARMER_PAYMENT)
+      await tx.transaction.create({
+        data: {
+          type: 'FARMER_PAYMENT',
+          amount: Number(amountPaid),
+          description: `Paiement session ${existingSession.sessionNumber}`,
+          farmerName: existingSession.farmer?.name || 'Agriculteur',
+          farmerId: existingSession.farmerId,
+          sessionId: sessionId,
+          transactionDate: new Date()
         }
       })
 

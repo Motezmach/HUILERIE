@@ -87,6 +87,27 @@ export async function POST(request: NextRequest) {
         }))
       )
 
+      // Collect and combine all notes from the sessions
+      const sessionsWithNotes = sessionsToDelete.filter(session => session.notes && session.notes.trim())
+      
+      let finalNotes = ''
+      if (sessionsWithNotes.length > 0) {
+        // Combine all notes with session identification
+        finalNotes = sessionsWithNotes
+          .map(session => `Note session ${session.sessionNumber}:\n${session.notes}`)
+          .join('\n\n')
+      } else {
+        // Default message if no notes
+        finalNotes = `Session groupée de ${sessionIds.length} sessions`
+      }
+
+      console.log('📝 Combining notes:', {
+        totalSessions: sessionsToDelete.length,
+        sessionsWithNotes: sessionsWithNotes.length,
+        combinedNotesLength: finalNotes.length,
+        preview: finalNotes.substring(0, 100)
+      })
+
       // Generate new session number (use first session's number + " (Groupé)")
       const firstSessionNumber = sessionsToDelete[0].sessionNumber
       const newSessionNumber = `${firstSessionNumber.split(' ')[0]} (Groupé)`
@@ -107,7 +128,7 @@ export async function POST(request: NextRequest) {
           processingStatus: 'PROCESSED',
           paymentStatus: paymentStatus,
           paymentDate: paymentDate ? new Date(paymentDate) : (paymentStatus === 'PAID' ? new Date() : null),
-          notes: `Session groupée de ${sessionIds.length} sessions`
+          notes: finalNotes
         }
       })
 
@@ -132,6 +153,19 @@ export async function POST(request: NextRequest) {
             paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
             paymentMethod: 'Paiement groupé',
             notes: `Paiement groupé pour ${sessionIds.length} sessions`
+          }
+        })
+
+        // Create revenue transaction for tracking (FARMER_PAYMENT)
+        await tx.transaction.create({
+          data: {
+            type: 'FARMER_PAYMENT',
+            amount: amountPaid,
+            description: `Paiement groupé session ${newSessionNumber} (${sessionIds.length} sessions)`,
+            farmerName: farmer.name,
+            farmerId: farmerId,
+            sessionId: combinedSession.id,
+            transactionDate: new Date()
           }
         })
       }
