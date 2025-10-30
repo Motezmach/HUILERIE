@@ -288,3 +288,38 @@ enum AttendanceStatus {
   PRESENT              // Employee was present
   ABSENT               // Employee was absent
 }
+
+// ==================== OLIVE COLLECTORS MANAGEMENT ====================
+
+model CollectorGroup {
+  id                   String             @id @default(uuid())
+  name                 String             @unique // Group name (e.g., "Groupe A", "Équipe 1")
+  isActive             Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  collections          DailyCollection[]  // Daily collections by this group
+  
+  @@map("collector_groups")
+}
+
+model DailyCollection {
+  id                   String             @id @default(uuid())
+  groupId              String             // Which group collected
+  collectionDate       DateTime           // Date of collection
+  location             String             // Where they collected (e.g., "Ferme Ahmed", "Nord Village")
+  clientName           String             // For whom they collected (owner of olives)
+  chakraCount          Int                @default(0) // Number of full chakra
+  galbaCount           Int                @default(0) // Number of galba (5 galba = 1 chakra)
+  totalChakra          Decimal            // Calculated: chakraCount + (galbaCount / 5)
+  pricePerChakra       Decimal?           // Optional: price per chakra if needed
+  totalAmount          Decimal?           // Optional: total payment amount
+  notes                String?            // Optional notes
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  group                CollectorGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@index([collectionDate, groupId])
+  @@map("daily_collections")
+}

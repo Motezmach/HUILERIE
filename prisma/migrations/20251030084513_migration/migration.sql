@@ -19,6 +19,9 @@ CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'USER', 'MANAGER');
 -- CreateEnum
 CREATE TYPE "TransactionType" AS ENUM ('FARMER_PAYMENT', 'DEBIT', 'CREDIT');
 
+-- CreateEnum
+CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT', 'ABSENT');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
@@ -204,6 +207,63 @@ CREATE TABLE "transactions" (
     CONSTRAINT "transactions_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "employees" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "phone" TEXT,
+    "position" TEXT,
+    "hireDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "employees_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "attendance" (
+    "id" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
+    "status" "AttendanceStatus" NOT NULL,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "attendance_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "collector_groups" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "collector_groups_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "daily_collections" (
+    "id" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "collectionDate" TIMESTAMP(3) NOT NULL,
+    "location" TEXT NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "chakraCount" INTEGER NOT NULL DEFAULT 0,
+    "galbaCount" INTEGER NOT NULL DEFAULT 0,
+    "totalChakra" DECIMAL(65,30) NOT NULL,
+    "pricePerChakra" DECIMAL(65,30),
+    "totalAmount" DECIMAL(65,30),
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "daily_collections_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
 
@@ -221,6 +281,15 @@ CREATE UNIQUE INDEX "dashboard_metrics_metricDate_key" ON "dashboard_metrics"("m
 
 -- CreateIndex
 CREATE UNIQUE INDEX "oil_safes_name_key" ON "oil_safes"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "attendance_employeeId_date_key" ON "attendance"("employeeId", "date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "collector_groups_name_key" ON "collector_groups"("name");
+
+-- CreateIndex
+CREATE INDEX "daily_collections_collectionDate_groupId_idx" ON "daily_collections"("collectionDate", "groupId");
 
 -- AddForeignKey
 ALTER TABLE "boxes" ADD CONSTRAINT "boxes_currentFarmerId_fkey" FOREIGN KEY ("currentFarmerId") REFERENCES "farmers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -242,3 +311,9 @@ ALTER TABLE "olive_purchases" ADD CONSTRAINT "olive_purchases_safeId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "oil_sales" ADD CONSTRAINT "oil_sales_safeId_fkey" FOREIGN KEY ("safeId") REFERENCES "oil_safes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "attendance" ADD CONSTRAINT "attendance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "daily_collections" ADD CONSTRAINT "daily_collections_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "collector_groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -15,7 +15,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  Package
 } from "lucide-react"
 import { getCurrentUser } from '@/lib/auth-client'
 import Link from 'next/link'
@@ -175,6 +176,7 @@ export default function HuilerieLayout({
   const navItems = [
     { href: '/huilerie', label: 'Citerne', icon: Archive },
     { href: '/huilerie/employees', label: 'Employés', icon: Users },
+    { href: '/huilerie/collectors', label: 'Collecteurs', icon: Package },
   ]
 
   return (
