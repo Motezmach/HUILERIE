@@ -40,12 +40,12 @@ export async function PUT(
     const finalGalbaCount = galbaCount !== undefined ? parseInt(galbaCount) : current.galbaCount
     const totalChakra = new Decimal(finalChakraCount).plus(new Decimal(finalGalbaCount).dividedBy(5))
     
-    // Calculate total amount
+    // Calculate total amount (default to 0 if not provided)
     const finalPricePerChakra = pricePerChakra !== undefined ? 
-      (pricePerChakra ? new Decimal(pricePerChakra) : null) : 
+      (pricePerChakra ? new Decimal(pricePerChakra) : new Decimal(0)) : 
       current.pricePerChakra
     
-    const totalAmount = finalPricePerChakra ? totalChakra.times(finalPricePerChakra) : null
+    const totalAmount = totalChakra.times(finalPricePerChakra)
 
     const updateData: any = {
       totalChakra,

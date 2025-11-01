@@ -1835,195 +1835,210 @@ const PrintAllPurchases = ({ purchases, safes }: { purchases: Purchase[]; safes:
     <div className="print-all-purchases">
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
+          /* Hide everything except print content */
           body * {
             visibility: hidden;
           }
+          
           .print-all-purchases,
           .print-all-purchases * {
             visibility: visible;
           }
+          
           .print-all-purchases {
             position: absolute;
             left: 0;
             top: 0;
             width: 100%;
-            padding: 15mm;
             background: white;
+            padding: 0;
+            margin: 0;
           }
+          
+          /* Page setup - portrait A4 */
           @page {
             size: A4 portrait;
-            margin: 15mm;
+            margin: 10mm 12mm;
           }
+          
+          body {
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
+          
+          /* Avoid page breaks inside elements */
           .page-break-inside-avoid {
             page-break-inside: avoid;
           }
+          
           thead {
             display: table-header-group;
           }
+          
           tfoot {
             display: table-footer-group;
           }
+          
           tr {
             page-break-inside: avoid;
           }
         }
         .all-header {
           border-bottom: 3px solid #9333ea;
-          padding-bottom: 12px;
-          margin-bottom: 15px;
+          padding-bottom: 10px;
+          margin-bottom: 12px;
         }
         .purchases-table {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 12px;
-          font-size: 9px;
+          margin-top: 10px;
+          font-size: 10px;
         }
         .purchases-table th {
-          background: #9333ea;
-          color: white;
-          padding: 6px 4px;
+          background: #9333ea !important;
+          color: white !important;
+          padding: 8px 6px;
           text-align: left;
           font-weight: bold;
           border: 1px solid #7e22ce;
-          font-size: 9px;
+          font-size: 10px;
         }
         .purchases-table td {
-          padding: 5px 4px;
-          border: 1px solid #ddd;
-          font-size: 8px;
+          padding: 6px 4px;
+          border: 1px solid #ccc;
+          font-size: 9px;
         }
         .purchases-table tbody tr:nth-child(even) {
-          background: #faf5ff;
+          background: #faf5ff !important;
+        }
+        .purchases-table tbody tr:nth-child(odd) {
+          background: white !important;
         }
         .purchases-table tfoot tr {
-          background: #f0f5eb;
+          background: #f0f5eb !important;
           font-weight: bold;
           border-top: 3px solid #6B8E4B;
         }
         .summary-box {
-          background: #f0f5eb;
-          border: 2px solid #6B8E4B;
-          padding: 10px;
-          margin: 12px 0;
-          border-radius: 6px;
+          background: #f9f9f9 !important;
+          border: 2px solid #9333ea;
+          padding: 12px;
+          margin: 10px 0;
+          border-radius: 0;
         }
         .print-footer {
-          margin-top: 20px;
-          padding-top: 12px;
+          margin-top: 15px;
+          padding-top: 10px;
           border-top: 2px solid #9333ea;
           text-align: center;
+        }
+        
+        @media print {
+          * {
+            box-shadow: none !important;
+          }
         }
       `}} />
       
       <div>
         {/* Header */}
         <div className="all-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#9333ea', marginBottom: '4px' }}>
-                HUILERIE MASMOUDI
+              <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#9333ea', marginBottom: '3px', margin: '0' }}>
+                HUILERIE MASMOUDI - Tous les Achats
               </h1>
-              <p style={{ fontSize: '10px', color: '#666' }}>Section Propriétaire - Tous les Achats</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '9px', color: '#666' }}>Date d'impression:</p>
-              <p style={{ fontSize: '10px', fontWeight: 'bold' }}>
-                {new Date().toLocaleDateString('fr-FR')} {new Date().toLocaleTimeString('fr-FR')}
+              <p style={{ fontSize: '10px', color: '#666', margin: '0' }}>
+                {purchases.length} achat(s) • Imprimé le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
-                    </div>
-                  </div>
+          </div>
+        </div>
 
         {/* Global Summary */}
         <div className="summary-box">
-          <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#2C3E50', marginBottom: '8px' }}>
-            Résumé Global ({purchases.length} achats)
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', textAlign: 'center' }}>
             <div>
-              <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Total Olives</p>
-              <p style={{ fontSize: '14px', fontWeight: 'bold' }}>{totalOlives.toFixed(1)} kg</p>
-                    </div>
+              <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Total Olives</p>
+              <p style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>{totalOlives.toFixed(1)} kg</p>
+            </div>
             <div>
-              <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Total Huile</p>
-              <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#16a34a' }}>{totalOil.toFixed(1)} kg</p>
-                  </div>
+              <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Total Huile</p>
+              <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#16a34a', margin: '0' }}>{totalOil.toFixed(1)} kg</p>
+            </div>
             <div>
-              <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Rendement Moyen</p>
-              <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#9333ea' }}>{avgYield.toFixed(1)}%</p>
-                </div>
+              <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Rendement Moyen</p>
+              <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#9333ea', margin: '0' }}>{avgYield.toFixed(1)}%</p>
+            </div>
             <div>
-              <p style={{ fontSize: '8px', color: '#666', marginBottom: '2px' }}>Investissement Total</p>
-              <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#d97706' }}>{totalCost.toFixed(0)} DT</p>
+              <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Investissement Total</p>
+              <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#d97706', margin: '0' }}>{totalCost.toFixed(0)} DT</p>
             </div>
           </div>
         </div>
 
         {/* All Purchases Table */}
-        <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#2C3E50', marginTop: '12px', marginBottom: '6px' }}>
-          Liste Complète des Achats
-        </h3>
-        
         <table className="purchases-table">
           <thead>
             <tr>
-              <th style={{ width: '5%' }}>N°</th>
-              <th style={{ width: '9%' }}>Date</th>
-              <th style={{ width: '13%' }}>Coffre</th>
+              <th style={{ width: '4%', textAlign: 'center' }}>N°</th>
+              <th style={{ width: '8%' }}>Date</th>
+              <th style={{ width: '12%' }}>Coffre</th>
               <th style={{ width: '15%' }}>Fournisseur</th>
-              <th style={{ width: '10%' }}>Téléphone</th>
-              <th style={{ width: '9%' }}>Olives (kg)</th>
-              <th style={{ width: '8%' }}>Prix/kg</th>
-              <th style={{ width: '9%' }}>Huile (kg)</th>
-              <th style={{ width: '8%' }}>Rend.</th>
-              <th style={{ width: '9%' }}>Coût (DT)</th>
-              <th style={{ width: '5%' }}>Notes</th>
+              <th style={{ width: '11%' }}>Téléphone</th>
+              <th style={{ width: '10%', textAlign: 'right' }}>Olives<br/>(kg)</th>
+              <th style={{ width: '8%', textAlign: 'right' }}>Prix/kg<br/>(DT)</th>
+              <th style={{ width: '10%', textAlign: 'right' }}>Huile<br/>(kg)</th>
+              <th style={{ width: '7%', textAlign: 'center' }}>Rend.<br/>(%)</th>
+              <th style={{ width: '10%', textAlign: 'right' }}>Coût<br/>(DT)</th>
+              <th style={{ width: '5%', textAlign: 'center' }}>Notes</th>
             </tr>
           </thead>
           <tbody>
             {purchases.map((purchase, index) => (
               <tr key={purchase.id}>
-                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
-                <td style={{ fontWeight: 'bold' }}>
-                  {new Date(purchase.purchaseDate).toLocaleDateString('fr-FR')}
+                <td style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '9px' }}>{index + 1}</td>
+                <td style={{ fontSize: '9px' }}>
+                  {new Date(purchase.purchaseDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                 </td>
-                <td style={{ fontWeight: 'bold', color: '#6B8E4B' }}>{purchase.safeName}</td>
-                <td style={{ fontWeight: 'bold' }}>{purchase.farmerName}</td>
-                <td>{purchase.farmerPhone || '-'}</td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                  {purchase.oliveWeight.toFixed(2)}
+                <td style={{ fontWeight: '600', color: '#6B8E4B', fontSize: '9px' }}>{purchase.safeName}</td>
+                <td style={{ fontWeight: '600', fontSize: '9px' }}>{purchase.farmerName}</td>
+                <td style={{ fontSize: '8px', color: '#666' }}>{purchase.farmerPhone || '-'}</td>
+                <td style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '9px' }}>
+                  {purchase.oliveWeight.toFixed(1)}
                 </td>
-                <td style={{ textAlign: 'right' }}>
+                <td style={{ textAlign: 'right', fontSize: '9px' }}>
                   {purchase.pricePerKg.toFixed(2)}
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#16a34a' }}>
-                  {purchase.oilProduced ? purchase.oilProduced.toFixed(2) : 'En attente'}
+                <td style={{ textAlign: 'right', fontWeight: 'bold', color: purchase.oilProduced ? '#16a34a' : '#d97706', fontSize: '9px' }}>
+                  {purchase.oilProduced ? purchase.oilProduced.toFixed(1) : 'Attente'}
                 </td>
-                <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                  {purchase.yieldPercentage ? purchase.yieldPercentage.toFixed(1) + '%' : '-'}
+                <td style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '9px' }}>
+                  {purchase.yieldPercentage ? purchase.yieldPercentage.toFixed(1) : '-'}
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#d97706' }}>
-                  {purchase.totalCost.toFixed(2)}
+                <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#d97706', fontSize: '9px' }}>
+                  {purchase.totalCost.toFixed(0)}
                 </td>
-                <td style={{ fontSize: '7px' }}>{purchase.notes ? (purchase.notes.length > 15 ? purchase.notes.substring(0, 15) + '...' : purchase.notes) : '-'}</td>
+                <td style={{ fontSize: '7px', textAlign: 'center' }}>{purchase.notes ? '✓' : '-'}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5} style={{ textAlign: 'right', fontSize: '9px', fontWeight: 'bold' }}>TOTAUX:</td>
-              <td style={{ textAlign: 'right', color: '#2C3E50', fontSize: '9px', fontWeight: 'bold' }}>
-                {totalOlives.toFixed(2)} kg
+              <td colSpan={5} style={{ textAlign: 'right', fontSize: '10px', fontWeight: 'bold', padding: '8px' }}>TOTAUX:</td>
+              <td style={{ textAlign: 'right', color: '#2C3E50', fontSize: '10px', fontWeight: 'bold' }}>
+                {totalOlives.toFixed(1)}
               </td>
               <td style={{ textAlign: 'center' }}>-</td>
-              <td style={{ textAlign: 'right', color: '#16a34a', fontSize: '9px', fontWeight: 'bold' }}>
-                {totalOil.toFixed(2)} kg
+              <td style={{ textAlign: 'right', color: '#16a34a', fontSize: '10px', fontWeight: 'bold' }}>
+                {totalOil.toFixed(1)}
               </td>
-              <td style={{ textAlign: 'center', color: '#9333ea', fontSize: '9px', fontWeight: 'bold' }}>
+              <td style={{ textAlign: 'center', color: '#9333ea', fontSize: '10px', fontWeight: 'bold' }}>
                 {avgYield.toFixed(1)}%
               </td>
-              <td style={{ textAlign: 'right', color: '#d97706', fontSize: '9px', fontWeight: 'bold' }}>
-                {totalCost.toFixed(2)} DT
+              <td style={{ textAlign: 'right', color: '#d97706', fontSize: '10px', fontWeight: 'bold' }}>
+                {totalCost.toFixed(0)}
               </td>
               <td>-</td>
             </tr>
@@ -2032,11 +2047,8 @@ const PrintAllPurchases = ({ purchases, safes }: { purchases: Purchase[]; safes:
 
         {/* Footer */}
         <div className="print-footer">
-          <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#2C3E50' }}>
-            HUILERIE MASMOUDI - Rapport Complet des Achats d'Olives
-          </p>
-          <p style={{ fontSize: '8px', color: '#666', marginTop: '3px' }}>
-            Document généré automatiquement - {purchases.length} achat(s) enregistré(s)
+          <p style={{ fontSize: '9px', color: '#666', margin: '0' }}>
+            Document généré automatiquement • HUILERIE MASMOUDI • {new Date().getFullYear()}
           </p>
         </div>
       </div>

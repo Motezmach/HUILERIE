@@ -25,7 +25,9 @@ import {
   TrendingUp,
   Edit,
   Trash2,
-  Clock
+  Clock,
+  DollarSign,
+  Wallet
 } from "lucide-react"
 
 interface CollectorGroup {
@@ -33,6 +35,7 @@ interface CollectorGroup {
   name: string
   isActive: boolean
   collections?: DailyCollection[]
+  payments?: CollectorPayment[]
 }
 
 interface DailyCollection {
@@ -44,8 +47,8 @@ interface DailyCollection {
   chakraCount: number
   galbaCount: number
   totalChakra: number
-  pricePerChakra?: number
-  totalAmount?: number
+  pricePerChakra: number
+  totalAmount: number
   notes?: string
   createdAt?: Date
   group?: {
@@ -54,15 +57,27 @@ interface DailyCollection {
   }
 }
 
+interface CollectorPayment {
+  id: string
+  groupId: string
+  amount: number
+  paymentDate: Date
+  notes?: string
+  createdAt?: Date
+}
+
 export default function CollectorsPage() {
   const [groups, setGroups] = useState<CollectorGroup[]>([])
   const [collections, setCollections] = useState<DailyCollection[]>([])
+  const [payments, setPayments] = useState<CollectorPayment[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   
   const [isAddGroupDialogOpen, setIsAddGroupDialogOpen] = useState(false)
   const [isAddCollectionDialogOpen, setIsAddCollectionDialogOpen] = useState(false)
+  const [isAddPaymentDialogOpen, setIsAddPaymentDialogOpen] = useState(false)
+  const [selectedGroupForPayment, setSelectedGroupForPayment] = useState<CollectorGroup | null>(null)
   const [editingCollection, setEditingCollection] = useState<DailyCollection | null>(null)
   const [notification, setNotification] = useState<{ message: string; type: "error" | "success" | "warning" } | null>(null)
   
@@ -77,19 +92,15 @@ export default function CollectorsPage() {
     pricePerChakra: '',
     notes: ''
   })
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    notes: ''
+  })
 
   // Print view state
   const [showPrintView, setShowPrintView] = useState(false)
-  const [printStartDate, setPrintStartDate] = useState(() => {
-    const date = new Date()
-    date.setDate(1) // First day of month
-    return date.toISOString().split('T')[0]
-  })
-  const [printEndDate, setPrintEndDate] = useState(() => {
-    const date = new Date()
-    date.setMonth(date.getMonth() + 1, 0) // Last day of month
-    return date.toISOString().split('T')[0]
-  })
+  const [printStartDate, setPrintStartDate] = useState('') // Empty = all time
+  const [printEndDate, setPrintEndDate] = useState('') // Empty = all time
 
   useEffect(() => {
     loadData()
@@ -119,19 +130,24 @@ export default function CollectorsPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [groupsRes, collectionsRes] = await Promise.all([
+      const [groupsRes, collectionsRes, paymentsRes] = await Promise.all([
         fetch('/api/collector-groups'),
-        fetch('/api/collections')
+        fetch('/api/collections'),
+        fetch('/api/collector-payments')
       ])
       
       const groupsData = await groupsRes.json()
       const collectionsData = await collectionsRes.json()
+      const paymentsData = await paymentsRes.json()
       
       if (groupsData.success) {
         setGroups(groupsData.data)
       }
       if (collectionsData.success) {
         setCollections(collectionsData.data)
+      }
+      if (paymentsData.success) {
+        setPayments(paymentsData.data)
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -313,6 +329,43 @@ export default function CollectorsPage() {
     }
   }
 
+  const handleAddPayment = async () => {
+    if (!selectedGroupForPayment || !paymentForm.amount) {
+      showNotification('Veuillez remplir le montant', 'error')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const response = await fetch('/api/collector-payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupId: selectedGroupForPayment.id,
+          amount: parseFloat(paymentForm.amount),
+          notes: paymentForm.notes || null
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setPayments([...payments, data.data])
+        setIsAddPaymentDialogOpen(false)
+        setSelectedGroupForPayment(null)
+        setPaymentForm({ amount: '', notes: '' })
+        showNotification('Paiement enregistré avec succès!', 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de l\'enregistrement', 'error')
+      }
+    } catch (error) {
+      console.error('Error adding payment:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handlePrint = () => {
     window.print()
   }
@@ -490,7 +543,14 @@ export default function CollectorsPage() {
                 RAPPORT DE COLLECTE DES OLIVES
               </h1>
               <p className="text-center text-lg mt-2 text-black">
-                Du {new Date(printStartDate).toLocaleDateString('fr-FR')} au {new Date(printEndDate).toLocaleDateString('fr-FR')}
+                {printStartDate && printEndDate 
+                  ? `Du ${new Date(printStartDate).toLocaleDateString('fr-FR')} au ${new Date(printEndDate).toLocaleDateString('fr-FR')}`
+                  : printStartDate
+                  ? `Depuis le ${new Date(printStartDate).toLocaleDateString('fr-FR')}`
+                  : printEndDate
+                  ? `Jusqu'au ${new Date(printEndDate).toLocaleDateString('fr-FR')}`
+                  : 'Toutes les périodes'
+                }
               </p>
               <p className="text-center text-sm mt-1 text-gray-600">
                 Imprimé le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
@@ -502,44 +562,71 @@ export default function CollectorsPage() {
                 Rapport de Collecte
               </CardTitle>
               
-              <div className="flex gap-4 justify-center items-center">
-                <div>
-                  <Label className="text-white">Date Début</Label>
-                  <Input
-                    type="date"
-                    value={printStartDate}
-                    onChange={(e) => setPrintStartDate(e.target.value)}
-                    className="bg-white/20 text-white border-white/30"
-                  />
+              <div className="space-y-3">
+                <p className="text-center text-sm text-white/80">
+                  {printStartDate || printEndDate 
+                    ? 'Filtré par période' 
+                    : 'Toutes les collectes (par défaut)'}
+                </p>
+                
+                <div className="flex gap-4 justify-center items-end">
+                  <div>
+                    <Label className="text-white text-xs">Date Début (optionnel)</Label>
+                    <Input
+                      type="date"
+                      value={printStartDate}
+                      onChange={(e) => setPrintStartDate(e.target.value)}
+                      className="bg-white/20 text-white border-white/30"
+                      placeholder="Toutes"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white text-xs">Date Fin (optionnel)</Label>
+                    <Input
+                      type="date"
+                      value={printEndDate}
+                      onChange={(e) => setPrintEndDate(e.target.value)}
+                      className="bg-white/20 text-white border-white/30"
+                      placeholder="Toutes"
+                    />
+                  </div>
+                  {(printStartDate || printEndDate) && (
+                    <Button
+                      onClick={() => {
+                        setPrintStartDate('')
+                        setPrintEndDate('')
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Réinitialiser
+                    </Button>
+                  )}
                 </div>
-                <div>
-                  <Label className="text-white">Date Fin</Label>
-                  <Input
-                    type="date"
-                    value={printEndDate}
-                    onChange={(e) => setPrintEndDate(e.target.value)}
-                    className="bg-white/20 text-white border-white/30"
-                  />
-                </div>
-              </div>
 
-              <div className="flex gap-2 mt-4">
-                <Button
-                  onClick={handlePrint}
-                  className="flex-1 bg-white text-amber-700 hover:bg-amber-50"
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Imprimer
-                </Button>
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    onClick={handlePrint}
+                    className="flex-1 bg-white text-amber-700 hover:bg-amber-50"
+                  >
+                    <Printer className="w-4 h-4 mr-2" />
+                    Imprimer
+                  </Button>
+                </div>
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="p-6 print:p-0">
             {(() => {
+              // Filter collections by date range (or show all if no dates specified)
               const filteredCollections = collections.filter(c => {
                 const date = new Date(c.collectionDate).toISOString().split('T')[0]
-                return date >= printStartDate && date <= printEndDate
+                const afterStart = !printStartDate || date >= printStartDate
+                const beforeEnd = !printEndDate || date <= printEndDate
+                return afterStart && beforeEnd
               })
 
               // Group by group
@@ -562,16 +649,35 @@ export default function CollectorsPage() {
                     // Normalize the totals
                     const normalizedTotals = normalizeQuantities(rawTotalChakra, rawTotalGalba)
                     const totalAmount = groupCollections.reduce((sum, c) => sum + Number(c.totalAmount || 0), 0)
+                    
+                    // Calculate payments for this group (need to get group ID from first collection)
+                    const groupId = groupCollections[0]?.groupId
+                    const groupPayments = groupId ? payments.filter(p => {
+                      const paymentDate = new Date(p.paymentDate).toISOString().split('T')[0]
+                      const afterStart = !printStartDate || paymentDate >= printStartDate
+                      const beforeEnd = !printEndDate || paymentDate <= printEndDate
+                      return p.groupId === groupId && afterStart && beforeEnd
+                    }) : []
+                    const totalPaid = groupPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+                    const balance = totalAmount - totalPaid
 
                     return (
                       <div key={groupName} className="print-group-section border-2 border-gray-300 rounded-lg overflow-hidden">
                         <div className="print-group-header bg-gradient-to-r from-amber-100 to-amber-200 p-4">
                           <h3 className="text-xl font-bold text-amber-900">{groupName}</h3>
-                          <div className="flex gap-6 mt-2 text-sm">
+                          <div className="flex gap-6 mt-2 text-sm flex-wrap">
                             <span className="font-semibold">
                               Total: {normalizedTotals.chakraCount} شكارة {normalizedTotals.galbaCount > 0 && `+ ${normalizedTotals.galbaCount} ق`}
                             </span>
-                            {totalAmount > 0 && <span className="font-semibold">Montant: {totalAmount.toFixed(2)} DT</span>}
+                            {totalAmount > 0 && (
+                              <>
+                                <span className="font-semibold text-blue-800">Montant dû: {totalAmount.toFixed(2)} DT</span>
+                                <span className="font-semibold text-green-800">Payé: {totalPaid.toFixed(2)} DT</span>
+                                <span className={`font-bold ${balance > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                                  Solde: {balance.toFixed(2)} DT
+                                </span>
+                              </>
+                            )}
                             <span className="text-gray-600">({groupCollections.length} collectes)</span>
                           </div>
                         </div>
@@ -611,6 +717,24 @@ export default function CollectorsPage() {
                             })}
                           </tbody>
                         </table>
+                        
+                        {/* Payment History for this group */}
+                        {groupPayments.length > 0 && (
+                          <div className="bg-green-50 p-3 border-t-2 border-green-300">
+                            <h4 className="text-sm font-bold text-green-900 mb-2">💰 Paiements reçus ({groupPayments.length})</h4>
+                            <div className="grid grid-cols-1 gap-2">
+                              {groupPayments.map(payment => (
+                                <div key={payment.id} className="flex justify-between items-center text-xs bg-white p-2 rounded border border-green-200">
+                                  <span className="text-gray-600">
+                                    {new Date(payment.paymentDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                  </span>
+                                  <span className="font-bold text-green-700">{Number(payment.amount).toFixed(2)} DT</span>
+                                  {payment.notes && <span className="text-gray-500 italic text-xs">"{payment.notes}"</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -635,14 +759,23 @@ export default function CollectorsPage() {
                   <p className="stat-value text-2xl font-bold text-blue-700">
                     {collections.filter(c => {
                       const date = new Date(c.collectionDate).toISOString().split('T')[0]
-                      return date >= printStartDate && date <= printEndDate
+                      const afterStart = !printStartDate || date >= printStartDate
+                      const beforeEnd = !printEndDate || date <= printEndDate
+                      return afterStart && beforeEnd
                     }).length}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Période</p>
                   <p className="text-lg font-semibold">
-                    {new Date(printStartDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - {new Date(printEndDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {printStartDate && printEndDate 
+                      ? `${new Date(printStartDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - ${new Date(printEndDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                      : printStartDate
+                      ? `Depuis ${new Date(printStartDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                      : printEndDate
+                      ? `Jusqu'au ${new Date(printEndDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                      : 'Toutes périodes'
+                    }
                   </p>
                 </div>
               </div>
@@ -689,6 +822,16 @@ export default function CollectorsPage() {
                 const todayChakra = normalizedToday.chakraCount
                 const todayGalba = normalizedToday.galbaCount
 
+                // Calculate all-time totals for this group
+                const allGroupCollections = collections.filter(c => c.groupId === group.id)
+                const totalOwed = allGroupCollections.reduce((sum, c) => sum + Number(c.totalAmount), 0)
+                const groupPayments = payments.filter(p => p.groupId === group.id)
+                const totalPaid = groupPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+                const balance = totalOwed - totalPaid
+
+                // Today's collections total amount
+                const todayAmount = groupCollectionsToday.reduce((sum, c) => sum + Number(c.totalAmount), 0)
+
                 return (
                   <Card 
                     key={group.id}
@@ -700,39 +843,117 @@ export default function CollectorsPage() {
                           <Users className="w-6 h-6 mr-2" />
                           {group.name}
                         </div>
-                        <Badge className="bg-white/20 text-white text-lg px-3 py-1">
-                          {todayTotal.toFixed(1)} ش
-                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setCollectionForm({
+                              ...collectionForm,
+                              groupId: group.id,
+                              collectionDate: new Date().toISOString().split('T')[0]
+                            })
+                            setEditingCollection(null)
+                            setIsAddCollectionDialogOpen(true)
+                          }}
+                          className="bg-white/20 hover:bg-white/30 text-white border-0 h-9 w-9 p-0"
+                          title="Ajouter une collecte rapide"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </Button>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6">
                       <div className="space-y-4">
-                        {/* Today's Summary */}
+                        {/* All-Time Summary */}
                         <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border-2 border-amber-200">
-                          <p className="text-sm font-semibold text-amber-900 mb-2">
-                            {new Date(selectedDate).toLocaleDateString('fr-FR', { 
-                              weekday: 'long', 
-                              day: '2-digit', 
-                              month: 'long' 
-                            })}
+                          <p className="text-sm font-semibold text-amber-900 mb-2 flex items-center justify-between">
+                            <span>Totaux de toutes les collectes</span>
+                            <Badge variant="outline" className="bg-white text-amber-700">
+                              {allGroupCollections.length} collecte{allGroupCollections.length > 1 ? 's' : ''}
+                            </Badge>
                           </p>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="bg-white p-3 rounded-lg border border-amber-300">
-                              <p className="text-xs text-gray-600">Chakra</p>
-                              <p className="text-2xl font-bold text-amber-700">{todayChakra}</p>
+                              <p className="text-xs text-gray-600">Total Chakra</p>
+                              <p className="text-2xl font-bold text-amber-700">
+                                {(() => {
+                                  const rawAllChakra = allGroupCollections.reduce((sum, c) => sum + c.chakraCount, 0)
+                                  const rawAllGalba = allGroupCollections.reduce((sum, c) => sum + c.galbaCount, 0)
+                                  const normalized = normalizeQuantities(rawAllChakra, rawAllGalba)
+                                  return normalized.chakraCount
+                                })()}
+                              </p>
                             </div>
                             <div className="bg-white p-3 rounded-lg border border-orange-300">
-                              <p className="text-xs text-gray-600">Galba (ق)</p>
-                              <p className="text-2xl font-bold text-orange-700">{todayGalba}</p>
+                              <p className="text-xs text-gray-600">Total Galba (ق)</p>
+                              <p className="text-2xl font-bold text-orange-700">
+                                {(() => {
+                                  const rawAllChakra = allGroupCollections.reduce((sum, c) => sum + c.chakraCount, 0)
+                                  const rawAllGalba = allGroupCollections.reduce((sum, c) => sum + c.galbaCount, 0)
+                                  const normalized = normalizeQuantities(rawAllChakra, rawAllGalba)
+                                  return normalized.galbaCount
+                                })()}
+                              </p>
                             </div>
                           </div>
                         </div>
 
-                        {/* Today's Collections Details */}
-                        {groupCollectionsToday.length > 0 ? (
+                        {/* Payment Tracking Section */}
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border-2 border-green-300">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Wallet className="w-5 h-5 text-green-700" />
+                              <h3 className="text-sm font-bold text-green-900">Paiements</h3>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedGroupForPayment(group)
+                                setIsAddPaymentDialogOpen(true)
+                              }}
+                              className="bg-green-600 hover:bg-green-700 text-white h-8 px-3"
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Payer
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="bg-white p-2 rounded border border-green-300 text-center">
+                              <p className="text-xs text-gray-600">À Payer</p>
+                              <p className="text-lg font-bold text-red-600">{balance.toFixed(2)} DT</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border border-green-300 text-center">
+                              <p className="text-xs text-gray-600">Payé</p>
+                              <p className="text-lg font-bold text-green-600">{totalPaid.toFixed(2)} DT</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border border-green-300 text-center">
+                              <p className="text-xs text-gray-600">Total</p>
+                              <p className="text-lg font-bold text-gray-700">{totalOwed.toFixed(2)} DT</p>
+                            </div>
+                          </div>
+                          
+                          {todayAmount > 0 && (
+                            <div className="mt-2 pt-2 border-t border-green-300">
+                              <p className="text-xs text-green-800">
+                                <DollarSign className="w-3 h-3 inline mr-1" />
+                                Aujourd'hui: <span className="font-bold">{todayAmount.toFixed(2)} DT</span>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Recent Collections Details */}
+                        {allGroupCollections.length > 0 ? (
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Collectes du jour</p>
-                            {groupCollectionsToday.map(collection => (
+                            <p className="text-xs font-semibold text-gray-500 uppercase flex items-center justify-between">
+                              <span>Dernières collectes</span>
+                              <span className="text-xs text-gray-400 font-normal">{allGroupCollections.length} total</span>
+                            </p>
+                            <div className="max-h-96 overflow-y-auto space-y-2 pr-2">
+                            {allGroupCollections
+                              .sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime())
+                              .slice(0, 10)
+                              .map(collection => (
                               <div 
                                 key={collection.id}
                                 className="bg-gray-50 p-3 rounded-lg border border-gray-200 hover:border-amber-300 transition-all"
@@ -740,26 +961,21 @@ export default function CollectorsPage() {
                                 <div className="flex items-start justify-between">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
+                                      <Calendar className="w-3 h-3 text-blue-600" />
+                                      <span className="font-bold text-sm text-blue-700">
+                                        {new Date(collection.collectionDate).toLocaleDateString('fr-FR', { 
+                                          day: '2-digit', 
+                                          month: '2-digit',
+                                          year: 'numeric'
+                                        })}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 mb-1 ml-5">
                                       <MapPin className="w-3 h-3 text-amber-600" />
                                       <span className="font-semibold text-sm">{collection.location}</span>
                                     </div>
                                     <p className="text-xs text-gray-600 ml-5">Client: {collection.clientName}</p>
-                                    {collection.createdAt && (
-                                      <div className="flex items-center gap-1 ml-5 mt-1">
-                                        <Clock className="w-3 h-3 text-gray-400" />
-                                        <p className="text-xs text-gray-500">
-                                          {new Date(collection.createdAt).toLocaleDateString('fr-FR', { 
-                                            day: '2-digit', 
-                                            month: '2-digit',
-                                            year: 'numeric'
-                                          })} à {new Date(collection.createdAt).toLocaleTimeString('fr-FR', { 
-                                            hour: '2-digit', 
-                                            minute: '2-digit'
-                                          })}
-                                        </p>
-                                      </div>
-                                    )}
-                                    <div className="flex gap-3 mt-2 ml-5">
+                                    <div className="flex gap-2 mt-2 ml-5 flex-wrap">
                                       <Badge variant="outline" className="text-xs">
                                         {collection.chakraCount} ش
                                       </Badge>
@@ -767,8 +983,14 @@ export default function CollectorsPage() {
                                         {collection.galbaCount} ق
                                       </Badge>
                                       <Badge className="bg-green-100 text-green-800 text-xs">
-                                        {Number(collection.totalChakra).toFixed(2)} ش
+                                        Total: {Number(collection.totalChakra).toFixed(2)} ش
                                       </Badge>
+                                      {collection.totalAmount > 0 && (
+                                        <Badge className="bg-blue-100 text-blue-800 text-xs font-bold">
+                                          <DollarSign className="w-3 h-3 mr-0.5" />
+                                          {Number(collection.totalAmount).toFixed(2)} DT
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="flex gap-1">
@@ -794,11 +1016,12 @@ export default function CollectorsPage() {
                                 </div>
                               </div>
                             ))}
+                            </div>
                           </div>
                         ) : (
                           <div className="text-center py-6 text-gray-400">
                             <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                            <p className="text-sm">Aucune collecte aujourd'hui</p>
+                            <p className="text-sm">Aucune collecte enregistrée</p>
                           </div>
                         )}
                       </div>
@@ -1042,6 +1265,88 @@ export default function CollectorsPage() {
                     pricePerChakra: '',
                     notes: ''
                   })
+                }}
+                disabled={saving}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Payment Dialog */}
+      <Dialog 
+        open={isAddPaymentDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedGroupForPayment(null)
+            setPaymentForm({ amount: '', notes: '' })
+          }
+          setIsAddPaymentDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2C3E50] flex items-center">
+              <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+              Enregistrer un Paiement
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedGroupForPayment && (
+              <Alert className="bg-green-50 border-green-300">
+                <Wallet className="w-4 h-4 text-green-700" />
+                <AlertDescription className="text-green-800">
+                  Paiement pour le groupe: <strong>{selectedGroupForPayment.name}</strong>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div>
+              <Label htmlFor="paymentAmount">Montant (DT) *</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                placeholder="Ex: 150.00"
+                className="text-lg font-bold"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="paymentNotes">Notes (optionnel)</Label>
+              <Input
+                id="paymentNotes"
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                placeholder="Ex: Paiement partiel, semaine 1..."
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                onClick={handleAddPayment}
+                disabled={saving || !paymentForm.amount}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {saving ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddPaymentDialogOpen(false)
+                  setSelectedGroupForPayment(null)
+                  setPaymentForm({ amount: '', notes: '' })
                 }}
                 disabled={saving}
               >

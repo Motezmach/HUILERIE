@@ -527,7 +527,7 @@ export default function OliveManagement() {
 
       return matchesSearch && matchesFilter && matchesToday && matchesDateRange
     })
-
+        
     // Sort by dateAdded (oldest first) so first added farmer appears first
     return filtered.sort((a, b) => 
       new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()

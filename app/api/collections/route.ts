@@ -92,11 +92,9 @@ export async function POST(request: NextRequest) {
     // Calculate total chakra (5 galba = 1 chakra)
     const totalChakra = new Decimal(chakraCount).plus(new Decimal(galbaCount).dividedBy(5))
     
-    // Calculate total amount if price is provided
-    let totalAmount = null
-    if (pricePerChakra) {
-      totalAmount = totalChakra.times(new Decimal(pricePerChakra))
-    }
+    // Calculate price and total amount (default to 0 if not provided)
+    const price = pricePerChakra ? new Decimal(pricePerChakra) : new Decimal(0)
+    const totalAmount = totalChakra.times(price)
 
     const collection = await prisma.dailyCollection.create({
       data: {
@@ -107,7 +105,7 @@ export async function POST(request: NextRequest) {
         chakraCount: parseInt(chakraCount),
         galbaCount: parseInt(galbaCount),
         totalChakra,
-        pricePerChakra: pricePerChakra ? new Decimal(pricePerChakra) : null,
+        pricePerChakra: price,
         totalAmount,
         notes: notes?.trim() || null
       },

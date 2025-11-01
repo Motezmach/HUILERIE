@@ -255,13 +255,26 @@ CREATE TABLE "daily_collections" (
     "chakraCount" INTEGER NOT NULL DEFAULT 0,
     "galbaCount" INTEGER NOT NULL DEFAULT 0,
     "totalChakra" DECIMAL(65,30) NOT NULL,
-    "pricePerChakra" DECIMAL(65,30),
-    "totalAmount" DECIMAL(65,30),
+    "pricePerChakra" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "daily_collections_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "collector_payments" (
+    "id" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
+    "paymentDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "collector_payments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -291,6 +304,9 @@ CREATE UNIQUE INDEX "collector_groups_name_key" ON "collector_groups"("name");
 -- CreateIndex
 CREATE INDEX "daily_collections_collectionDate_groupId_idx" ON "daily_collections"("collectionDate", "groupId");
 
+-- CreateIndex
+CREATE INDEX "collector_payments_groupId_paymentDate_idx" ON "collector_payments"("groupId", "paymentDate");
+
 -- AddForeignKey
 ALTER TABLE "boxes" ADD CONSTRAINT "boxes_currentFarmerId_fkey" FOREIGN KEY ("currentFarmerId") REFERENCES "farmers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -317,3 +333,6 @@ ALTER TABLE "attendance" ADD CONSTRAINT "attendance_employeeId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "daily_collections" ADD CONSTRAINT "daily_collections_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "collector_groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "collector_payments" ADD CONSTRAINT "collector_payments_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "collector_groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;

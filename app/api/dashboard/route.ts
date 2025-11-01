@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
     
     // Calculate total revenue: Farmer Payments + Debits - Credits
     const calculatedTotalRevenue = totalFarmerPayments + totalDebits - totalCredits
-
+    
     // Calculate metrics
     const metrics = {
       totalFarmers,

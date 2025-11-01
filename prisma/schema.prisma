@@ -299,6 +299,7 @@ model CollectorGroup {
   updatedAt            DateTime           @updatedAt
   
   collections          DailyCollection[]  // Daily collections by this group
+  payments             CollectorPayment[] // Payments made to this group
   
   @@map("collector_groups")
 }
@@ -312,8 +313,8 @@ model DailyCollection {
   chakraCount          Int                @default(0) // Number of full chakra
   galbaCount           Int                @default(0) // Number of galba (5 galba = 1 chakra)
   totalChakra          Decimal            // Calculated: chakraCount + (galbaCount / 5)
-  pricePerChakra       Decimal?           // Optional: price per chakra if needed
-  totalAmount          Decimal?           // Optional: total payment amount
+  pricePerChakra       Decimal            @default(0) // Price per chakra
+  totalAmount          Decimal            @default(0) // Total payment amount (totalChakra * pricePerChakra)
   notes                String?            // Optional notes
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
@@ -323,3 +324,18 @@ model DailyCollection {
   @@index([collectionDate, groupId])
   @@map("daily_collections")
 }
+model CollectorPayment {
+  id                   String             @id @default(uuid())
+  groupId              String             // Which group received payment
+  amount               Decimal            // Amount paid
+  paymentDate          DateTime           @default(now()) // When payment was made
+  notes                String?            // Optional notes
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  group                CollectorGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  
+  @@index([groupId, paymentDate])
+  @@map("collector_payments")
+}
+
