@@ -20,7 +20,7 @@ CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'USER', 'MANAGER');
 CREATE TYPE "TransactionType" AS ENUM ('FARMER_PAYMENT', 'DEBIT', 'CREDIT');
 
 -- CreateEnum
-CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT', 'ABSENT');
+CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT', 'HALF_DAY', 'ABSENT');
 
 -- CreateTable
 CREATE TABLE "users" (
@@ -222,6 +222,19 @@ CREATE TABLE "employees" (
 );
 
 -- CreateTable
+CREATE TABLE "employee_payments" (
+    "id" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "amount" DECIMAL(65,30) NOT NULL,
+    "paymentDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "employee_payments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "attendance" (
     "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
@@ -254,6 +267,8 @@ CREATE TABLE "daily_collections" (
     "clientName" TEXT NOT NULL,
     "chakraCount" INTEGER NOT NULL DEFAULT 0,
     "galbaCount" INTEGER NOT NULL DEFAULT 0,
+    "nchiraChakraCount" INTEGER NOT NULL DEFAULT 0,
+    "nchiraGalbaCount" INTEGER NOT NULL DEFAULT 0,
     "totalChakra" DECIMAL(65,30) NOT NULL,
     "pricePerChakra" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "totalAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
@@ -296,6 +311,9 @@ CREATE UNIQUE INDEX "dashboard_metrics_metricDate_key" ON "dashboard_metrics"("m
 CREATE UNIQUE INDEX "oil_safes_name_key" ON "oil_safes"("name");
 
 -- CreateIndex
+CREATE INDEX "employee_payments_employeeId_paymentDate_idx" ON "employee_payments"("employeeId", "paymentDate");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "attendance_employeeId_date_key" ON "attendance"("employeeId", "date");
 
 -- CreateIndex
@@ -327,6 +345,9 @@ ALTER TABLE "olive_purchases" ADD CONSTRAINT "olive_purchases_safeId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "oil_sales" ADD CONSTRAINT "oil_sales_safeId_fkey" FOREIGN KEY ("safeId") REFERENCES "oil_safes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "employee_payments" ADD CONSTRAINT "employee_payments_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "attendance" ADD CONSTRAINT "attendance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;

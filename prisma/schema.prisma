@@ -265,8 +265,24 @@ model Employee {
   updatedAt            DateTime           @updatedAt
   
   attendance           Attendance[]       // Employee's attendance records
+  payments             EmployeePayment[]  // Payments made to this employee
   
   @@map("employees")
+}
+
+model EmployeePayment {
+  id                   String             @id @default(uuid())
+  employeeId           String             // Which employee received payment
+  amount               Decimal            // Amount paid
+  paymentDate          DateTime           @default(now()) // When payment was made
+  notes                String?            // Optional notes
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  
+  employee             Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  @@index([employeeId, paymentDate])
+  @@map("employee_payments")
 }
 
 model Attendance {
@@ -285,7 +301,8 @@ model Attendance {
 }
 
 enum AttendanceStatus {
-  PRESENT              // Employee was present
+  PRESENT              // Employee was present (full day)
+  HALF_DAY             // Employee worked half day
   ABSENT               // Employee was absent
 }
 
@@ -312,7 +329,9 @@ model DailyCollection {
   clientName           String             // For whom they collected (owner of olives)
   chakraCount          Int                @default(0) // Number of full chakra
   galbaCount           Int                @default(0) // Number of galba (5 galba = 1 chakra)
-  totalChakra          Decimal            // Calculated: chakraCount + (galbaCount / 5)
+  nchiraChakraCount    Int                @default(0) // Number of nchira chakra (نشيرة)
+  nchiraGalbaCount     Int                @default(0) // Number of nchira galba (نشيرة)
+  totalChakra          Decimal            // Calculated: chakraCount + (galbaCount / 5) + nchiraChakraCount + (nchiraGalbaCount / 5)
   pricePerChakra       Decimal            @default(0) // Price per chakra
   totalAmount          Decimal            @default(0) // Total payment amount (totalChakra * pricePerChakra)
   notes                String?            // Optional notes

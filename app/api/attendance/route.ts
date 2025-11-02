@@ -82,9 +82,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!status || !['present', 'absent'].includes(status.toLowerCase())) {
+    if (!status || !['present', 'absent', 'half_day'].includes(status.toLowerCase())) {
       return NextResponse.json(
-        createErrorResponse('Statut invalide (present ou absent)'),
+        createErrorResponse('Statut invalide (present, absent ou half_day)'),
         { status: 400 }
       )
       }

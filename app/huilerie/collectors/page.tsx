@@ -46,6 +46,8 @@ interface DailyCollection {
   clientName: string
   chakraCount: number
   galbaCount: number
+  nchiraChakraCount: number
+  nchiraGalbaCount: number
   totalChakra: number
   pricePerChakra: number
   totalAmount: number
@@ -91,8 +93,11 @@ export default function CollectorsPage() {
     clientName: '',
     chakraCount: 0,
     galbaCount: 0,
+    nchiraChakraCount: 0,
+    nchiraGalbaCount: 0,
     pricePerChakra: '',
-    notes: ''
+    notes: '',
+    hasNchira: false // Toggle for nchira inputs
   })
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
@@ -276,6 +281,8 @@ export default function CollectorsPage() {
           ...collectionForm,
           chakraCount: normalized.chakraCount,
           galbaCount: normalized.galbaCount,
+          nchiraChakraCount: collectionForm.nchiraChakraCount || 0,
+          nchiraGalbaCount: collectionForm.nchiraGalbaCount || 0,
           pricePerChakra: collectionForm.pricePerChakra ? parseFloat(collectionForm.pricePerChakra) : null
         })
       })
@@ -292,8 +299,11 @@ export default function CollectorsPage() {
           clientName: '',
           chakraCount: 0,
           galbaCount: 0,
+          nchiraChakraCount: 0,
+          nchiraGalbaCount: 0,
           pricePerChakra: '',
-          notes: ''
+          notes: '',
+          hasNchira: false
         })
         showNotification('Collecte enregistrée avec succès!', 'success')
       } else {
@@ -316,8 +326,11 @@ export default function CollectorsPage() {
       clientName: collection.clientName,
       chakraCount: collection.chakraCount,
       galbaCount: collection.galbaCount,
+      nchiraChakraCount: collection.nchiraChakraCount || 0,
+      nchiraGalbaCount: collection.nchiraGalbaCount || 0,
       pricePerChakra: collection.pricePerChakra ? collection.pricePerChakra.toString() : '',
-      notes: collection.notes || ''
+      notes: collection.notes || '',
+      hasNchira: (collection.nchiraChakraCount > 0 || collection.nchiraGalbaCount > 0)
     })
     setIsAddCollectionDialogOpen(true)
   }
@@ -343,6 +356,8 @@ export default function CollectorsPage() {
           clientName: collectionForm.clientName,
           chakraCount: normalized.chakraCount,
           galbaCount: normalized.galbaCount,
+          nchiraChakraCount: collectionForm.nchiraChakraCount || 0,
+          nchiraGalbaCount: collectionForm.nchiraGalbaCount || 0,
           pricePerChakra: collectionForm.pricePerChakra ? parseFloat(collectionForm.pricePerChakra) : null,
           notes: collectionForm.notes || null
         })
@@ -361,8 +376,11 @@ export default function CollectorsPage() {
           clientName: '',
           chakraCount: 0,
           galbaCount: 0,
+          nchiraChakraCount: 0,
+          nchiraGalbaCount: 0,
           pricePerChakra: '',
-          notes: ''
+          notes: '',
+          hasNchira: false
         })
         showNotification('Collecte mise à jour avec succès!', 'success')
       } else {
@@ -711,9 +729,9 @@ export default function CollectorsPage() {
               return (
                 <div className="space-y-6">
                   {Object.entries(byGroup).map(([groupName, groupCollections]) => {
-                    // Calculate raw totals from all collections
-                    const rawTotalChakra = groupCollections.reduce((sum, c) => sum + c.chakraCount, 0)
-                    const rawTotalGalba = groupCollections.reduce((sum, c) => sum + c.galbaCount, 0)
+                    // Calculate raw totals from all collections (including nchira)
+                    const rawTotalChakra = groupCollections.reduce((sum, c) => sum + c.chakraCount + (c.nchiraChakraCount || 0), 0)
+                    const rawTotalGalba = groupCollections.reduce((sum, c) => sum + c.galbaCount + (c.nchiraGalbaCount || 0), 0)
                     
                     // Normalize the totals
                     const normalizedTotals = normalizeQuantities(rawTotalChakra, rawTotalGalba)
@@ -765,16 +783,28 @@ export default function CollectorsPage() {
                           </thead>
                           <tbody>
                             {groupCollections.map((c, idx) => {
-                              const normalized = normalizeQuantities(c.chakraCount, c.galbaCount)
+                              // Combine regular and nchira for display
+                              const totalChakraDisplay = c.chakraCount + (c.nchiraChakraCount || 0)
+                              const totalGalbaDisplay = c.galbaCount + (c.nchiraGalbaCount || 0)
+                              const normalized = normalizeQuantities(totalChakraDisplay, totalGalbaDisplay)
+                              const hasNchira = (c.nchiraChakraCount > 0 || c.nchiraGalbaCount > 0)
+                              
                               return (
-                                <tr key={c.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                <tr 
+                                  key={c.id} 
+                                  className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${hasNchira ? 'border-l-4 border-l-red-500' : ''}`}
+                                >
                                   <td className="border border-gray-400 p-2">
                                     {new Date(c.collectionDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
                                   </td>
                                   <td className="border border-gray-400 p-2">{c.location}</td>
                                   <td className="border border-gray-400 p-2">{c.clientName}</td>
-                                  <td className="border border-gray-400 p-2 text-center font-bold">{c.chakraCount}</td>
-                                  <td className="border border-gray-400 p-2 text-center font-bold">{c.galbaCount}</td>
+                                  <td className={`border border-gray-400 p-2 text-center font-bold ${hasNchira ? 'text-red-700' : ''}`}>
+                                    {totalChakraDisplay}
+                                  </td>
+                                  <td className={`border border-gray-400 p-2 text-center font-bold ${hasNchira ? 'text-red-700' : ''}`}>
+                                    {totalGalbaDisplay}
+                                  </td>
                                   <td className="border border-gray-400 p-2 text-center font-bold text-green-700">
                                     {normalized.chakraCount}{normalized.galbaCount > 0 && ` + ${normalized.galbaCount}ق`}
                                   </td>
@@ -963,8 +993,9 @@ export default function CollectorsPage() {
                               <p className="text-xs text-gray-600">Total Chakra</p>
                               <p className="text-2xl font-bold text-amber-700">
                                 {(() => {
-                                  const rawAllChakra = allGroupCollections.reduce((sum, c) => sum + c.chakraCount, 0)
-                                  const rawAllGalba = allGroupCollections.reduce((sum, c) => sum + c.galbaCount, 0)
+                                  // Include both regular and nchira
+                                  const rawAllChakra = allGroupCollections.reduce((sum, c) => sum + c.chakraCount + (c.nchiraChakraCount || 0), 0)
+                                  const rawAllGalba = allGroupCollections.reduce((sum, c) => sum + c.galbaCount + (c.nchiraGalbaCount || 0), 0)
                                   const normalized = normalizeQuantities(rawAllChakra, rawAllGalba)
                                   return normalized.chakraCount
                                 })()}
@@ -974,8 +1005,9 @@ export default function CollectorsPage() {
                               <p className="text-xs text-gray-600">Total Galba (ق)</p>
                               <p className="text-2xl font-bold text-orange-700">
                                 {(() => {
-                                  const rawAllChakra = allGroupCollections.reduce((sum, c) => sum + c.chakraCount, 0)
-                                  const rawAllGalba = allGroupCollections.reduce((sum, c) => sum + c.galbaCount, 0)
+                                  // Include both regular and nchira
+                                  const rawAllChakra = allGroupCollections.reduce((sum, c) => sum + c.chakraCount + (c.nchiraChakraCount || 0), 0)
+                                  const rawAllGalba = allGroupCollections.reduce((sum, c) => sum + c.galbaCount + (c.nchiraGalbaCount || 0), 0)
                                   const normalized = normalizeQuantities(rawAllChakra, rawAllGalba)
                                   return normalized.galbaCount
                                 })()}
@@ -1040,10 +1072,16 @@ export default function CollectorsPage() {
                             {allGroupCollections
                               .sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime())
                               .slice(0, 10)
-                              .map(collection => (
+                              .map(collection => {
+                                const hasNchira = (collection.nchiraChakraCount > 0 || collection.nchiraGalbaCount > 0)
+                                return (
                               <div 
                                 key={collection.id}
-                                className="bg-gray-50 p-3 rounded-lg border border-gray-200 hover:border-amber-300 transition-all"
+                                className={`p-3 rounded-lg border-2 transition-all ${
+                                  hasNchira 
+                                    ? 'bg-red-50 border-red-400 hover:border-red-500 shadow-md' 
+                                    : 'bg-gray-50 border-gray-200 hover:border-amber-300'
+                                }`}
                               >
                                 <div className="flex items-start justify-between">
                                   <div className="flex-1">
@@ -1062,15 +1100,20 @@ export default function CollectorsPage() {
                                       <span className="font-semibold text-sm">{collection.location}</span>
                                     </div>
                                     <p className="text-xs text-gray-600 ml-5">Client: {collection.clientName}</p>
+                                    {collection.notes && (
+                                      <div className="mt-2 ml-5 p-2 bg-blue-50 border border-blue-200 rounded">
+                                        <p className="text-xs text-blue-800 italic">💬 {collection.notes}</p>
+                                      </div>
+                                    )}
                                     <div className="flex gap-2 mt-2 ml-5 flex-wrap">
                                       <Badge variant="outline" className="text-xs">
-                                        {collection.chakraCount} ش
+                                        {collection.chakraCount + collection.nchiraChakraCount} ش
                                       </Badge>
                                       <Badge variant="outline" className="text-xs">
-                                        {collection.galbaCount} ق
+                                        {collection.galbaCount + collection.nchiraGalbaCount} ق
                                       </Badge>
                                       <Badge className="bg-green-100 text-green-800 text-xs">
-                                        Total: {Number(collection.totalChakra).toFixed(2)} ش
+                                        Total: {Number(collection.totalChakra).toFixed(2)} ש
                                       </Badge>
                                       {collection.totalAmount > 0 && (
                                         <Badge className="bg-blue-100 text-blue-800 text-xs font-bold">
@@ -1102,7 +1145,8 @@ export default function CollectorsPage() {
                                   </div>
                                 </div>
                               </div>
-                            ))}
+                                )
+                              })}
                             </div>
                           </div>
                         ) : (
@@ -1246,8 +1290,11 @@ export default function CollectorsPage() {
               clientName: '',
               chakraCount: 0,
               galbaCount: 0,
+              nchiraChakraCount: 0,
+              nchiraGalbaCount: 0,
               pricePerChakra: '',
-              notes: ''
+              notes: '',
+              hasNchira: false
             })
           }
           setIsAddCollectionDialogOpen(open)
@@ -1366,6 +1413,70 @@ export default function CollectorsPage() {
               </div>
             </div>
 
+            {/* Nchira Toggle */}
+            <div className="flex items-center gap-3 p-3 bg-red-50 border-2 border-red-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="hasNchira"
+                checked={collectionForm.hasNchira}
+                onChange={(e) => setCollectionForm({ ...collectionForm, hasNchira: e.target.checked })}
+                className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+              />
+              <Label htmlFor="hasNchira" className="text-sm font-bold text-red-800 cursor-pointer">
+                ✓ Inclure Nchira (نشيرة)
+              </Label>
+            </div>
+
+            {/* Nchira Inputs - Conditional */}
+            {collectionForm.hasNchira && (
+              <div className="bg-red-50 p-4 rounded-lg border-2 border-red-300">
+                <h4 className="text-sm font-bold text-red-900 mb-3 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Quantités Nchira (نشيرة)
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="nchiraChakraCount" className="text-red-800">Chakra Nchira (نشيرة)</Label>
+                    <Input
+                      id="nchiraChakraCount"
+                      type="number"
+                      min="0"
+                      value={collectionForm.nchiraChakraCount}
+                      onChange={(e) => setCollectionForm({ ...collectionForm, nchiraChakraCount: parseInt(e.target.value) || 0 })}
+                      className="border-2 border-red-400 focus:border-red-500"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="nchiraGalbaCount" className="text-red-800">Galba Nchira (نشيرة)</Label>
+                    <Input
+                      id="nchiraGalbaCount"
+                      type="number"
+                      min="0"
+                      value={collectionForm.nchiraGalbaCount}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0
+                        if (value >= 5) {
+                          // Auto-normalize nchira galba too
+                          const normalized = normalizeQuantities(collectionForm.nchiraChakraCount, value)
+                          setCollectionForm({ 
+                            ...collectionForm, 
+                            nchiraChakraCount: normalized.chakraCount,
+                            nchiraGalbaCount: normalized.galbaCount
+                          })
+                        } else {
+                          setCollectionForm({ ...collectionForm, nchiraGalbaCount: value })
+                        }
+                      }}
+                      className="border-2 border-red-400 focus:border-red-500"
+                      placeholder="0"
+                    />
+                    <p className="text-xs text-red-600 mt-1 font-semibold">5 ق = 1 ش (auto-converti)</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="notes">Notes</Label>
               <Input
@@ -1377,15 +1488,20 @@ export default function CollectorsPage() {
             </div>
 
             {/* Calculation Preview */}
-            {(collectionForm.chakraCount > 0 || collectionForm.galbaCount > 0) && (
+            {(collectionForm.chakraCount > 0 || collectionForm.galbaCount > 0 || collectionForm.nchiraChakraCount > 0 || collectionForm.nchiraGalbaCount > 0) && (
               <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
                 <p className="text-sm font-semibold text-green-900 mb-2">Calcul:</p>
+                {collectionForm.hasNchira && (collectionForm.nchiraChakraCount > 0 || collectionForm.nchiraGalbaCount > 0) && (
+                  <p className="text-sm text-red-700 font-semibold mb-1">
+                    Nchira: {collectionForm.nchiraChakraCount + collectionForm.nchiraGalbaCount / 5} ش
+                  </p>
+                )}
                 <p className="text-2xl font-bold text-green-700">
-                  Total: {(collectionForm.chakraCount + collectionForm.galbaCount / 5).toFixed(2)} شكارة
+                  Total: {(collectionForm.chakraCount + collectionForm.galbaCount / 5 + collectionForm.nchiraChakraCount + collectionForm.nchiraGalbaCount / 5).toFixed(2)} شكارة
                 </p>
                 {collectionForm.pricePerChakra && (
                   <p className="text-lg font-semibold text-green-600 mt-1">
-                    Montant: {((collectionForm.chakraCount + collectionForm.galbaCount / 5) * parseFloat(collectionForm.pricePerChakra)).toFixed(2)} DT
+                    Montant: {((collectionForm.chakraCount + collectionForm.galbaCount / 5 + collectionForm.nchiraChakraCount + collectionForm.nchiraGalbaCount / 5) * parseFloat(collectionForm.pricePerChakra)).toFixed(2)} DT
                   </p>
                 )}
               </div>
@@ -1416,8 +1532,11 @@ export default function CollectorsPage() {
                     clientName: '',
                     chakraCount: 0,
                     galbaCount: 0,
+                    nchiraChakraCount: 0,
+                    nchiraGalbaCount: 0,
                     pricePerChakra: '',
-                    notes: ''
+                    notes: '',
+                    hasNchira: false
                   })
                 }}
                 disabled={saving}

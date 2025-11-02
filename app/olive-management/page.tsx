@@ -163,33 +163,9 @@ export default function OliveManagement() {
   const [creating, setCreating] = useState(false)
   const rebuildProcessedRef = useRef(false)
 
-  // Real-time sync for instant updates (mobile ↔ laptop)
-  const { lastSyncTime, isSyncing, manualSync } = useRealTimeSync({
-    onSync: async () => {
-      // Silent background sync - don't show loading spinner
-      const response = await farmersApi.getAll({
-        limit: 100,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        includeBoxes: true
-      })
-
-      if (response.success) {
-        const transformedFarmers = response.data.items.map(transformFarmerFromDb)
-        setFarmers(transformedFarmers)
-        
-        // If a farmer is selected, update their data
-        if (selectedFarmer) {
-          const updatedFarmer = transformedFarmers.find(f => f.id === selectedFarmer.id)
-          if (updatedFarmer) {
-            setSelectedFarmer(updatedFarmer)
-          }
-        }
-      }
-    },
-    interval: 3000, // Sync every 3 seconds
-    enableWhenHidden: false // Pause when tab is hidden
-  })
+  // Real-time sync DISABLED temporarily - causing box selection issues
+  // Users can manually refresh when needed
+  // const { lastSyncTime, isSyncing, manualSync } = useRealTimeSync({...})
 
   // Initialize user
   useEffect(() => {

@@ -19,6 +19,8 @@ export async function PUT(
       clientName, 
       chakraCount, 
       galbaCount,
+      nchiraChakraCount,
+      nchiraGalbaCount,
       pricePerChakra,
       notes 
     } = body
@@ -35,10 +37,15 @@ export async function PUT(
       )
     }
 
-    // Calculate total chakra if counts changed
+    // Calculate total chakra if counts changed (including nchira)
     const finalChakraCount = chakraCount !== undefined ? parseInt(chakraCount) : current.chakraCount
     const finalGalbaCount = galbaCount !== undefined ? parseInt(galbaCount) : current.galbaCount
-    const totalChakra = new Decimal(finalChakraCount).plus(new Decimal(finalGalbaCount).dividedBy(5))
+    const finalNchiraChakra = nchiraChakraCount !== undefined ? parseInt(nchiraChakraCount) : current.nchiraChakraCount
+    const finalNchiraGalba = nchiraGalbaCount !== undefined ? parseInt(nchiraGalbaCount) : current.nchiraGalbaCount
+    
+    const regularChakra = new Decimal(finalChakraCount).plus(new Decimal(finalGalbaCount).dividedBy(5))
+    const nchiraTotal = new Decimal(finalNchiraChakra).plus(new Decimal(finalNchiraGalba).dividedBy(5))
+    const totalChakra = regularChakra.plus(nchiraTotal)
     
     // Calculate total amount (default to 0 if not provided)
     const finalPricePerChakra = pricePerChakra !== undefined ? 
@@ -56,6 +63,8 @@ export async function PUT(
     if (clientName !== undefined) updateData.clientName = clientName.trim()
     if (chakraCount !== undefined) updateData.chakraCount = finalChakraCount
     if (galbaCount !== undefined) updateData.galbaCount = finalGalbaCount
+    if (nchiraChakraCount !== undefined) updateData.nchiraChakraCount = finalNchiraChakra
+    if (nchiraGalbaCount !== undefined) updateData.nchiraGalbaCount = finalNchiraGalba
     if (pricePerChakra !== undefined) updateData.pricePerChakra = finalPricePerChakra
     if (notes !== undefined) updateData.notes = notes?.trim() || null
 

@@ -89,6 +89,8 @@ export default function HuileriePage() {
   
   // UI states
   const [isCreateSafeOpen, setIsCreateSafeOpen] = useState(false)
+  const [isEditSafeOpen, setIsEditSafeOpen] = useState(false)
+  const [editingSafe, setEditingSafe] = useState<OilSafe | null>(null)
   const [isCreatePurchaseOpen, setIsCreatePurchaseOpen] = useState(false)
   const [notification, setNotification] = useState<{ message: string; type: "error" | "success" | "warning" } | null>(null)
   const [showAllPurchases, setShowAllPurchases] = useState(false)
@@ -300,6 +302,90 @@ export default function HuileriePage() {
       showNotification('Erreur de connexion au serveur', 'error')
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleEditSafe = (safe: OilSafe) => {
+    setEditingSafe(safe)
+    setSafeForm({
+      name: safe.name,
+      capacity: safe.capacity.toString(),
+      description: safe.description || ''
+    })
+    setIsEditSafeOpen(true)
+  }
+
+  const handleUpdateSafe = async () => {
+    if (!editingSafe || !safeForm.name.trim()) {
+      showNotification('Le nom du coffre est requis', 'error')
+      return
+    }
+
+    const capacity = parseFloat(safeForm.capacity)
+    if (isNaN(capacity) || capacity <= 0) {
+      showNotification('La capacité doit être supérieure à 0', 'error')
+      return
+    }
+
+    setCreating(true)
+    try {
+      const response = await fetch(`/api/stock/safes/${editingSafe.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: safeForm.name.trim(),
+          capacity: capacity,
+          description: safeForm.description.trim() || null
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setSafes(safes.map(s => s.id === editingSafe.id ? data.data : s))
+        setIsEditSafeOpen(false)
+        setEditingSafe(null)
+        setSafeForm({ name: '', capacity: '', description: '' })
+        showNotification('Coffre mis à jour avec succès!', 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de la mise à jour', 'error')
+      }
+    } catch (error) {
+      console.error('Error updating safe:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleDeleteSafe = async (safe: OilSafe) => {
+    const safePurchases = purchases.filter(p => p.safeId === safe.id)
+    const confirmMessage = safePurchases.length > 0
+      ? `Êtes-vous sûr de vouloir supprimer le coffre "${safe.name}"?\n\n⚠️ ATTENTION: ${safePurchases.length} achat(s) seront également supprimés!\n\nStock actuel: ${safe.currentStock.toFixed(2)} kg d'huile\n\nCette action est irréversible.`
+      : `Êtes-vous sûr de vouloir supprimer le coffre "${safe.name}"?\n\nStock: ${safe.currentStock.toFixed(2)} kg d'huile`
+
+    if (!confirm(confirmMessage)) return
+
+    try {
+      const response = await fetch(`/api/stock/safes/${safe.id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setSafes(safes.filter(s => s.id !== safe.id))
+        setPurchases(purchases.filter(p => p.safeId !== safe.id))
+        if (selectedSafe?.id === safe.id) {
+          setSelectedSafe(null)
+        }
+        showNotification(`Coffre "${safe.name}" supprimé avec succès!`, 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de la suppression', 'error')
+      }
+    } catch (error) {
+      console.error('Error deleting safe:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
     }
   }
 
@@ -714,9 +800,35 @@ export default function HuileriePage() {
                         </Badge>
                       )}
                 </CardTitle>
-                    <Badge variant="secondary" className="bg-white/20 text-white">
-                      {safe.isActive ? 'Actif' : 'Inactif'}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditSafe(safe)
+                        }}
+                        className="text-white hover:bg-white/20 h-8 w-8 p-0"
+                        title="Modifier le coffre"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteSafe(safe)
+                        }}
+                        className="text-white hover:bg-red-500/50 h-8 w-8 p-0"
+                        title="Supprimer le coffre"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <Badge variant="secondary" className="bg-white/20 text-white">
+                        {safe.isActive ? 'Actif' : 'Inactif'}
+                      </Badge>
+                    </div>
                   </div>
                   {safe.description && (
                     <p className="text-sm text-white/80 mt-2">{safe.description}</p>
@@ -1392,6 +1504,96 @@ export default function HuileriePage() {
                       </Button>
                     </div>
                   </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Safe Dialog */}
+      <Dialog 
+        open={isEditSafeOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingSafe(null)
+            setSafeForm({ name: '', capacity: '', description: '' })
+          }
+          setIsEditSafeOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2C3E50] flex items-center">
+              <Edit className="w-5 h-5 mr-2 text-blue-600" />
+              Modifier le Coffre
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {editingSafe && (
+              <Alert className="bg-blue-50 border-blue-300">
+                <AlertCircle className="w-4 h-4 text-blue-700" />
+                <AlertDescription className="text-blue-800">
+                  Modification du coffre: <strong>{editingSafe.name}</strong>
+                  <br/>
+                  <span className="text-xs">Stock actuel: {editingSafe.currentStock.toFixed(2)} kg</span>
+                </AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="editSafeName">Nom du Coffre *</Label>
+              <Input
+                id="editSafeName"
+                value={safeForm.name}
+                onChange={(e) => setSafeForm({...safeForm, name: e.target.value})}
+                placeholder="Ex: Coffre Principal A"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="editCapacity">Capacité (kg) *</Label>
+              <Input
+                id="editCapacity"
+                type="number"
+                step="0.01"
+                value={safeForm.capacity}
+                onChange={(e) => setSafeForm({...safeForm, capacity: e.target.value})}
+                placeholder="Ex: 1000"
+              />
+            </div>
+            <div>
+              <Label htmlFor="editDescription">Description (optionnelle)</Label>
+              <Textarea
+                id="editDescription"
+                value={safeForm.description}
+                onChange={(e) => setSafeForm({...safeForm, description: e.target.value})}
+                placeholder="Ex: Coffre pour huile extra vierge"
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button
+                onClick={handleUpdateSafe}
+                disabled={creating}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                {creating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {creating ? 'Mise à jour...' : 'Mettre à jour'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditSafeOpen(false)
+                  setEditingSafe(null)
+                  setSafeForm({ name: '', capacity: '', description: '' })
+                }}
+                disabled={creating}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

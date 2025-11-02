@@ -70,6 +70,8 @@ export async function POST(request: NextRequest) {
       clientName, 
       chakraCount, 
       galbaCount,
+      nchiraChakraCount,
+      nchiraGalbaCount,
       pricePerChakra,
       notes 
     } = body
@@ -89,8 +91,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calculate total chakra (5 galba = 1 chakra)
-    const totalChakra = new Decimal(chakraCount).plus(new Decimal(galbaCount).dividedBy(5))
+    // Calculate total chakra (5 galba = 1 chakra) INCLUDING nchira
+    const regularChakra = new Decimal(chakraCount).plus(new Decimal(galbaCount).dividedBy(5))
+    const nchiraTotal = new Decimal(nchiraChakraCount || 0).plus(new Decimal(nchiraGalbaCount || 0).dividedBy(5))
+    const totalChakra = regularChakra.plus(nchiraTotal)
     
     // Calculate price and total amount (default to 0 if not provided)
     const price = pricePerChakra ? new Decimal(pricePerChakra) : new Decimal(0)
@@ -104,6 +108,8 @@ export async function POST(request: NextRequest) {
         clientName: clientName.trim(),
         chakraCount: parseInt(chakraCount),
         galbaCount: parseInt(galbaCount),
+        nchiraChakraCount: parseInt(nchiraChakraCount || 0),
+        nchiraGalbaCount: parseInt(nchiraGalbaCount || 0),
         totalChakra,
         pricePerChakra: price,
         totalAmount,

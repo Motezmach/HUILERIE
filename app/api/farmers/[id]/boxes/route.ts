@@ -95,7 +95,7 @@ export async function POST(
         // Get existing chakra boxes once
         prisma.box.findMany({
           where: { id: { startsWith: 'Chkara' } },
-          select: { id: true }
+            select: { id: true }
         }),
         // Get IDs of all requested factory boxes
         Promise.resolve(validatedData.boxes
@@ -128,22 +128,22 @@ export async function POST(
       }
 
       // Calculate next chakra counter once
-      let chkaraCounter = 1
-      if (existingChkaraBoxes.length > 0) {
-        const chkaraNums = existingChkaraBoxes
-          .map((box: any) => parseInt(box.id.replace('Chkara', '')))
-          .filter((num: number) => !isNaN(num))
-          .sort((a: number, b: number) => a - b)
-        
-        for (const num of chkaraNums) {
-          if (num === chkaraCounter) {
-            chkaraCounter++
-          } else {
-            break
+          let chkaraCounter = 1
+          if (existingChkaraBoxes.length > 0) {
+            const chkaraNums = existingChkaraBoxes
+              .map((box: any) => parseInt(box.id.replace('Chkara', '')))
+              .filter((num: number) => !isNaN(num))
+              .sort((a: number, b: number) => a - b)
+            
+            for (const num of chkaraNums) {
+              if (num === chkaraCounter) {
+                chkaraCounter++
+              } else {
+                break
+              }
+            }
           }
-        }
-      }
-
+          
       // Process all boxes in PARALLEL using Promise.all()
       const boxPromises = validatedData.boxes.map(async (boxRequest, index) => {
         if (boxRequest.type === 'chkara') {
@@ -158,7 +158,7 @@ export async function POST(
               status: 'IN_USE'
             }
           })
-        } else {
+    } else {
           // Assign factory box
           return await prisma.box.update({
             where: { id: boxRequest.id! },

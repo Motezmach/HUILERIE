@@ -28,7 +28,10 @@ import {
   BarChart3,
   Printer,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MinusCircle,
+  Wallet,
+  DollarSign
 } from "lucide-react"
 
 interface Employee {
@@ -39,29 +42,46 @@ interface Employee {
   hireDate: Date
   isActive: boolean
   recentAttendance: Attendance[]
+  payments?: EmployeePayment[]
 }
 
 interface Attendance {
   id: string
   date: Date
-  status: 'present' | 'absent'
+  status: 'present' | 'absent' | 'half_day'
+  notes?: string
+}
+
+interface EmployeePayment {
+  id: string
+  employeeId: string
+  amount: number
+  paymentDate: Date
   notes?: string
 }
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [payments, setPayments] = useState<EmployeePayment[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  const [isAddPaymentDialogOpen, setIsAddPaymentDialogOpen] = useState(false)
+  const [selectedEmployeeForPayment, setSelectedEmployeeForPayment] = useState<Employee | null>(null)
   const [notification, setNotification] = useState<{ message: string; type: "error" | "success" | "warning" } | null>(null)
   
   const [employeeForm, setEmployeeForm] = useState({
     name: '',
     phone: '',
     position: ''
+  })
+
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    notes: ''
   })
 
   // Print state
@@ -86,19 +106,65 @@ export default function EmployeesPage() {
   const loadEmployees = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/employees')
-      const data = await response.json()
+      const [employeesRes, paymentsRes] = await Promise.all([
+        fetch('/api/employees'),
+        fetch('/api/employee-payments')
+      ])
       
-      if (data.success) {
-        setEmployees(data.data)
+      const employeesData = await employeesRes.json()
+      const paymentsData = await paymentsRes.json()
+      
+      if (employeesData.success) {
+        setEmployees(employeesData.data)
       } else {
-        showNotification(data.error || 'Erreur lors du chargement', 'error')
+        showNotification(employeesData.error || 'Erreur lors du chargement', 'error')
+      }
+
+      if (paymentsData.success) {
+        setPayments(paymentsData.data)
       }
     } catch (error) {
       console.error('Error loading employees:', error)
       showNotification('Erreur de connexion au serveur', 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAddPayment = async () => {
+    if (!selectedEmployeeForPayment || !paymentForm.amount) {
+      showNotification('Veuillez remplir le montant', 'error')
+      return
+    }
+
+    try {
+      setCreating(true)
+      const response = await fetch('/api/employee-payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: selectedEmployeeForPayment.id,
+          amount: parseFloat(paymentForm.amount),
+          notes: paymentForm.notes || null
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setPayments([...payments, data.data])
+        setIsAddPaymentDialogOpen(false)
+        setSelectedEmployeeForPayment(null)
+        setPaymentForm({ amount: '', notes: '' })
+        showNotification('Paiement enregistré avec succès!', 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de l\'enregistrement', 'error')
+      }
+    } catch (error) {
+      console.error('Error adding payment:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -185,7 +251,7 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleMarkAttendance = async (employeeId: string, status: 'present' | 'absent') => {
+  const handleMarkAttendance = async (employeeId: string, status: 'present' | 'absent' | 'half_day') => {
     // Optimistic update - update UI immediately before API call
     const tempAttendanceRecord = {
       id: `temp-${Date.now()}`, // Temporary ID
@@ -267,9 +333,17 @@ export default function EmployeesPage() {
   }
 
   const activeEmployees = employees.filter(e => e.isActive)
-  const todayAttendance = activeEmployees.filter(e => {
+  const todayPresent = activeEmployees.filter(e => {
     const att = getAttendanceForDate(e, selectedDate)
     return att?.status === 'present'
+  }).length
+  const todayHalfDay = activeEmployees.filter(e => {
+    const att = getAttendanceForDate(e, selectedDate)
+    return att?.status === 'half_day'
+  }).length
+  const todayAbsent = activeEmployees.filter(e => {
+    const att = getAttendanceForDate(e, selectedDate)
+    return att?.status === 'absent'
   }).length
 
   // Print helpers
@@ -284,7 +358,10 @@ export default function EmployeesPage() {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     const att = getAttendanceForDate(employee, dateStr)
     if (!att) return ''
-    return att.status === 'present' ? 'P' : 'A'
+    if (att.status === 'present') return 'P'
+    if (att.status === 'half_day') return 'H'
+    if (att.status === 'absent') return 'A'
+    return ''
   }
 
   const handlePrint = () => {
@@ -359,58 +436,6 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 print:hidden">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm">Total Employés</p>
-                <p className="text-3xl font-bold mt-1">{activeEmployees.length}</p>
-              </div>
-              <Users className="w-12 h-12 opacity-20" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm">Présents Aujourd'hui</p>
-                <p className="text-3xl font-bold mt-1">{todayAttendance}</p>
-              </div>
-              <CheckCircle className="w-12 h-12 opacity-20" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-red-500 to-red-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-red-100 text-sm">Absents Aujourd'hui</p>
-                <p className="text-3xl font-bold mt-1">{activeEmployees.length - todayAttendance}</p>
-              </div>
-              <XCircle className="w-12 h-12 opacity-20" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm">Taux de Présence</p>
-                <p className="text-3xl font-bold mt-1">
-                  {activeEmployees.length > 0 ? Math.round((todayAttendance / activeEmployees.length) * 100) : 0}%
-                </p>
-              </div>
-              <BarChart3 className="w-12 h-12 opacity-20" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Actions Bar */}
       <div className="flex items-center justify-between print:hidden">
@@ -522,6 +547,9 @@ export default function EmployeesPage() {
                     <th className="border-2 border-gray-400 p-2 text-center font-bold bg-green-100 print:bg-gray-200 min-w-[50px]">
                       P
                     </th>
+                    <th className="border-2 border-gray-400 p-2 text-center font-bold bg-gray-200 print:bg-gray-200 min-w-[50px]">
+                      H
+                    </th>
                     <th className="border-2 border-gray-400 p-2 text-center font-bold bg-red-100 print:bg-gray-200 min-w-[50px]">
                       A
                     </th>
@@ -530,7 +558,7 @@ export default function EmployeesPage() {
                 <tbody>
                   {activeEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={getDaysInMonth(printMonth).length + 3} className="border-2 border-gray-400 p-8 text-center text-gray-500">
+                      <td colSpan={getDaysInMonth(printMonth).length + 4} className="border-2 border-gray-400 p-8 text-center text-gray-500">
                         Aucun employé actif
                       </td>
                     </tr>
@@ -541,11 +569,13 @@ export default function EmployeesPage() {
                       const days = getDaysInMonth(printMonth)
                       
                       let presentCount = 0
+                      let halfDayCount = 0
                       let absentCount = 0
                       
                       days.forEach(day => {
                         const status = getAttendanceStatusForDay(employee, year, month, day)
                         if (status === 'P') presentCount++
+                        if (status === 'H') halfDayCount++
                         if (status === 'A') absentCount++
                       })
 
@@ -572,11 +602,13 @@ export default function EmployeesPage() {
                                 className={`border-2 border-gray-400 p-1 text-center font-bold ${
                                   status === 'P' 
                                     ? 'bg-green-100 text-green-800 print:bg-green-200' 
-                                    : status === 'A' 
-                                      ? 'bg-red-100 text-red-800 print:bg-red-200' 
-                                      : isWeekend 
-                                        ? 'bg-gray-100 print:bg-gray-100' 
-                                        : ''
+                                    : status === 'H'
+                                      ? 'bg-gray-300 text-gray-800 print:bg-gray-300'
+                                      : status === 'A' 
+                                        ? 'bg-red-100 text-red-800 print:bg-red-200' 
+                                        : isWeekend 
+                                          ? 'bg-gray-100 print:bg-gray-100' 
+                                          : ''
                                 }`}
                               >
                                 {status}
@@ -585,6 +617,9 @@ export default function EmployeesPage() {
                           })}
                           <td className="border-2 border-gray-400 p-2 text-center font-bold bg-green-50 text-green-800">
                             {presentCount}
+                          </td>
+                          <td className="border-2 border-gray-400 p-2 text-center font-bold bg-gray-200 text-gray-800">
+                            {halfDayCount}
                           </td>
                           <td className="border-2 border-gray-400 p-2 text-center font-bold bg-red-50 text-red-800">
                             {absentCount}
@@ -605,8 +640,9 @@ export default function EmployeesPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 print:text-black">Légende</p>
-                  <div className="flex justify-center gap-4 mt-1">
+                  <div className="flex justify-center gap-2 mt-1 flex-wrap">
                     <Badge className="bg-green-100 text-green-800 border-2 border-green-400">P = Présent</Badge>
+                    <Badge className="bg-gray-300 text-gray-800 border-2 border-gray-500">H = 1/2 Jour</Badge>
                     <Badge className="bg-red-100 text-red-800 border-2 border-red-400">A = Absent</Badge>
                   </div>
                 </div>
@@ -650,13 +686,20 @@ export default function EmployeesPage() {
           {activeEmployees.map(employee => {
             const todayAttendance = getAttendanceForDate(employee, selectedDate)
             const isPresent = todayAttendance?.status === 'present'
+            const isHalfDay = todayAttendance?.status === 'half_day'
             const isAbsent = todayAttendance?.status === 'absent'
+            
+            // Calculate total P/H/A for this employee (all time)
+            const totalPresent = employee.recentAttendance.filter(a => a.status === 'present').length
+            const totalHalfDay = employee.recentAttendance.filter(a => a.status === 'half_day').length
+            const totalAbsent = employee.recentAttendance.filter(a => a.status === 'absent').length
             
             return (
               <Card 
                 key={employee.id}
                 className={`border-0 shadow-lg transition-all hover:shadow-xl ${
                   isPresent ? 'ring-2 ring-green-400 bg-green-50/30' :
+                  isHalfDay ? 'ring-2 ring-gray-400 bg-gray-50/30' :
                   isAbsent ? 'ring-2 ring-red-400 bg-red-50/30' : ''
                 }`}
               >
@@ -666,6 +709,22 @@ export default function EmployeesPage() {
                       <User className="w-5 h-5 mr-2" />
                       {employee.name}
                     </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {/* P/H/A Counters */}
+                      <div className="flex gap-1">
+                        <Badge className="bg-green-600 text-white text-xs px-2 py-1">
+                          P: {totalPresent}
+                        </Badge>
+                        <Badge className="bg-gray-600 text-white text-xs px-2 py-1">
+                          H: {totalHalfDay}
+                        </Badge>
+                        <Badge className="bg-red-600 text-white text-xs px-2 py-1">
+                          A: {totalAbsent}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
                     <div className="flex gap-1">
                       <Button
                         size="sm"
@@ -717,10 +776,10 @@ export default function EmployeesPage() {
                         month: 'long' 
                       })}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <Button
                         onClick={() => handleMarkAttendance(employee.id, 'present')}
-                        className={`flex-1 h-16 ${
+                        className={`h-16 ${
                           isPresent
                             ? 'bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400'
                             : 'bg-green-50 text-green-700 border-2 border-green-300 hover:bg-green-100'
@@ -728,12 +787,27 @@ export default function EmployeesPage() {
                       >
                         <div className="flex flex-col items-center">
                           <CheckCircle className="w-6 h-6 mb-1" />
-                          <span className="text-xs font-bold">P - PRÉSENT</span>
+                          <span className="text-xs font-bold">P</span>
+                          <span className="text-[10px]">Présent</span>
+                        </div>
+                      </Button>
+                      <Button
+                        onClick={() => handleMarkAttendance(employee.id, 'half_day')}
+                        className={`h-16 ${
+                          isHalfDay
+                            ? 'bg-gray-600 hover:bg-gray-700 text-white ring-2 ring-gray-400'
+                            : 'bg-gray-50 text-gray-700 border-2 border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center">
+                          <MinusCircle className="w-6 h-6 mb-1" />
+                          <span className="text-xs font-bold">H</span>
+                          <span className="text-[10px]">1/2 Jour</span>
                         </div>
                       </Button>
                       <Button
                         onClick={() => handleMarkAttendance(employee.id, 'absent')}
-                        className={`flex-1 h-16 ${
+                        className={`h-16 ${
                           isAbsent
                             ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-400'
                             : 'bg-red-50 text-red-700 border-2 border-red-300 hover:bg-red-100'
@@ -741,7 +815,8 @@ export default function EmployeesPage() {
                       >
                         <div className="flex flex-col items-center">
                           <XCircle className="w-6 h-6 mb-1" />
-                          <span className="text-xs font-bold">A - ABSENT</span>
+                          <span className="text-xs font-bold">A</span>
+                          <span className="text-[10px]">Absent</span>
                         </div>
                       </Button>
                     </div>
@@ -769,18 +844,103 @@ export default function EmployeesPage() {
                             className={`flex-1 h-8 rounded flex items-center justify-center text-xs font-bold ${
                               att?.status === 'present' 
                                 ? 'bg-green-500 text-white' 
-                                : att?.status === 'absent'
-                                  ? 'bg-red-500 text-white'
-                                  : 'bg-gray-200 text-gray-400'
+                                : att?.status === 'half_day'
+                                  ? 'bg-gray-500 text-white'
+                                  : att?.status === 'absent'
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-gray-200 text-gray-400'
                             }`}
                             title={`${targetDate.toLocaleDateString('fr-FR')} - ${
-                              att?.status === 'present' ? 'Présent' : att?.status === 'absent' ? 'Absent' : 'Non marqué'
+                              att?.status === 'present' ? 'Présent' : att?.status === 'half_day' ? '1/2 Jour' : att?.status === 'absent' ? 'Absent' : 'Non marqué'
                             }`}
                           >
-                            {att?.status === 'present' ? 'P' : att?.status === 'absent' ? 'A' : '-'}
+                            {att?.status === 'present' ? 'P' : att?.status === 'half_day' ? 'H' : att?.status === 'absent' ? 'A' : '-'}
                           </div>
                         )
                       })}
+                    </div>
+                  </div>
+
+                  {/* Payment Tracking Section */}
+                  <div className="pt-4 border-t">
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-lg border-2 border-green-300">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="w-4 h-4 text-green-700" />
+                          <h3 className="text-xs font-bold text-green-900">Paiements</h3>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedEmployeeForPayment(employee)
+                            setIsAddPaymentDialogOpen(true)
+                          }}
+                          className="bg-green-600 hover:bg-green-700 text-white h-7 px-2 text-xs"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Payer
+                        </Button>
+                      </div>
+                      
+                      {(() => {
+                        const employeePayments = payments.filter(p => p.employeeId === employee.id)
+                        const totalPaid = employeePayments.reduce((sum, p) => sum + Number(p.amount), 0)
+                        
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-2 mb-3">
+                              <div className="bg-white p-2 rounded border border-green-300 text-center">
+                                <p className="text-[10px] text-gray-600">Total Payé</p>
+                                <p className="text-sm font-bold text-green-600">{totalPaid.toFixed(2)} DT</p>
+                              </div>
+                              <div className="bg-white p-2 rounded border border-green-300 text-center">
+                                <p className="text-[10px] text-gray-600">Paiements</p>
+                                <p className="text-sm font-bold text-gray-700">{employeePayments.length}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Payment History */}
+                            {employeePayments.length > 0 && (
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                <p className="text-[10px] text-gray-600 font-semibold uppercase mb-1">Historique</p>
+                                {employeePayments
+                                  .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
+                                  .slice(0, 5)
+                                  .map(payment => (
+                                    <div 
+                                      key={payment.id}
+                                      className="flex justify-between items-center bg-white p-2 rounded border border-green-200 text-xs"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <DollarSign className="w-3 h-3 text-green-600" />
+                                        <div>
+                                          <p className="font-bold text-green-700">{Number(payment.amount).toFixed(2)} DT</p>
+                                          {payment.notes && (
+                                            <p className="text-[10px] text-gray-500 italic">"{payment.notes}"</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-[10px] text-gray-600">
+                                          {new Date(payment.paymentDate).toLocaleDateString('fr-FR', { 
+                                            day: '2-digit', 
+                                            month: '2-digit'
+                                          })}
+                                        </p>
+                                        <p className="text-[9px] text-gray-400">
+                                          {new Date(payment.paymentDate).toLocaleTimeString('fr-FR', { 
+                                            hour: '2-digit', 
+                                            minute: '2-digit'
+                                          })}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 </CardContent>
@@ -867,7 +1027,95 @@ export default function EmployeesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Payment Dialog */}
+      <Dialog 
+        open={isAddPaymentDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedEmployeeForPayment(null)
+            setPaymentForm({ amount: '', notes: '' })
+          }
+          setIsAddPaymentDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2C3E50] flex items-center">
+              <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+              Enregistrer un Paiement
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedEmployeeForPayment && (
+              <Alert className="bg-green-50 border-green-300">
+                <Wallet className="w-4 h-4 text-green-700" />
+                <AlertDescription className="text-green-800">
+                  Paiement pour: <strong>{selectedEmployeeForPayment.name}</strong>
+                  {selectedEmployeeForPayment.position && (
+                    <span className="text-sm"> • {selectedEmployeeForPayment.position}</span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div>
+              <Label htmlFor="paymentAmount">Montant (DT) *</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                placeholder="Ex: 150.00"
+                className="text-lg font-bold"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="paymentNotes">Notes (optionnel)</Label>
+              <Input
+                id="paymentNotes"
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                placeholder="Ex: Salaire du mois, prime..."
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                onClick={handleAddPayment}
+                disabled={creating || !paymentForm.amount}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {creating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {creating ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddPaymentDialogOpen(false)
+                  setSelectedEmployeeForPayment(null)
+                  setPaymentForm({ amount: '', notes: '' })
+                }}
+                disabled={creating}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+
 
