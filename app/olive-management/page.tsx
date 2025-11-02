@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
+import { useRealTimeSync } from "@/hooks/use-real-time-sync"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -161,6 +162,34 @@ export default function OliveManagement() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const rebuildProcessedRef = useRef(false)
+
+  // Real-time sync for instant updates (mobile ↔ laptop)
+  const { lastSyncTime, isSyncing, manualSync } = useRealTimeSync({
+    onSync: async () => {
+      // Silent background sync - don't show loading spinner
+      const response = await farmersApi.getAll({
+        limit: 100,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        includeBoxes: true
+      })
+
+      if (response.success) {
+        const transformedFarmers = response.data.items.map(transformFarmerFromDb)
+        setFarmers(transformedFarmers)
+        
+        // If a farmer is selected, update their data
+        if (selectedFarmer) {
+          const updatedFarmer = transformedFarmers.find(f => f.id === selectedFarmer.id)
+          if (updatedFarmer) {
+            setSelectedFarmer(updatedFarmer)
+          }
+        }
+      }
+    },
+    interval: 3000, // Sync every 3 seconds
+    enableWhenHidden: false // Pause when tab is hidden
+  })
 
   // Initialize user
   useEffect(() => {

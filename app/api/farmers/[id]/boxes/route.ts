@@ -87,39 +87,70 @@ export async function POST(
 
     // Handle different box types with new professional logic
     if (body.boxes) {
-      // Bulk operation - assign multiple boxes
+      // OPTIMIZED Bulk operation - assign multiple boxes in parallel
       const validatedData = bulkCreateBoxSchema.parse(body)
-      const assignedBoxes = []
+      
+      // Pre-fetch all needed data once (not per box)
+      const [existingChkaraBoxes, requestedBoxIds] = await Promise.all([
+        // Get existing chakra boxes once
+        prisma.box.findMany({
+          where: { id: { startsWith: 'Chkara' } },
+          select: { id: true }
+        }),
+        // Get IDs of all requested factory boxes
+        Promise.resolve(validatedData.boxes
+          .filter(b => b.type !== 'chkara' && b.id)
+          .map(b => b.id!))
+      ])
 
-      for (const boxRequest of validatedData.boxes) {
-        if (boxRequest.type === 'chkara') {
-          // For CHKARA boxes, we create new ones (these are sacs, not factory boxes)
-          const existingChkaraBoxes = await prisma.box.findMany({
-            where: {
-              id: { startsWith: 'Chkara' }
-            },
-            select: { id: true }
-          })
-          
-          let chkaraCounter = 1
-          if (existingChkaraBoxes.length > 0) {
-            const chkaraNums = existingChkaraBoxes
-              .map((box: any) => parseInt(box.id.replace('Chkara', '')))
-              .filter((num: number) => !isNaN(num))
-              .sort((a: number, b: number) => a - b)
-            
-            for (const num of chkaraNums) {
-              if (num === chkaraCounter) {
-                chkaraCounter++
-              } else {
-                break
-              }
-            }
+      // Validate all factory boxes at once
+      if (requestedBoxIds.length > 0) {
+        const factoryBoxes = await prisma.box.findMany({
+          where: { id: { in: requestedBoxIds } }
+        })
+
+        // Check if all boxes exist and are available
+        for (const boxId of requestedBoxIds) {
+          const box = factoryBoxes.find(b => b.id === boxId)
+          if (!box) {
+            return NextResponse.json(
+              createErrorResponse(`Boîte ${boxId} n'existe pas`),
+              { status: 400 }
+            )
           }
-          
-          const chkaraBox = await prisma.box.create({
+          if (box.status !== 'AVAILABLE') {
+            return NextResponse.json(
+              createErrorResponse(`Boîte ${boxId} n'est pas disponible`),
+              { status: 400 }
+            )
+          }
+        }
+      }
+
+      // Calculate next chakra counter once
+      let chkaraCounter = 1
+      if (existingChkaraBoxes.length > 0) {
+        const chkaraNums = existingChkaraBoxes
+          .map((box: any) => parseInt(box.id.replace('Chkara', '')))
+          .filter((num: number) => !isNaN(num))
+          .sort((a: number, b: number) => a - b)
+        
+        for (const num of chkaraNums) {
+          if (num === chkaraCounter) {
+            chkaraCounter++
+          } else {
+            break
+          }
+        }
+      }
+
+      // Process all boxes in PARALLEL using Promise.all()
+      const boxPromises = validatedData.boxes.map(async (boxRequest, index) => {
+        if (boxRequest.type === 'chkara') {
+          // Create new CHKARA box
+          return await prisma.box.create({
             data: {
-              id: `Chkara${chkaraCounter}`,
+              id: `Chkara${chkaraCounter + index}`,
               type: 'CHKARA',
               currentWeight: boxRequest.weight ?? null,
               currentFarmerId: farmerId,
@@ -127,34 +158,10 @@ export async function POST(
               status: 'IN_USE'
             }
           })
-          
-          assignedBoxes.push(chkaraBox)
-    } else {
-          // For NORMAL/NCHIRA boxes, assign from available factory boxes
-          const requestedBoxId = boxRequest.id
-          
-          // Check if specific box ID is available
-          const targetBox = await prisma.box.findUnique({
-            where: { id: requestedBoxId }
-          })
-          
-          if (!targetBox) {
-            return NextResponse.json(
-              createErrorResponse(`Boîte ${requestedBoxId} n'existe pas dans l'inventaire de l'usine`),
-              { status: 400 }
-            )
-          }
-          
-          if (targetBox.status !== 'AVAILABLE') {
-            return NextResponse.json(
-              createErrorResponse(`Boîte ${requestedBoxId} n'est pas disponible (actuellement: ${targetBox.status})`),
-              { status: 400 }
-            )
-          }
-          
-          // Assign the box to farmer
-          const assignedBox = await prisma.box.update({
-            where: { id: requestedBoxId },
+        } else {
+          // Assign factory box
+          return await prisma.box.update({
+            where: { id: boxRequest.id! },
             data: {
               type: boxRequest.type.toUpperCase() as any,
               currentWeight: boxRequest.weight ?? null,
@@ -163,10 +170,11 @@ export async function POST(
               status: 'IN_USE'
             }
           })
-          
-          assignedBoxes.push(assignedBox)
         }
-      }
+      })
+
+      // Execute all box operations in parallel - MUCH FASTER!
+      const assignedBoxes = await Promise.all(boxPromises)
 
       const formattedBoxes = assignedBoxes.map((box: any) => ({
         ...box,

@@ -1953,8 +1953,8 @@ const PrintAllPurchases = ({ purchases, safes }: { purchases: Purchase[]; safes:
                 {purchases.length} achat(s) • Imprimé le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
-          </div>
-        </div>
+                    </div>
+                  </div>
 
         {/* Global Summary */}
         <div className="summary-box">
@@ -1962,15 +1962,15 @@ const PrintAllPurchases = ({ purchases, safes }: { purchases: Purchase[]; safes:
             <div>
               <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Total Olives</p>
               <p style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>{totalOlives.toFixed(1)} kg</p>
-            </div>
+                    </div>
             <div>
               <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Total Huile</p>
               <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#16a34a', margin: '0' }}>{totalOil.toFixed(1)} kg</p>
-            </div>
+                  </div>
             <div>
               <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Rendement Moyen</p>
               <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#9333ea', margin: '0' }}>{avgYield.toFixed(1)}%</p>
-            </div>
+                </div>
             <div>
               <p style={{ fontSize: '9px', color: '#666', marginBottom: '3px' }}>Investissement Total</p>
               <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#d97706', margin: '0' }}>{totalCost.toFixed(0)} DT</p>

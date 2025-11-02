@@ -75,6 +75,8 @@ export default function CollectorsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
   
   const [isAddGroupDialogOpen, setIsAddGroupDialogOpen] = useState(false)
+  const [isEditGroupDialogOpen, setIsEditGroupDialogOpen] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<CollectorGroup | null>(null)
   const [isAddCollectionDialogOpen, setIsAddCollectionDialogOpen] = useState(false)
   const [isAddPaymentDialogOpen, setIsAddPaymentDialogOpen] = useState(false)
   const [selectedGroupForPayment, setSelectedGroupForPayment] = useState<CollectorGroup | null>(null)
@@ -186,6 +188,73 @@ export default function CollectorsPage() {
       showNotification('Erreur de connexion au serveur', 'error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleEditGroup = (group: CollectorGroup) => {
+    setEditingGroup(group)
+    setNewGroupName(group.name)
+    setIsEditGroupDialogOpen(true)
+  }
+
+  const handleUpdateGroup = async () => {
+    if (!editingGroup || !newGroupName.trim()) {
+      showNotification('Le nom du groupe est requis', 'error')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/collector-groups/${editingGroup.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newGroupName.trim() })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setGroups(groups.map(g => g.id === editingGroup.id ? { ...g, name: newGroupName.trim() } : g))
+        setIsEditGroupDialogOpen(false)
+        setEditingGroup(null)
+        setNewGroupName('')
+        showNotification('Groupe mis à jour avec succès!', 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de la mise à jour', 'error')
+      }
+    } catch (error) {
+      console.error('Error updating group:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteGroup = async (group: CollectorGroup) => {
+    const groupCollections = collections.filter(c => c.groupId === group.id)
+    const confirmMessage = groupCollections.length > 0 
+      ? `Êtes-vous sûr de vouloir supprimer le groupe "${group.name}"?\n\n⚠️ ATTENTION: ${groupCollections.length} collecte(s) seront également supprimées de manière permanente!\n\nCette action est irréversible.`
+      : `Êtes-vous sûr de vouloir supprimer le groupe "${group.name}"?`
+    
+    if (!confirm(confirmMessage)) return
+
+    try {
+      const response = await fetch(`/api/collector-groups/${group.id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setGroups(groups.filter(g => g.id !== group.id))
+        setCollections(collections.filter(c => c.groupId !== group.id))
+        showNotification(`Groupe "${group.name}" supprimé avec succès!`, 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de la suppression', 'error')
+      }
+    } catch (error) {
+      console.error('Error deleting group:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
     }
   }
 
@@ -838,28 +907,46 @@ export default function CollectorsPage() {
                     className="border-0 shadow-lg hover:shadow-xl transition-all"
                   >
                     <CardHeader className="bg-gradient-to-r from-amber-500 to-amber-600 text-white">
-                      <CardTitle className="text-xl flex items-center justify-between">
-                        <div className="flex items-center">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xl flex items-center">
                           <Users className="w-6 h-6 mr-2" />
                           {group.name}
+                        </CardTitle>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleEditGroup(group)}
+                            className="bg-white/20 hover:bg-white/30 text-white border-0 h-8 w-8 p-0"
+                            title="Modifier le groupe"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleDeleteGroup(group)}
+                            className="bg-white/20 hover:bg-red-500/50 text-white border-0 h-8 w-8 p-0"
+                            title="Supprimer le groupe"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setCollectionForm({
+                                ...collectionForm,
+                                groupId: group.id,
+                                collectionDate: new Date().toISOString().split('T')[0]
+                              })
+                              setEditingCollection(null)
+                              setIsAddCollectionDialogOpen(true)
+                            }}
+                            className="bg-white/20 hover:bg-white/30 text-white border-0 h-9 w-9 p-0"
+                            title="Ajouter une collecte rapide"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </Button>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setCollectionForm({
-                              ...collectionForm,
-                              groupId: group.id,
-                              collectionDate: new Date().toISOString().split('T')[0]
-                            })
-                            setEditingCollection(null)
-                            setIsAddCollectionDialogOpen(true)
-                          }}
-                          className="bg-white/20 hover:bg-white/30 text-white border-0 h-9 w-9 p-0"
-                          title="Ajouter une collecte rapide"
-                        >
-                          <Plus className="w-5 h-5" />
-                        </Button>
-                      </CardTitle>
+                      </div>
                     </CardHeader>
                     <CardContent className="p-6">
                       <div className="space-y-4">
@@ -1069,6 +1156,73 @@ export default function CollectorsPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsAddGroupDialogOpen(false)}
+                disabled={saving}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Group Dialog */}
+      <Dialog 
+        open={isEditGroupDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingGroup(null)
+            setNewGroupName('')
+          }
+          setIsEditGroupDialogOpen(open)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-[#2C3E50] flex items-center">
+              <Edit className="w-5 h-5 mr-2 text-blue-600" />
+              Modifier le Groupe
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {editingGroup && (
+              <Alert className="bg-blue-50 border-blue-300">
+                <AlertCircle className="w-4 h-4 text-blue-700" />
+                <AlertDescription className="text-blue-800">
+                  Modification du groupe: <strong>{editingGroup.name}</strong>
+                </AlertDescription>
+              </Alert>
+            )}
+            <div>
+              <Label htmlFor="editGroupName">Nouveau Nom *</Label>
+              <Input
+                id="editGroupName"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Ex: Groupe A, Équipe 1..."
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button
+                onClick={handleUpdateGroup}
+                disabled={saving}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {saving ? 'Mise à jour...' : 'Mettre à jour'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditGroupDialogOpen(false)
+                  setEditingGroup(null)
+                  setNewGroupName('')
+                }}
                 disabled={saving}
               >
                 <X className="w-4 h-4 mr-2" />
