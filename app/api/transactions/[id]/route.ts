@@ -32,12 +32,25 @@ export async function DELETE(
       )
     }
 
-    // Don't allow deletion of farmer payment transactions (they're auto-generated)
+    // Allow deletion of orphaned farmer payment transactions
+    // (where session or farmer no longer exists)
     if (transaction.type === 'FARMER_PAYMENT') {
-      return NextResponse.json(
-        createErrorResponse('Les paiements des agriculteurs ne peuvent pas être supprimés manuellement'),
-        { status: 400 }
-      )
+      // Check if session still exists
+      if (transaction.sessionId) {
+        const sessionExists = await prisma.processingSession.findUnique({
+          where: { id: transaction.sessionId }
+        })
+        
+        if (sessionExists) {
+          return NextResponse.json(
+            createErrorResponse('Cette transaction est liée à une session active. Supprimez d\'abord la session.'),
+            { status: 400 }
+          )
+        }
+      }
+      
+      // If session doesn't exist, it's orphaned - allow deletion
+      console.log('🧹 Deleting orphaned FARMER_PAYMENT transaction:', transaction.id)
     }
 
     await prisma.transaction.delete({

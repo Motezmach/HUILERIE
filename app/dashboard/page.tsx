@@ -2238,16 +2238,15 @@ export default function Dashboard() {
                               </span>
                             </TableCell>
                             <TableCell className="text-center">
-                              {transaction.type !== 'FARMER_PAYMENT' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteTransaction(transaction.id)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteTransaction(transaction.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title={transaction.type === 'FARMER_PAYMENT' ? 'Supprimer (paiement orphelin)' : 'Supprimer'}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))

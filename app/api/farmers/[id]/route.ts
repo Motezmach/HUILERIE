@@ -160,6 +160,15 @@ export async function DELETE(
 
     // Use transaction to ensure all deletions are atomic
     await prisma.$transaction(async (tx) => {
+      // Delete all revenue transactions (FARMER_PAYMENT) for this farmer
+      await tx.transaction.deleteMany({
+        where: { 
+          farmerId: farmerId,
+          type: 'FARMER_PAYMENT'
+        }
+      })
+      console.log('💰 Deleted all FARMER_PAYMENT transactions for farmer')
+
       // Delete all sessions first (this will cascade to payment transactions and session boxes)
       if (sessionsCount > 0) {
         await tx.processingSession.deleteMany({

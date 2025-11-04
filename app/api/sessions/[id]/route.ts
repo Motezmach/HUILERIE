@@ -269,6 +269,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       })
       }
 
+      // Delete associated revenue transactions (FARMER_PAYMENT records)
+      await tx.transaction.deleteMany({
+        where: { 
+          sessionId: sessionId,
+          type: 'FARMER_PAYMENT'
+        }
+      })
+      console.log('💰 Deleted associated FARMER_PAYMENT transactions')
+
       // Delete session (cascades to sessionBoxes and paymentTransactions)
       await tx.processingSession.delete({
         where: { id: sessionId }
