@@ -489,3 +489,26 @@ html {
 [role="dialog"] * {
   color: inherit !important;
 }
+
+/* Remove number input spinners/arrows globally */
+/* Chrome, Safari, Edge, Opera */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Disable mouse wheel scroll on number inputs */
+input[type="number"] {
+  pointer-events: auto;
+}
+
+input[type="number"]:focus {
+  pointer-events: auto;
+}

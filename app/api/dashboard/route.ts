@@ -75,6 +75,9 @@ export async function GET(request: NextRequest) {
       // Today's oil and olive weights
       todayOilAndOlive,
       
+      // All-time oil and olive weights
+      allTimeOilAndOlive,
+      
       // Transactions for today (debits and credits)
       todayTransactions,
       
@@ -214,6 +217,17 @@ export async function GET(request: NextRequest) {
         }
       }),
       
+      // All-time oil and olive weights
+      prisma.processingSession.aggregate({
+        where: {
+          processingStatus: 'PROCESSED'
+        },
+        _sum: {
+          oilWeight: true,
+          totalBoxWeight: true
+        }
+      }),
+      
       // Today's transactions (all types)
       prisma.transaction.findMany({
         where: {
@@ -296,7 +310,9 @@ export async function GET(request: NextRequest) {
       metricDate: todayStart.toISOString(),
       chkaraCount: chkaraCount, // Add Chkara count
       todayOilWeight: Number(todayOilAndOlive._sum.oilWeight || 0),
-      todayOliveWeight: Number(todayOilAndOlive._sum.totalBoxWeight || 0)
+      todayOliveWeight: Number(todayOilAndOlive._sum.totalBoxWeight || 0),
+      totalOilWeight: Number(allTimeOilAndOlive._sum.oilWeight || 0),
+      totalOliveWeight: Number(allTimeOilAndOlive._sum.totalBoxWeight || 0)
     }
 
     // Calculate box utilization

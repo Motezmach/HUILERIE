@@ -18,7 +18,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Disable mousewheel on number inputs globally
+              document.addEventListener('wheel', function(e) {
+                if (document.activeElement.type === 'number') {
+                  document.activeElement.blur();
+                }
+              }, { passive: false });
+            `,
+          }}
+        />
+      </body>
     </html>
   )
 }

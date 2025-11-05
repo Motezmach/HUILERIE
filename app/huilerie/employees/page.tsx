@@ -168,6 +168,30 @@ export default function EmployeesPage() {
     }
   }
 
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce paiement ?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/employee-payments/${paymentId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        setPayments(payments.filter(p => p.id !== paymentId))
+        showNotification('Paiement supprimé avec succès!', 'success')
+      } else {
+        showNotification(data.error || 'Erreur lors de la suppression', 'error')
+      }
+    } catch (error) {
+      console.error('Error deleting payment:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    }
+  }
+
   const handleCreateEmployee = async () => {
     if (!employeeForm.name.trim()) {
       showNotification('Le nom est requis', 'error')
@@ -909,30 +933,41 @@ export default function EmployeesPage() {
                                   .map(payment => (
                                     <div 
                                       key={payment.id}
-                                      className="flex justify-between items-center bg-white p-2 rounded border border-green-200 text-xs"
+                                      className="flex justify-between items-center bg-white p-2 rounded border border-green-200 text-xs group hover:border-green-300 transition-colors"
                                     >
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2 flex-1">
                                         <DollarSign className="w-3 h-3 text-green-600" />
-                                        <div>
+                                        <div className="flex-1">
                                           <p className="font-bold text-green-700">{Number(payment.amount).toFixed(2)} DT</p>
                                           {payment.notes && (
                                             <p className="text-[10px] text-gray-500 italic">"{payment.notes}"</p>
                                           )}
                                         </div>
                                       </div>
-                                      <div className="text-right">
-                                        <p className="text-[10px] text-gray-600">
-                                          {new Date(payment.paymentDate).toLocaleDateString('fr-FR', { 
-                                            day: '2-digit', 
-                                            month: '2-digit'
-                                          })}
-                                        </p>
-                                        <p className="text-[9px] text-gray-400">
-                                          {new Date(payment.paymentDate).toLocaleTimeString('fr-FR', { 
-                                            hour: '2-digit', 
-                                            minute: '2-digit'
-                                          })}
-                                        </p>
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-right">
+                                          <p className="text-[10px] text-gray-600">
+                                            {new Date(payment.paymentDate).toLocaleDateString('fr-FR', { 
+                                              day: '2-digit', 
+                                              month: '2-digit'
+                                            })}
+                                          </p>
+                                          <p className="text-[9px] text-gray-400">
+                                            {new Date(payment.paymentDate).toLocaleTimeString('fr-FR', { 
+                                              hour: '2-digit', 
+                                              minute: '2-digit'
+                                            })}
+                                          </p>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeletePayment(payment.id)}
+                                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                                          title="Supprimer ce paiement"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
                                       </div>
                                     </div>
                                   ))}

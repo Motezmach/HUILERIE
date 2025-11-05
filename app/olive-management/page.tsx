@@ -613,6 +613,10 @@ export default function OliveManagement() {
         }
 
         setFarmers((prev) => [...prev, farmerWithBoxes])
+        
+        // Auto-select the newly created farmer for better UX
+        setSelectedFarmer(farmerWithBoxes)
+        
         setFarmerForm({ name: "", nickname: "", phone: "", type: "small" })
         setFarmerFormErrors({}) // Clear errors on success
     setIsAddFarmerOpen(false)

@@ -70,6 +70,8 @@ interface DashboardMetrics {
   chkaraCount: number
   todayOilWeight?: number
   todayOliveWeight?: number
+  totalOilWeight?: number
+  totalOliveWeight?: number
 }
 
 interface RecentActivity {
@@ -904,6 +906,8 @@ export default function Dashboard() {
       isProductionCard: true, // Flag for custom rendering
       todayOilWeight: data.metrics.todayOilWeight || 0,
       todayOliveWeight: data.metrics.todayOliveWeight || 0,
+      totalOilWeight: data.metrics.totalOilWeight || 0,
+      totalOliveWeight: data.metrics.totalOliveWeight || 0,
     },
     // Enhanced Revenue Card
     {
@@ -1139,17 +1143,23 @@ export default function Dashboard() {
                       <div className="space-y-3 mt-2">
                         {/* Oil Collected */}
                         <div className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                          <div>
+                          <div className="flex-1">
                             <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Huile Collectée</p>
                             <p className="text-2xl font-black text-green-600 mt-1">{(metric as any).todayOilWeight?.toFixed(2) || '0.00'} <span className="text-sm font-medium">kg</span></p>
+                            <p className="text-xs font-medium text-green-700/90 mt-1">
+                              Total: {(metric as any).totalOilWeight?.toFixed(2) || '0.00'} kg
+                            </p>
                           </div>
                           <Activity className="w-8 h-8 text-green-400 opacity-50" />
                         </div>
                         {/* Olive Collected */}
                         <div className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200">
-                          <div>
+                          <div className="flex-1">
                             <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Olives Collectées</p>
                             <p className="text-2xl font-black text-amber-600 mt-1">{(metric as any).todayOliveWeight?.toFixed(2) || '0.00'} <span className="text-sm font-medium">kg</span></p>
+                            <p className="text-xs font-medium text-amber-700/90 mt-1">
+                              Total: {(metric as any).totalOliveWeight?.toFixed(2) || '0.00'} kg
+                            </p>
                           </div>
                           <Package className="w-8 h-8 text-amber-400 opacity-50" />
                         </div>
