@@ -164,6 +164,7 @@ export default function Dashboard() {
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false)
   const [transactionType, setTransactionType] = useState<'DEBIT' | 'CREDIT'>('DEBIT')
   const [transactionForm, setTransactionForm] = useState({ amount: '', description: '', destination: '' })
+  const [isPrintingCashFlow, setIsPrintingCashFlow] = useState(false)
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -2130,7 +2131,15 @@ export default function Dashboard() {
                 </Button>
               </div>
               <Button
-                onClick={() => window.print()}
+                onClick={() => {
+                  setIsPrintingCashFlow(true)
+                  setTimeout(() => {
+                    window.print()
+                    setTimeout(() => {
+                      setIsPrintingCashFlow(false)
+                    }, 500)
+                  }, 100)
+                }}
                 variant="outline"
                 className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white"
               >
@@ -2352,6 +2361,349 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Print-Only Cash Flow Report */}
+      {isPrintingCashFlow && (
+        <PrintCashFlowReport 
+          transactions={transactions.filter(t => 
+            transactionSearchTerm === '' ||
+            t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
+            (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
+            (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
+          )}
+          totals={transactionTotals}
+        />
+      )}
+    </div>
+  )
+}
+
+// Print Component for Cash Flow Report
+const PrintCashFlowReport = ({ transactions, totals }: { transactions: any[], totals: any }) => {
+  // Sort transactions by date (most recent first)
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
+  )
+
+  return (
+    <div className="print-cash-flow-report">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-cash-flow-report, .print-cash-flow-report * {
+            visibility: visible;
+          }
+          
+          .print-cash-flow-report {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 15mm !important;
+            box-sizing: border-box !important;
+            font-size: 11px !important;
+            line-height: 1.4 !important;
+            font-family: Arial, sans-serif !important;
+            background: white !important;
+          }
+          
+          @page {
+            size: A4 portrait;
+            margin: 15mm;
+          }
+          
+          .print-header {
+            border-bottom: 3px solid #6B8E4B;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            page-break-after: avoid;
+          }
+          
+          .print-title {
+            font-size: 26px !important;
+            font-weight: bold !important;
+            color: #2C3E50 !important;
+            margin-bottom: 5px !important;
+          }
+          
+          .print-subtitle {
+            font-size: 12px !important;
+            color: #666 !important;
+          }
+          
+          .summary-boxes {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+          }
+          
+          .summary-box {
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+          }
+          
+          .summary-box.farmer-payments {
+            border-color: #10b981;
+            background-color: #f0fdf4;
+          }
+          
+          .summary-box.debits {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+          }
+          
+          .summary-box.credits {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+          }
+          
+          .summary-box.net-revenue {
+            border-color: #6B8E4B;
+            background-color: #f7fee7;
+          }
+          
+          .summary-label {
+            font-size: 9px !important;
+            font-weight: bold !important;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+          }
+          
+          .summary-value {
+            font-size: 18px !important;
+            font-weight: bold !important;
+          }
+          
+          .transactions-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-top: 15px;
+          }
+          
+          .transactions-table thead {
+            display: table-header-group !important;
+          }
+          
+          .transactions-table tbody {
+            display: table-row-group !important;
+          }
+          
+          .transactions-table tr {
+            page-break-inside: avoid !important;
+          }
+          
+          .transactions-table th {
+            background-color: #6B8E4B !important;
+            color: white !important;
+            font-weight: bold !important;
+            font-size: 10px !important;
+            padding: 10px 8px !important;
+            text-align: left !important;
+            border: 1px solid #5A7A3F !important;
+          }
+          
+          .transactions-table td {
+            border: 1px solid #ddd !important;
+            padding: 8px !important;
+            font-size: 10px !important;
+            vertical-align: middle !important;
+          }
+          
+          .transactions-table tbody tr:nth-child(even) {
+            background-color: #f9fafb !important;
+          }
+          
+          .type-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 9px !important;
+            font-weight: bold !important;
+          }
+          
+          .type-badge.farmer-payment {
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1px solid #10b981 !important;
+          }
+          
+          .type-badge.debit {
+            background-color: #dbeafe !important;
+            color: #1e40af !important;
+            border: 1px solid #3b82f6 !important;
+          }
+          
+          .type-badge.credit {
+            background-color: #fee2e2 !important;
+            color: #991b1b !important;
+            border: 1px solid #ef4444 !important;
+          }
+          
+          .amount-positive {
+            color: #059669 !important;
+            font-weight: bold !important;
+          }
+          
+          .amount-negative {
+            color: #dc2626 !important;
+            font-weight: bold !important;
+          }
+          
+          .print-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #6B8E4B;
+            text-align: center;
+            font-size: 9px !important;
+            color: #666;
+            page-break-inside: avoid;
+          }
+        }
+        
+        .print-cash-flow-report {
+          display: none;
+        }
+        
+        @media print {
+          .print-cash-flow-report {
+            display: block !important;
+          }
+        }
+        `
+      }} />
+
+      <div>
+        {/* Header */}
+        <div className="print-header">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h1 className="print-title">HUILERIE MASMOUDI</h1>
+              <p className="print-subtitle">Adresse: Tunis, Mahdia</p>
+              <p className="print-subtitle" style={{ fontWeight: 'bold', marginTop: '5px' }}>
+                Rapport de Flux de Trésorerie
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: '10px', color: '#666', marginBottom: '3px' }}>Date d'impression:</p>
+              <p style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                {new Date().toLocaleDateString('fr-FR')}
+              </p>
+              <p style={{ fontSize: '10px', color: '#999' }}>
+                {new Date().toLocaleTimeString('fr-FR')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Boxes */}
+        <div className="summary-boxes">
+          <div className="summary-box farmer-payments">
+            <p className="summary-label" style={{ color: '#065f46' }}>Paiements Farmers</p>
+            <p className="summary-value" style={{ color: '#059669' }}>
+              {totals.farmerPayments.toFixed(3)} DT
+            </p>
+          </div>
+          <div className="summary-box debits">
+            <p className="summary-label" style={{ color: '#1e40af' }}>Débits (+)</p>
+            <p className="summary-value" style={{ color: '#2563eb' }}>
+              {totals.debits.toFixed(3)} DT
+            </p>
+          </div>
+          <div className="summary-box credits">
+            <p className="summary-label" style={{ color: '#991b1b' }}>Crédits (-)</p>
+            <p className="summary-value" style={{ color: '#dc2626' }}>
+              {totals.credits.toFixed(3)} DT
+            </p>
+          </div>
+          <div className="summary-box net-revenue">
+            <p className="summary-label" style={{ color: '#5A7A3F' }}>Revenu Net</p>
+            <p className="summary-value" style={{ color: '#6B8E4B' }}>
+              {totals.netRevenue.toFixed(3)} DT
+            </p>
+          </div>
+        </div>
+
+        {/* Transactions Count */}
+        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '6px', textAlign: 'center' }}>
+          <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#2C3E50' }}>
+            Total des Transactions: {sortedTransactions.length}
+          </p>
+        </div>
+
+        {/* Transactions Table */}
+        <table className="transactions-table">
+          <thead>
+            <tr>
+              <th style={{ width: '12%' }}>Date</th>
+              <th style={{ width: '10%' }}>Heure</th>
+              <th style={{ width: '12%' }}>Type</th>
+              <th style={{ width: '30%' }}>Description</th>
+              <th style={{ width: '20%' }}>Farmer/Destination</th>
+              <th style={{ width: '16%', textAlign: 'right' }}>Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedTransactions.map((transaction, index) => (
+              <tr key={transaction.id}>
+                <td style={{ fontWeight: 'bold' }}>
+                  {new Date(transaction.transactionDate).toLocaleDateString('fr-FR')}
+                </td>
+                <td style={{ color: '#666' }}>
+                  {new Date(transaction.transactionDate).toLocaleTimeString('fr-FR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </td>
+                <td>
+                  {transaction.type === 'FARMER_PAYMENT' && (
+                    <span className="type-badge farmer-payment">Paiement</span>
+                  )}
+                  {transaction.type === 'DEBIT' && (
+                    <span className="type-badge debit">Débit</span>
+                  )}
+                  {transaction.type === 'CREDIT' && (
+                    <span className="type-badge credit">Crédit</span>
+                  )}
+                </td>
+                <td style={{ fontWeight: '500' }}>
+                  {transaction.description}
+                </td>
+                <td style={{ color: '#666' }}>
+                  {transaction.farmerName || transaction.destination || '-'}
+                </td>
+                <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                  <span className={transaction.type === 'CREDIT' ? 'amount-negative' : 'amount-positive'}>
+                    {transaction.type === 'CREDIT' ? '-' : '+'}{Math.abs(Number(transaction.amount)).toFixed(3)} DT
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Footer */}
+        <div className="print-footer">
+          <p>HUILERIE MASMOUDI - Rapport généré automatiquement</p>
+          <p style={{ marginTop: '5px' }}>
+            Ce document contient {sortedTransactions.length} transaction(s) | 
+            Revenu Net: {totals.netRevenue.toFixed(3)} DT
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
