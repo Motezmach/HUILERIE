@@ -566,7 +566,7 @@ export default function OliveManagement() {
     const errors: { name?: string; phone?: string } = {}
     
     // Name validation: 2 words, each with 3+ letters
-    if (!farmerForm.name.trim()) {
+    if (!farmerForm.name?.trim()) {
       errors.name = "Le nom est requis"
     } else {
       const words = farmerForm.name.trim().split(/\s+/)
@@ -578,7 +578,7 @@ export default function OliveManagement() {
     }
     
     // Phone validation: exactly 8 digits (if provided)
-    if (farmerForm.phone.trim()) {
+    if (farmerForm.phone?.trim()) {
       if (!/^[0-9]{8}$/.test(farmerForm.phone.trim())) {
         errors.phone = "Le numéro doit contenir exactement 8 chiffres"
       }
@@ -653,10 +653,14 @@ export default function OliveManagement() {
       if (response.success) {
         const updatedFarmer = transformFarmerFromDb(response.data)
         
-        // Preserve the current boxes state if API doesn't return boxes
+        // Preserve the current boxes state including selected status
         const currentFarmer = farmers.find(f => f.id === selectedFarmer.id)
-        if (currentFarmer && (!updatedFarmer.boxes || updatedFarmer.boxes.length === 0) && currentFarmer.boxes.length > 0) {
-          updatedFarmer.boxes = currentFarmer.boxes
+        if (currentFarmer && currentFarmer.boxes.length > 0) {
+          // Merge boxes, preserving selected state
+          updatedFarmer.boxes = updatedFarmer.boxes.map(box => {
+            const existingBox = currentFarmer.boxes.find(b => b.id === box.id)
+            return existingBox ? { ...box, selected: existingBox.selected } : box
+          })
         }
         
         setFarmers((prev) => prev.map((f) => (f.id === selectedFarmer.id ? updatedFarmer : f)))
@@ -1282,7 +1286,7 @@ export default function OliveManagement() {
     setFarmerForm({
       name: farmer.name,
       nickname: farmer.nickname || "", // Add nickname field with fallback
-      phone: farmer.phone,
+      phone: farmer.phone || "", // Add fallback for null phone
       type: farmer.type,
     })
     setIsEditFarmerOpen(true)
@@ -3362,8 +3366,7 @@ const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
             position: absolute;
             left: 0;
             top: 0;
-            width: 210mm !important;
-            height: 297mm !important;
+            width: 100% !important;
             margin: 0 !important;
             padding: 15mm !important;
             box-sizing: border-box !important;
@@ -3371,13 +3374,11 @@ const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
             line-height: 1.3 !important;
             font-family: Arial, sans-serif !important;
             background: white !important;
-            overflow: hidden !important;
-            page-break-after: avoid !important;
           }
           
           @page {
-            size: A4;
-            margin: 0;
+            size: A4 portrait;
+            margin: 15mm;
           }
           
           .no-print {
@@ -3389,6 +3390,18 @@ const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
             font-size: 10px !important;
             border-collapse: collapse !important;
             margin: 10px 0 !important;
+          }
+          
+          .farmers-table thead {
+            display: table-header-group !important;
+          }
+          
+          .farmers-table tbody {
+            display: table-row-group !important;
+          }
+          
+          .farmers-table tr {
+            page-break-inside: avoid !important;
           }
           
           .farmers-table th,
@@ -3412,12 +3425,17 @@ const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
             font-weight: bold !important;
           }
           
+          .print-header-section {
+            page-break-after: avoid !important;
+          }
+          
           .print-footer {
             margin-top: 15px !important;
             padding-top: 10px !important;
             border-top: 2px solid #6B8E4B !important;
             text-align: center !important;
             font-size: 9px !important;
+            page-break-inside: avoid !important;
           }
           
           .stats-summary {
@@ -3426,6 +3444,8 @@ const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
             padding: 10px !important;
             border-radius: 4px !important;
             margin-bottom: 15px !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
         
@@ -3443,7 +3463,7 @@ const PrintAllFarmers = ({ farmers }: { farmers: Farmer[] }) => {
 
       <div>
         {/* Header */}
-        <div className="border-b-2 border-[#6B8E4B] pb-3 mb-4 flex justify-between items-start">
+        <div className="print-header-section border-b-2 border-[#6B8E4B] pb-3 mb-4 flex justify-between items-start">
           <div>
             <h1 className="print-header-title text-2xl font-bold text-[#2C3E50]">HUILERIE MASMOUDI</h1>
             <p className="text-sm text-gray-600">Adresse: Tunis, Mahdia</p>

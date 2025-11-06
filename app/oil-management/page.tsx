@@ -2614,7 +2614,7 @@ export default function OilManagement() {
                         <div className="text-lg font-bold text-orange-600">
                           {selectedFarmer.sessions.filter(s => s.oilWeight === 0 && s.processingStatus !== "processed").length}
                         </div>
-                        <div className="text-xs text-orange-600">À traiter</div>
+                        <div className="text-xs text-orange-600">Manque huile poids</div>
                       </div>
                     </div>
                   </CardContent>
@@ -2988,10 +2988,15 @@ export default function OilManagement() {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="oilWeight" className="text-gray-700">
+                <Label htmlFor="oilWeight" className="text-gray-700 flex items-center gap-2">
                   Poids d'huile extraite (kg) *
+                  {editingSession.oilWeight === 0 && (
+                    <Badge variant="outline" className="border-red-400 text-red-600 bg-red-50 text-xs">
+                      Requis
+                    </Badge>
+                  )}
                   {editingSession.oilWeight > 0 && (
-                    <span className="text-sm text-gray-500 ml-2">
+                    <span className="text-sm text-gray-500">
                       (Précédent: {editingSession.oilWeight} kg)
                     </span>
                   )}
@@ -3003,8 +3008,18 @@ export default function OilManagement() {
                   value={sessionForm.oilWeight}
                   onChange={(e) => setSessionForm((prev) => ({ ...prev, oilWeight: e.target.value }))}
                   placeholder={editingSession.oilWeight > 0 ? `Modifier: ${editingSession.oilWeight}` : "Ex: 12.5"}
-                  className="bg-white text-gray-900"
+                  className={`bg-white text-gray-900 transition-all ${
+                    editingSession.oilWeight === 0 
+                      ? 'border-2 border-red-500 focus:border-red-600 focus:ring-red-500 shadow-sm shadow-red-200' 
+                      : ''
+                  }`}
                 />
+                {editingSession.oilWeight === 0 && (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Ce champ doit être rempli pour traiter la session
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="date" className="text-gray-700">Date de traitement *</Label>

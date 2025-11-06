@@ -330,7 +330,7 @@ export async function GET(request: NextRequest) {
       unpaidProcessed: unpaidProcessedSessions // Processed but not paid
     }
 
-    // Calculate trends (comparing with yesterday)
+    // Calculate trends
     const todayFarmersAdded = await prisma.farmer.count({
         where: {
         createdAt: { gte: todayStart, lte: todayEnd }
@@ -338,7 +338,7 @@ export async function GET(request: NextRequest) {
     })
 
     const trends = {
-      farmersChange: todayFarmersAdded - yesterdayFarmers,
+      farmersChange: todayFarmersAdded, // Just show today's count, not a comparison
       revenueChange: metrics.todayRevenue - Number(yesterdayRevenue._sum.amountPaid || 0)
     }
 
