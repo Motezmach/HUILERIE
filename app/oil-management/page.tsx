@@ -85,7 +85,7 @@ export default function OilManagement() {
   const [selectedFarmer, setSelectedFarmer] = useState<ProcessedFarmer | null>(null)
   const [editingSession, setEditingSession] = useState<ProcessingSession | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [paymentFilter, setPaymentFilter] = useState("all")
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending_oil" | "pending_payment">("all")
   const [showTodayOnly, setShowTodayOnly] = useState(false)
   const [sessionForm, setSessionForm] = useState({
     oilWeight: "",
@@ -539,7 +539,21 @@ export default function OilManagement() {
       }
       matchesSearch = matchesName || matchesBoxId
     }
-    const matchesPayment = paymentFilter === "all" || farmer.paymentStatus === paymentFilter
+    // Enhanced payment filter logic
+    let matchesPayment = true
+    if (paymentFilter === "paid") {
+      matchesPayment = farmer.paymentStatus === "paid"
+    } else if (paymentFilter === "pending_oil") {
+      // Has sessions waiting for oil weight (processingStatus === "pending")
+      matchesPayment = farmer.sessions.some(s => s.processingStatus === "pending")
+    } else if (paymentFilter === "pending_payment") {
+      // Has processed sessions but not paid (processingStatus === "processed" but paymentStatus !== "paid")
+      matchesPayment = farmer.sessions.some(s => 
+        (s.processingStatus === "processed" || s.oilWeight > 0) && 
+        s.paymentStatus !== "paid"
+      )
+    }
+    
     const matchesToday = showTodayOnly ? new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0] : true
     return matchesSearch && matchesPayment && matchesToday
   })
@@ -551,11 +565,25 @@ export default function OilManagement() {
     
     // If activating today filter, auto-select first today's farmer
     if (newShowTodayOnly) {
-      const todaysFarmers = processedFarmers.filter(farmer => 
-        farmer.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        (paymentFilter === "all" || farmer.paymentStatus === paymentFilter) &&
-        new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]
-      )
+      const todaysFarmers = processedFarmers.filter(farmer => {
+        const matchesSearch = farmer.name.toLowerCase().includes(searchTerm.toLowerCase())
+        const matchesToday = new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]
+        
+        // Apply same payment filter logic
+        let matchesPayment = true
+        if (paymentFilter === "paid") {
+          matchesPayment = farmer.paymentStatus === "paid"
+        } else if (paymentFilter === "pending_oil") {
+          matchesPayment = farmer.sessions.some(s => s.processingStatus === "pending")
+        } else if (paymentFilter === "pending_payment") {
+          matchesPayment = farmer.sessions.some(s => 
+            (s.processingStatus === "processed" || s.oilWeight > 0) && 
+            s.paymentStatus !== "paid"
+          )
+        }
+        
+        return matchesSearch && matchesPayment && matchesToday
+      })
       
       if (todaysFarmers.length > 0) {
         setSelectedFarmer(todaysFarmers[0])
@@ -2409,14 +2437,15 @@ export default function OilManagement() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                <Select value={paymentFilter} onValueChange={(value: any) => setPaymentFilter(value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Filtrer par paiement" />
+                    <SelectValue placeholder="Filtrer par statut" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tous les statuts</SelectItem>
                     <SelectItem value="paid">Payé</SelectItem>
-                    <SelectItem value="pending">En attente</SelectItem>
+                    <SelectItem value="pending_oil">En attente huile</SelectItem>
+                    <SelectItem value="pending_payment">En attente paiement</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
