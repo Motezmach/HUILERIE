@@ -1407,7 +1407,7 @@ export default function HuileriePage() {
                       Rendement: {((parseFloat(addOilForm.oilProduced) / purchases.find(p => p.id === addingOilToPurchaseId)!.oliveWeight) * 100).toFixed(1)}%
                     </p>
                   )}
-                  </div>
+                      </div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4">
@@ -1536,7 +1536,7 @@ export default function HuileriePage() {
                 </AlertDescription>
               </Alert>
             )}
-            <div>
+                    <div>
               <Label htmlFor="editSafeName">Nom du Coffre *</Label>
               <Input
                 id="editSafeName"
@@ -1545,7 +1545,7 @@ export default function HuileriePage() {
                 placeholder="Ex: Coffre Principal A"
                 autoFocus
               />
-            </div>
+                    </div>
             <div>
               <Label htmlFor="editCapacity">Capacité (kg) *</Label>
               <Input
@@ -1556,7 +1556,7 @@ export default function HuileriePage() {
                 onChange={(e) => setSafeForm({...safeForm, capacity: e.target.value})}
                 placeholder="Ex: 1000"
               />
-            </div>
+                    </div>
             <div>
               <Label htmlFor="editDescription">Description (optionnelle)</Label>
               <Textarea
@@ -1566,7 +1566,7 @@ export default function HuileriePage() {
                 placeholder="Ex: Coffre pour huile extra vierge"
                 rows={3}
               />
-            </div>
+                  </div>
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleUpdateSafe}

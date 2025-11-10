@@ -3381,8 +3381,8 @@ export default function OilManagement() {
                 ) : (
                   <div className="mt-2 space-y-2">
                     {/* Preset prices */}
-                    <div className="grid grid-cols-4 gap-2">
-                      {[0.250, 0.230, 0.200, 0.180].map((price) => (
+                    <div className="grid grid-cols-3 gap-2">
+                      {[0.220, 0.200, 0.180].map((price) => (
                         <Button
                           key={price}
                           type="button"

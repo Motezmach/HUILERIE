@@ -260,7 +260,7 @@ export default function OliveManagement() {
     try {
       setLoading(true)
       const response = await farmersApi.getAll({
-        limit: 100, // Load more farmers at once
+        limit: 1000, // Load up to 1000 farmers to handle large databases
         sortBy: 'name',
         sortOrder: 'asc',
         includeBoxes: true  // Include boxes data
@@ -559,7 +559,7 @@ export default function OliveManagement() {
   }
 
   // Check if date filter is active
-  const isDateFilterActive = dateRangeFilter.from || dateRangeFilter.to
+  const isDateFilterActive = !!(dateRangeFilter.from || dateRangeFilter.to)
 
   // Validation function for farmer form
   const validateFarmerForm = () => {
@@ -657,7 +657,7 @@ export default function OliveManagement() {
         const currentFarmer = farmers.find(f => f.id === selectedFarmer.id)
         if (currentFarmer && currentFarmer.boxes.length > 0) {
           // Merge boxes, preserving selected state
-          updatedFarmer.boxes = updatedFarmer.boxes.map(box => {
+          updatedFarmer.boxes = updatedFarmer.boxes.map((box: Box) => {
             const existingBox = currentFarmer.boxes.find(b => b.id === box.id)
             return existingBox ? { ...box, selected: existingBox.selected } : box
           })
