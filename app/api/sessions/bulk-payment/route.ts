@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         throw new Error('Une ou plusieurs sessions non trouvées')
       }
 
-      // Collect all session boxes data
+      // Collect all session boxes data and handle duplicates
       const allSessionBoxes = sessionsToDelete.flatMap(session => 
         session.sessionBoxes.map(sb => ({
           boxId: sb.boxId,
@@ -86,6 +86,26 @@ export async function POST(request: NextRequest) {
           farmerId: sb.farmerId
         }))
       )
+
+      // Remove duplicate boxes and sum their weights
+      // (if same box used in multiple sessions, combine the weights)
+      const uniqueBoxes = allSessionBoxes.reduce((acc, box) => {
+        const existing = acc.find(b => b.boxId === box.boxId)
+        if (existing) {
+          // Box already exists, add the weight
+          existing.boxWeight = Number(existing.boxWeight) + Number(box.boxWeight)
+        } else {
+          // New box, add it
+          acc.push({ ...box })
+        }
+        return acc
+      }, [] as Array<{ boxId: string; boxWeight: any; boxType: any; farmerId: string }>)
+
+      console.log('📦 Box deduplication:', {
+        totalBoxes: allSessionBoxes.length,
+        uniqueBoxes: uniqueBoxes.length,
+        duplicatesRemoved: allSessionBoxes.length - uniqueBoxes.length
+      })
 
       // Collect and combine all notes from the sessions
       const sessionsWithNotes = sessionsToDelete.filter(session => session.notes && session.notes.trim())
@@ -132,9 +152,9 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Create session boxes for the combined session
+      // Create session boxes for the combined session (using deduplicated boxes)
       await tx.sessionBox.createMany({
-        data: allSessionBoxes.map(sb => ({
+        data: uniqueBoxes.map(sb => ({
           sessionId: combinedSession.id,
           boxId: sb.boxId,
           boxWeight: Number(sb.boxWeight),

@@ -940,7 +940,7 @@ export default function EmployeesPage() {
                                         <div className="flex-1">
                                           <p className="font-bold text-green-700">{Number(payment.amount).toFixed(2)} DT</p>
                                           {payment.notes && (
-                                            <p className="text-[10px] text-gray-500 italic">"{payment.notes}"</p>
+                                            <p className="text-xs font-bold text-gray-700">"{payment.notes}"</p>
                                           )}
                                         </div>
                                       </div>

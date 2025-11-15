@@ -650,8 +650,9 @@ export default function OilManagement() {
         oilWeight: oilWeight,
       date: sessionForm.date,
         processingStatus: "processed" as const,
-        paymentStatus: sessionForm.paymentDate ? "paid" as const : "unpaid" as const,
-        paymentDate: sessionForm.paymentDate || undefined,
+        // PRESERVE existing payment status - don't change it when editing processing details
+        paymentStatus: editingSession.paymentStatus,
+        paymentDate: sessionForm.paymentDate || editingSession.paymentDate,
         notes: sessionForm.notes || undefined,
       }
 
@@ -2866,12 +2867,12 @@ export default function OilManagement() {
 
                             {/* Session Notes */}
                             {session.notes && (
-                              <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                                <div className="flex items-start space-x-1.5">
-                                  <AlertCircle className="w-3 h-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                              <div className="mt-3 p-3 bg-blue-50 border-2 border-blue-300 rounded">
+                                <div className="flex items-start space-x-2">
+                                  <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                                   <div className="flex-1">
-                                    <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Note:</p>
-                                    <p className="text-xs text-blue-900 leading-tight">{session.notes}</p>
+                                    <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-1">Note:</p>
+                                    <p className="text-sm font-bold text-blue-900 leading-snug">{session.notes}</p>
                                   </div>
                                 </div>
                               </div>

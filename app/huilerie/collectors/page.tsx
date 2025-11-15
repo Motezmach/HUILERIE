@@ -27,7 +27,8 @@ import {
   Trash2,
   Clock,
   DollarSign,
-  Wallet
+  Wallet,
+  User
 } from "lucide-react"
 
 interface CollectorGroup {
@@ -1096,13 +1097,16 @@ export default function CollectorsPage() {
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-2 mb-1 ml-5">
-                                      <MapPin className="w-3 h-3 text-amber-600" />
-                                      <span className="font-semibold text-sm">{collection.location}</span>
+                                      <User className="w-3 h-3 text-green-600" />
+                                      <span className="font-bold text-sm text-gray-900">{collection.clientName}</span>
                                     </div>
-                                    <p className="text-xs text-gray-600 ml-5">Client: {collection.clientName}</p>
+                                    <p className="text-xs text-gray-600 ml-5 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 text-amber-600" />
+                                      {collection.location}
+                                    </p>
                                     {collection.notes && (
-                                      <div className="mt-2 ml-5 p-2 bg-blue-50 border border-blue-200 rounded">
-                                        <p className="text-xs text-blue-800 italic">💬 {collection.notes}</p>
+                                      <div className="mt-2 ml-5 p-2 bg-blue-50 border-2 border-blue-300 rounded">
+                                        <p className="text-sm font-bold text-blue-900">💬 {collection.notes}</p>
                                       </div>
                                     )}
                                     <div className="flex gap-2 mt-2 ml-5 flex-wrap">

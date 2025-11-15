@@ -64,10 +64,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         processingStatus: 'PROCESSED'
       }
 
-      // If payment date is provided, also set payment status and date
+      // IMPORTANT: Only update payment date if provided, but DON'T change payment status
+      // Payment status should only be changed through the payment endpoints
       if (paymentDate) {
-        updateData.paymentStatus = 'PAID'
         updateData.paymentDate = new Date(paymentDate)
+        // DO NOT set paymentStatus here - it's managed separately via payment flow
       }
 
       // Add notes if provided
