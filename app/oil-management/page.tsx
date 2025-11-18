@@ -32,6 +32,8 @@ import {
   Package,
   Eye,
   Download,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
@@ -58,6 +60,7 @@ interface ProcessingSession {
   id: string
   date: string
   oilWeight: number
+  oilUnit?: string           // Unit: "kg" or "L" (litre)
   totalPrice: number | null  // Can be null until price is set during payment
   boxCount: number
   boxIds: string[]
@@ -89,6 +92,7 @@ export default function OilManagement() {
   const [showTodayOnly, setShowTodayOnly] = useState(false)
   const [sessionForm, setSessionForm] = useState({
     oilWeight: "",
+    oilUnit: "kg",
     date: "",
     paymentDate: "",
     notes: "",
@@ -112,6 +116,10 @@ export default function OilManagement() {
   const [user, setUser] = useState<any>(null)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<"farmers" | "sessions">("farmers")
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const farmersPerPage = 15
 
   // New payment modal states
   const [paymentSession, setPaymentSession] = useState<ProcessingSession | null>(null)
@@ -245,6 +253,7 @@ export default function OilManagement() {
             id: session.id,
             date: session.processingDate ? new Date(session.processingDate).toISOString().split('T')[0] : "",
             oilWeight: Number(session.oilWeight) || 0,
+            oilUnit: session.oilUnit || 'kg',
             totalPrice: session.totalPrice ? Number(session.totalPrice) : null,
             boxCount: session.boxCount,
             boxIds: session.sessionBoxes?.map((sb: any) => sb.boxId) || [],
@@ -331,7 +340,12 @@ export default function OilManagement() {
           }
         })
 
-        setProcessedFarmers(processedFarmersArray)
+        // Sort farmers by lastProcessingDate (newest first)
+        const sortedFarmers = processedFarmersArray.sort((a, b) => 
+          new Date(b.lastProcessingDate).getTime() - new Date(a.lastProcessingDate).getTime()
+        )
+
+        setProcessedFarmers(sortedFarmers)
 
         // Auto-select farmer if farmerId is provided in URL
         const farmerIdFromUrl = searchParams.get('farmerId')
@@ -558,6 +572,17 @@ export default function OilManagement() {
     return matchesSearch && matchesPayment && matchesToday
   })
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredFarmers.length / farmersPerPage)
+  const startIndex = (currentPage - 1) * farmersPerPage
+  const endIndex = startIndex + farmersPerPage
+  const paginatedFarmers = filteredFarmers.slice(startIndex, endIndex)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, paymentFilter, showTodayOnly])
+
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
     const newShowTodayOnly = !showTodayOnly
@@ -599,6 +624,7 @@ export default function OilManagement() {
     setEditingSession(session)
     setSessionForm({
       oilWeight: session.oilWeight > 0 ? session.oilWeight.toString() : "",
+      oilUnit: session.oilUnit || "kg",
       date: session.date || new Date().toISOString().split('T')[0], // Auto-fill today's date if empty
       paymentDate: session.paymentDate || "",
       notes: session.notes || "",
@@ -631,9 +657,10 @@ export default function OilManagement() {
 
     setSaving(true)
     try {
-      // Complete the session with oil weight, processing date, optional payment date, and notes
+      // Complete the session with oil weight, unit, processing date, optional payment date, and notes
       const completeResponse = await sessionsApi.complete(editingSession.id, {
         oilWeight: oilWeight,
+        oilUnit: sessionForm.oilUnit,
         processingDate: sessionForm.date,
         paymentDate: sessionForm.paymentDate || undefined,
         notes: sessionForm.notes || undefined
@@ -648,6 +675,7 @@ export default function OilManagement() {
       const updatedSession = {
       ...editingSession,
         oilWeight: oilWeight,
+        oilUnit: sessionForm.oilUnit,
       date: sessionForm.date,
         processingStatus: "processed" as const,
         // PRESERVE existing payment status - don't change it when editing processing details
@@ -701,7 +729,7 @@ export default function OilManagement() {
 
       // Clear form and close modal
     setEditingSession(null)
-      setSessionForm({ oilWeight: "", date: "", paymentDate: "", notes: "" })
+      setSessionForm({ oilWeight: "", oilUnit: "kg", date: "", paymentDate: "", notes: "" })
       
       const successMessage = sessionForm.paymentDate 
         ? "Session mise à jour et marquée comme payée!"
@@ -1026,6 +1054,7 @@ export default function OilManagement() {
         // Farmer exists, redirect to olive management with farmer selected
         localStorage.setItem("rebuildFarmerId", farmerId)
         localStorage.setItem("rebuildFarmerName", response.data.name)
+        localStorage.setItem("rebuildAutoNavigate", "true") // Flag to trigger auto-navigation
         
         console.log('Stored in localStorage:', {
           rebuildFarmerId: localStorage.getItem("rebuildFarmerId"),
@@ -1596,7 +1625,7 @@ export default function OilManagement() {
                   <p className="text-xs text-gray-600">Session: {session.sessionNumber}</p>
                   {session.oilWeight > 0 && (
                     <p className="text-xs text-green-600 font-medium">
-                      ✓ Huile extraite: {session.oilWeight} kg
+                      ✓ Huile extraite: {session.oilWeight} {session.oilUnit || 'kg'}
                     </p>
                   )}
                   {session.date && (
@@ -1646,7 +1675,7 @@ export default function OilManagement() {
             </div>
             <div>
               <p className="text-gray-600">Huile extraite:</p>
-              <p className="font-semibold text-green-700">{session.oilWeight.toFixed(1)} kg</p>
+              <p className="font-semibold text-green-700">{session.oilWeight.toFixed(1)} {session.oilUnit || 'kg'}</p>
             </div>
             <div>
               <p className="text-gray-600">Rendement:</p>
@@ -1707,7 +1736,20 @@ export default function OilManagement() {
     
     const totalBoxes = farmer.sessions.reduce((sum, s) => sum + s.boxCount, 0)
     const totalBoxWeight = farmer.sessions.reduce((sum, s) => sum + s.totalBoxWeight, 0)
-    const totalOilWeight = completedSessions.reduce((sum, s) => sum + s.oilWeight, 0)
+    
+    // Separate totals for kg and liters
+    const totalOilKg = completedSessions
+      .filter(s => !s.oilUnit || s.oilUnit === 'kg')
+      .reduce((sum, s) => sum + s.oilWeight, 0)
+    const totalOilLiters = completedSessions
+      .filter(s => s.oilUnit === 'L')
+      .reduce((sum, s) => sum + s.oilWeight, 0)
+    
+    const hasKg = totalOilKg > 0
+    const hasLiters = totalOilLiters > 0
+    
+    // Calculate average yield (use kg for calculation, or convert if needed)
+    const totalOilWeight = totalOilKg + totalOilLiters // For yield calculation
     const averageYield = totalBoxWeight > 0 ? (totalOilWeight / totalBoxWeight) * 100 : 0
     
     return (
@@ -1956,7 +1998,7 @@ export default function OilManagement() {
                 <th style={{ width: '10%' }}>Date</th>
                 <th style={{ width: '7%' }}>Boîtes</th>
                 <th style={{ width: '10%' }}>Poids Total (kg)</th>
-                <th style={{ width: '10%' }}>Huile (kg)</th>
+                <th style={{ width: '10%' }}>Huile (kg/L)</th>
                 <th style={{ width: '8%' }}>Rendement</th>
                 <th style={{ width: '10%' }}>Prix/kg (DT)</th>
                 <th style={{ width: '10%' }}>Total (DT)</th>
@@ -1976,7 +2018,9 @@ export default function OilManagement() {
                     <td>{session.date ? new Date(session.date).toLocaleDateString('fr-FR') : '-'}</td>
                     <td>{session.boxCount}</td>
                     <td>{session.totalBoxWeight.toFixed(2)}</td>
-                    <td style={{ fontWeight: 'bold' }}>{isProcessed ? session.oilWeight.toFixed(2) : '-'}</td>
+                    <td style={{ fontWeight: 'bold' }}>
+                      {isProcessed ? `${session.oilWeight.toFixed(2)} ${session.oilUnit || 'kg'}` : '-'}
+                    </td>
                     <td>{isProcessed ? `${yield_percent.toFixed(1)}%` : '-'}</td>
                     <td>{session.pricePerKg ? session.pricePerKg.toFixed(3) : '-'}</td>
                     <td style={{ fontWeight: 'bold' }}>
@@ -2037,7 +2081,10 @@ export default function OilManagement() {
                 </div>
                 <div>
                   <p className="text-gray-600 mb-1">Total Huile</p>
-                  <p className="font-bold text-sm">{totalOilWeight.toFixed(2)} kg</p>
+                  <div className="font-bold text-sm">
+                    {hasKg && <div>{totalOilKg.toFixed(2)} kg</div>}
+                    {hasLiters && <div>{totalOilLiters.toFixed(2)} L</div>}
+                  </div>
                 </div>
                 <div>
                   <p className="text-gray-600 mb-1">Rendement Moyen</p>
@@ -2466,7 +2513,7 @@ export default function OilManagement() {
                   <p className="text-sm">Les sessions de traitement apparaîtront ici</p>
                 </div>
               ) : (
-                filteredFarmers.map((farmer) => (
+                paginatedFarmers.map((farmer) => (
                 <Card
                   key={farmer.id}
                   className={`cursor-pointer transition-all hover:shadow-md ${
@@ -2523,6 +2570,67 @@ export default function OilManagement() {
                   </CardContent>
                 </Card>
                 ))
+              )}
+
+              {/* Pagination Controls */}
+              {filteredFarmers.length > farmersPerPage && (
+                <div className="mt-6 flex items-center justify-between px-2">
+                  <div className="text-sm text-gray-600">
+                    Affichage {startIndex + 1}-{Math.min(endIndex, filteredFarmers.length)} sur {filteredFarmers.length} agriculteurs
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white disabled:opacity-50"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum
+                        if (totalPages <= 5) {
+                          pageNum = i + 1
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i
+                        } else {
+                          pageNum = currentPage - 2 + i
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            size="sm"
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-9 h-9 p-0 ${
+                              currentPage === pageNum
+                                ? 'bg-[#6B8E4B] text-white hover:bg-[#5A7A3F]'
+                                : 'border-gray-300 hover:border-[#6B8E4B] hover:text-[#6B8E4B]'
+                            }`}
+                          >
+                            {pageNum}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white disabled:opacity-50"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -2776,7 +2884,7 @@ export default function OilManagement() {
                               <div>
                                 <p className="text-sm text-gray-600">Poids d'huile</p>
                                 <p className="font-semibold">
-                                  {session.oilWeight > 0 ? `${session.oilWeight} kg` : "Non saisi"}
+                                  {session.oilWeight > 0 ? `${session.oilWeight} ${session.oilUnit || 'kg'}` : "Non saisi"}
                                 </p>
                               </div>
                               <div>
@@ -3018,18 +3126,49 @@ export default function OilManagement() {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="oilWeight" className="text-gray-700 flex items-center gap-2">
-                  Poids d'huile extraite (kg) *
-                  {editingSession.oilWeight === 0 && (
-                    <Badge variant="outline" className="border-red-400 text-red-600 bg-red-50 text-xs">
-                      Requis
-                    </Badge>
-                  )}
-                  {editingSession.oilWeight > 0 && (
-                    <span className="text-sm text-gray-500">
-                      (Précédent: {editingSession.oilWeight} kg)
-                    </span>
-                  )}
+                <Label htmlFor="oilWeight" className="text-gray-700 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    Poids d'huile extraite *
+                    {editingSession.oilWeight === 0 && (
+                      <Badge variant="outline" className="border-red-400 text-red-600 bg-red-50 text-xs">
+                        Requis
+                      </Badge>
+                    )}
+                    {editingSession.oilWeight > 0 && (
+                      <span className="text-sm text-gray-500">
+                        (Précédent: {editingSession.oilWeight} {editingSession.oilUnit || 'kg'})
+                      </span>
+                    )}
+                  </span>
+                  {/* Unit Selector Buttons */}
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={sessionForm.oilUnit === "kg" ? "default" : "outline"}
+                      onClick={() => setSessionForm(prev => ({ ...prev, oilUnit: "kg" }))}
+                      className={`h-8 px-3 text-xs font-bold ${
+                        sessionForm.oilUnit === "kg"
+                          ? 'bg-[#6B8E4B] hover:bg-[#5A7A3F] text-white'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      KG
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={sessionForm.oilUnit === "L" ? "default" : "outline"}
+                      onClick={() => setSessionForm(prev => ({ ...prev, oilUnit: "L" }))}
+                      className={`h-8 px-3 text-xs font-bold ${
+                        sessionForm.oilUnit === "L"
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      L
+                    </Button>
+                  </div>
                 </Label>
                 <Input
                   id="oilWeight"
@@ -3037,13 +3176,16 @@ export default function OilManagement() {
                   step="0.1"
                   value={sessionForm.oilWeight}
                   onChange={(e) => setSessionForm((prev) => ({ ...prev, oilWeight: e.target.value }))}
-                  placeholder={editingSession.oilWeight > 0 ? `Modifier: ${editingSession.oilWeight}` : "Ex: 12.5"}
+                  placeholder={editingSession.oilWeight > 0 ? `Modifier: ${editingSession.oilWeight}` : `Ex: 12.5`}
                   className={`bg-white text-gray-900 transition-all ${
                     editingSession.oilWeight === 0 
                       ? 'border-2 border-red-500 focus:border-red-600 focus:ring-red-500 shadow-sm shadow-red-200' 
                       : ''
                   }`}
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Unité sélectionnée: <span className="font-bold">{sessionForm.oilUnit === "kg" ? "Kilogrammes" : "Litres"}</span>
+                </p>
                 {editingSession.oilWeight === 0 && (
                   <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -3766,7 +3908,7 @@ export default function OilManagement() {
                       <div key={session.id} className="flex items-center justify-between bg-white border border-yellow-200 rounded p-2 text-sm">
                         <div>
                           <span className="font-semibold">Session {session.sessionNumber}</span>
-                          <span className="text-gray-500 ml-2">{session.oilWeight} kg</span>
+                          <span className="text-gray-500 ml-2">{session.oilWeight} {session.oilUnit || 'kg'}</span>
                         </div>
                         <span className="text-gray-600">{session.totalBoxWeight} kg olives</span>
                       </div>

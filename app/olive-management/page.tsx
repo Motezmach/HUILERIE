@@ -56,6 +56,8 @@ import {
   ArrowLeft,
   Printer,
   Download,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -136,6 +138,10 @@ export default function OliveManagement() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [mobileView, setMobileView] = useState<"farmers" | "boxes">("farmers")
   const [printingFarmers, setPrintingFarmers] = useState(false)
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const farmersPerPage = 15
 
   // Form states
   const [farmerForm, setFarmerForm] = useState({
@@ -362,6 +368,15 @@ export default function OliveManagement() {
       const farmer = farmers.find((f) => f.id === rebuildFarmerId)
       if (farmer) {
         console.log('✅ Found farmer for rebuild:', farmer.name)
+        
+        // Calculate which page this farmer is on
+        const farmerIndex = filteredFarmers.findIndex(f => f.id === rebuildFarmerId)
+        if (farmerIndex !== -1) {
+          const farmerPage = Math.floor(farmerIndex / farmersPerPage) + 1
+          console.log('📄 Farmer is on page:', farmerPage, 'Index:', farmerIndex)
+          setCurrentPage(farmerPage)
+        }
+        
         // Only auto-select if no farmer is currently selected
         if (!selectedFarmer) {
           setSelectedFarmer(farmer)
@@ -373,6 +388,7 @@ export default function OliveManagement() {
         // Clear localStorage immediately after successful selection
         localStorage.removeItem("rebuildFarmerId")
         localStorage.removeItem("rebuildFarmerName")
+        localStorage.removeItem("rebuildAutoNavigate")
         rebuildProcessedRef.current = true
         console.log('✅ Cleared localStorage after successful rebuild')
       } else {
@@ -533,11 +549,22 @@ export default function OliveManagement() {
       return matchesSearch && matchesFilter && matchesToday && matchesDateRange
     })
         
-    // Sort by dateAdded (oldest first) so first added farmer appears first
+    // Sort by dateAdded (newest first) so recently added farmers appear on first pages
     return filtered.sort((a, b) => 
-      new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()
+      new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
     )
   }, [farmers, searchTerm, filterType, showTodayOnly, dateRangeFilter])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredFarmers.length / farmersPerPage)
+  const startIndex = (currentPage - 1) * farmersPerPage
+  const endIndex = startIndex + farmersPerPage
+  const paginatedFarmers = filteredFarmers.slice(startIndex, endIndex)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterType, showTodayOnly, dateRangeFilter])
         
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
@@ -1960,7 +1987,7 @@ export default function OliveManagement() {
                   <p className="text-sm">Créez votre premier agriculteur pour commencer</p>
                 </div>
               ) : (
-                filteredFarmers.map((farmer) => (
+                paginatedFarmers.map((farmer) => (
                 <Card
                   key={farmer.id}
                   className={`cursor-pointer transition-all hover:shadow-md ${
@@ -2044,6 +2071,67 @@ export default function OliveManagement() {
                   </CardContent>
                 </Card>
                 ))
+              )}
+
+              {/* Pagination Controls */}
+              {filteredFarmers.length > farmersPerPage && (
+                <div className="mt-6 flex items-center justify-between px-2">
+                  <div className="text-sm text-gray-600">
+                    Affichage {startIndex + 1}-{Math.min(endIndex, filteredFarmers.length)} sur {filteredFarmers.length} agriculteurs
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white disabled:opacity-50"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum
+                        if (totalPages <= 5) {
+                          pageNum = i + 1
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i
+                        } else {
+                          pageNum = currentPage - 2 + i
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            size="sm"
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-9 h-9 p-0 ${
+                              currentPage === pageNum
+                                ? 'bg-[#6B8E4B] text-white hover:bg-[#5A7A3F]'
+                                : 'border-gray-300 hover:border-[#6B8E4B] hover:text-[#6B8E4B]'
+                            }`}
+                          >
+                            {pageNum}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                    
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white disabled:opacity-50"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

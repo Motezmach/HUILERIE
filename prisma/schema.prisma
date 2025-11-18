@@ -75,6 +75,7 @@ model ProcessingSession {
   sessionNumber        String             @unique
   processingDate       DateTime?
   oilWeight            Decimal            @default(0)
+  oilUnit              String             @default("kg") // Unit: "kg" or "L" (litre)
   totalBoxWeight       Decimal
   boxCount             Int
   totalPrice           Decimal?           // Made nullable - will be set during payment
