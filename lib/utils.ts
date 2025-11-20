@@ -244,24 +244,39 @@ export function createPaginatedResponse<T>(items: T[], total: number, page: numb
 
 // Session number generator
 export async function generateSessionNumber(prisma: any): Promise<string> {
-  // Get the highest session number from existing sessions
-  const lastSession = await prisma.processingSession.findFirst({
+  // Get all session numbers and find the highest one
+  const allSessions = await prisma.processingSession.findMany({
     where: {
       sessionNumber: {
         startsWith: 'S#'
       }
     },
-    orderBy: {
-      createdAt: 'desc'
+    select: {
+      sessionNumber: true
     }
   })
   
-  let nextNumber = 1
-  if (lastSession?.sessionNumber) {
-    const match = lastSession.sessionNumber.match(/S#(\d+)/)
+  let maxNumber = 0
+  for (const session of allSessions) {
+    const match = session.sessionNumber.match(/S#(\d+)/)
     if (match) {
-      nextNumber = parseInt(match[1]) + 1
+      const num = parseInt(match[1])
+      if (num > maxNumber) {
+        maxNumber = num
+      }
     }
+  }
+  
+  const nextNumber = maxNumber + 1
+  
+  // Double-check this number doesn't exist (extra safety)
+  const existingSession = await prisma.processingSession.findUnique({
+    where: { sessionNumber: `S#${nextNumber}` }
+  })
+  
+  if (existingSession) {
+    // If somehow it exists, add a random suffix
+    return `S#${nextNumber}-${Date.now().toString().slice(-4)}`
   }
   
   return `S#${nextNumber}`

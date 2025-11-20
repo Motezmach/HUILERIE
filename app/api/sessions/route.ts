@@ -232,6 +232,7 @@ export async function POST(request: NextRequest) {
           sessionNumber,
           totalBoxWeight: validatedData.totalBoxWeight,
           boxCount: validatedData.boxCount,
+          oilUnit: 'kg', // Default unit for new sessions
           // totalPrice and pricePerKg will be set during payment process
           // totalPrice: null (default)
           // pricePerKg: null (default)
