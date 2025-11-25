@@ -1517,6 +1517,9 @@ export default function OilManagement() {
               <strong>Date de traitement:</strong> {session.date || "Non spécifiée"}
             </p>
             <p className="mb-1">
+              <strong>Boîtes:</strong> {session.boxCount} boîte{session.boxCount > 1 ? 's' : ''}
+            </p>
+            <p className="mb-1">
               <strong>Statut paiement:</strong>{" "}
               <span className={
                 session.paymentStatus === "paid" 
@@ -1565,44 +1568,7 @@ export default function OilManagement() {
         </div>
       </div>
 
-      {/* Box Details */}
-      <div className="mb-4 section-spacing">
-        <h3 className="text-base font-semibold text-[#2C3E50] mb-2 border-b border-gray-300 pb-1">Boîtes traitées</h3>
-        <div className="border border-gray-300 p-3 bg-gray-50 rounded">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="font-semibold text-gray-700 mb-2">
-                Numéros des boîtes ({session.boxCount} boîte{session.boxCount > 1 ? 's' : ''}):
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {session.boxIds && session.boxIds.length > 0 ? (
-                  session.boxIds.map((boxId, index) => (
-                    <span key={index} className="inline-block bg-blue-100 border border-blue-300 text-blue-800 px-2 py-1 rounded text-sm font-medium">
-                      {boxId}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-gray-500">Aucune boîte enregistrée</span>
-                )}
-              </div>
-            </div>
-            
-            {session.boxDetails && session.boxDetails.length > 0 && (
-              <div>
-                <p className="font-semibold text-gray-700 mb-2">Détail des poids:</p>
-                <div className="text-sm space-y-1 max-h-20 overflow-y-auto">
-                  {session.boxDetails.map((box, index) => (
-                    <div key={index} className="flex justify-between bg-white px-2 py-1 rounded border">
-                      <span><strong>{box.id}</strong> ({box.type}):</span>
-                      <span className="font-semibold">{box.weight} kg</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Box details removed per requirements; box count shown in session details */}
 
       {/* Services Table */}
       <div className="mb-4 section-spacing">
