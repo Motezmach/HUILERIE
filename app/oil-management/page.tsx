@@ -910,6 +910,40 @@ export default function OilManagement() {
     }
   }
 
+  // Unpay session - revert payment to previous state
+  const handleUnpaySession = async (sessionId: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir annuler le paiement de cette session ? Cette action supprimera tous les paiements effectués et retirera le montant des revenus.")) {
+      return
+    }
+
+    setSaving(true)
+    try {
+      const response = await sessionsApi.unpay(sessionId)
+      
+      if (response.success) {
+        showNotification(response.message || 'Paiement annulé avec succès', 'success')
+        
+        // Refresh data and keep current farmer selection up to date
+        const updatedFarmers = await loadSessions()
+        if (selectedFarmer) {
+          const updated = updatedFarmers.find(f => f.id === selectedFarmer.id)
+          if (updated) setSelectedFarmer(updated)
+        }
+        
+        // Close the details modal and refresh
+        setSessionDetailsModal(null)
+        setSessionPaymentHistory([])
+      } else {
+        showNotification(response.error || 'Erreur lors de l\'annulation du paiement', 'error')
+      }
+    } catch (error) {
+      console.error('Error unpaying session:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Load detailed session information including payment history
   const handleOpenSessionDetails = async (session: ProcessingSession) => {
     setLoadingSessionDetails(true)
@@ -3829,6 +3863,17 @@ export default function OilManagement() {
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Continuer le paiement
+                </Button>
+              )}
+              {(sessionDetailsModal.paymentStatus === "paid" || sessionDetailsModal.paymentStatus === "partial") && (
+                <Button
+                  onClick={() => handleUnpaySession(sessionDetailsModal.id)}
+                  disabled={saving}
+                  variant="destructive"
+                  className="bg-orange-600 hover:bg-orange-700 text-white flex-1 sm:flex-none"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+                  Annuler le paiement
                 </Button>
               )}
               <Button 

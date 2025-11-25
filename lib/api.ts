@@ -358,6 +358,12 @@ export const sessionsApi = {
     apiRequest(`/sessions/${id}/reset`, {
       method: 'PUT',
     }),
+
+  // Unpay session (revert payment)
+  unpay: (id: string): Promise<ApiResponse<any>> => 
+    apiRequest(`/sessions/${id}/unpay`, {
+      method: 'POST',
+    }),
 }
 
 // DASHBOARD API
