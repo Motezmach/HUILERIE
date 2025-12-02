@@ -73,7 +73,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       pricePerKg, 
       oilProduced,
       notes,
-      purchaseDate
+      purchaseDate,
+      isBasePurchase // When true, calculate totalCost based on OIL weight, not OLIVE weight
     } = body
 
     // Check if purchase exists
@@ -175,8 +176,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.oliveWeight = newOliveWeight
       updateData.pricePerKg = newPricePerKg
       updateData.oilProduced = newOilProduced
-      updateData.totalCost = newOliveWeight * newPricePerKg
-      updateData.yieldPercentage = (newOilProduced / newOliveWeight) * 100
+      
+      // For BASE purchases, calculate based on OIL weight
+      // For regular purchases, calculate based on OLIVE weight
+      updateData.totalCost = isBasePurchase 
+        ? (newOilProduced * newPricePerKg)  // BASE: price × oil kg
+        : (newOliveWeight * newPricePerKg)  // Regular: price × olive kg
+        
+      // Only calculate yield if we have olive weight
+      updateData.yieldPercentage = newOliveWeight > 0 
+        ? (newOilProduced / newOliveWeight) * 100 
+        : 0
     }
 
     // Update purchase and safe stock in transaction

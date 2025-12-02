@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
       oilProduced, 
       safeId, 
       notes,
-      purchaseDate 
+      purchaseDate,
+      isBasePurchase // When true, calculate totalCost based on OIL weight, not OLIVE weight
     } = body
 
     // Validation
@@ -134,8 +135,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate totals (use oil weight for cost if no olives)
-    const totalCost = oliveWeight ? (oliveWeight * pricePerKg) : (oilProduced * pricePerKg)
+    // Calculate totals
+    // For BASE purchases (buying sessions), calculate based on OIL weight
+    // For regular olive purchases, calculate based on OLIVE weight
+    const totalCost = isBasePurchase 
+      ? (oilProduced * pricePerKg)  // BASE purchase: price × oil kg
+      : (oliveWeight ? (oliveWeight * pricePerKg) : (oilProduced * pricePerKg))  // Regular: price × olive kg
     const yieldPercentage = (oliveWeight && oilProduced) ? (oilProduced / oliveWeight) * 100 : null
 
     // Create purchase and update safe stock in transaction (only if oil is provided)
