@@ -6,16 +6,35 @@ import ExcelJS from 'exceljs'
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
+// Increase timeout for Vercel deployment (60s for Pro, 10s default for Hobby)
+export const maxDuration = 60 // seconds
+
 // GET /api/export/excel - Export all data as formatted Excel
 export async function GET(request: NextRequest) {
   try {
+    console.log('Starting Excel export generation...')
+    
     // Fetch all farmers with their complete data
+    // Using select to only fetch necessary fields for better performance
     const farmers = await prisma.farmer.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        dateAdded: true,
         processingSessions: {
-          include: {
-            sessionBoxes: true,
-            paymentTransactions: true
+          select: {
+            id: true,
+            oilWeight: true,
+            totalBoxWeight: true,
+            totalPrice: true,
+            amountPaid: true,
+            paymentStatus: true,
+            sessionBoxes: {
+              select: {
+                boxId: true
+              }
+            }
           },
           orderBy: {
             createdAt: 'desc'
@@ -26,6 +45,8 @@ export async function GET(request: NextRequest) {
         name: 'asc'
       }
     })
+    
+    console.log(`Fetched ${farmers.length} farmers for export`)
 
     // Create new workbook and worksheet
     const workbook = new ExcelJS.Workbook()
@@ -193,7 +214,9 @@ export async function GET(request: NextRequest) {
     })
 
     // Generate Excel file buffer
+    console.log('Generating Excel buffer...')
     const buffer = await workbook.xlsx.writeBuffer()
+    console.log(`Excel file generated successfully! Size: ${(buffer.length / 1024).toFixed(2)} KB`)
 
     // Generate filename with current date
     const date = new Date()

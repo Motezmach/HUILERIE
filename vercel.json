@@ -3,6 +3,9 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
+    "app/api/export/excel/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/**/*.ts": {
       "maxDuration": 30
     }
