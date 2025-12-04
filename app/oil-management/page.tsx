@@ -90,6 +90,24 @@ export default function OilManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending_oil" | "pending_payment">("all")
   const [showTodayOnly, setShowTodayOnly] = useState(false)
+  
+  // Date range filtering states
+  const [dateRangeFilter, setDateRangeFilter] = useState<"all" | "this_month" | "last_month" | "custom">("all")
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
+  const [printingAllFarmers, setPrintingAllFarmers] = useState(false)
+  
+  // Reset printing state after print dialog closes
+  useEffect(() => {
+    if (printingAllFarmers) {
+      const handleAfterPrint = () => {
+        setPrintingAllFarmers(false)
+      }
+      window.addEventListener('afterprint', handleAfterPrint)
+      return () => window.removeEventListener('afterprint', handleAfterPrint)
+    }
+  }, [printingAllFarmers])
+  
   const [sessionForm, setSessionForm] = useState({
     oilWeight: "",
     oilUnit: "kg",
@@ -217,7 +235,7 @@ export default function OilManagement() {
       
       // Get all sessions with farmer data
       const response = await sessionsApi.getAll({
-        limit: 500,
+        limit: 10000, // Increased limit to load all sessions for accurate reporting
         sortBy: 'createdAt',
         sortOrder: 'desc',
         includeFarmer: true,
@@ -428,7 +446,7 @@ export default function OilManagement() {
       if (sessionId) {
         const sessionResponse = await sessionsApi.getAll({
           farmerId: farmerId,
-          limit: 500,
+          limit: 10000, // Increased limit to load all farmer sessions
           includeFarmer: true,
           includeBoxes: true
         })
@@ -532,7 +550,7 @@ export default function OilManagement() {
     setSelectedFarmer(null)
   }, [])
 
-  // Filter farmers based on search (by name or box ID) and payment status
+  // Filter farmers based on search (by name or box ID), payment status, and date range
   const filteredFarmers = processedFarmers.filter((farmer) => {
     const term = searchTerm.trim().toLowerCase()
     const isNumericTerm = /^\d+$/.test(term)
@@ -553,6 +571,7 @@ export default function OilManagement() {
       }
       matchesSearch = matchesName || matchesBoxId
     }
+    
     // Enhanced payment filter logic
     let matchesPayment = true
     if (paymentFilter === "paid") {
@@ -568,8 +587,36 @@ export default function OilManagement() {
       )
     }
     
+    // Date range filtering
+    let matchesDateRange = true
+    if (dateRangeFilter !== "all" && farmer.sessions.length > 0) {
+      const now = new Date()
+      let startDate: Date | null = null
+      let endDate: Date | null = null
+      
+      if (dateRangeFilter === "this_month") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+      } else if (dateRangeFilter === "last_month") {
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
+      } else if (dateRangeFilter === "custom" && customStartDate && customEndDate) {
+        startDate = new Date(customStartDate)
+        endDate = new Date(customEndDate)
+        endDate.setHours(23, 59, 59)
+      }
+      
+      if (startDate && endDate) {
+        // Check if farmer has any session within the date range
+        matchesDateRange = farmer.sessions.some(s => {
+          const sessionDate = new Date(s.date || s.createdAt)
+          return sessionDate >= startDate! && sessionDate <= endDate!
+        })
+      }
+    }
+    
     const matchesToday = showTodayOnly ? new Date(farmer.lastProcessingDate).toISOString().split('T')[0] === new Date().toISOString().split('T')[0] : true
-    return matchesSearch && matchesPayment && matchesToday
+    return matchesSearch && matchesPayment && matchesToday && matchesDateRange
   })
 
   // Pagination calculations
@@ -581,7 +628,7 @@ export default function OilManagement() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, paymentFilter, showTodayOnly])
+  }, [searchTerm, paymentFilter, showTodayOnly, dateRangeFilter, customStartDate, customEndDate])
 
   // Auto-select first farmer when today filter is activated
   const handleTodayFilterToggle = () => {
@@ -2485,17 +2532,70 @@ export default function OilManagement() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={paymentFilter} onValueChange={(value: any) => setPaymentFilter(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filtrer par statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les statuts</SelectItem>
-                    <SelectItem value="paid">Payé</SelectItem>
-                    <SelectItem value="pending_oil">En attente huile</SelectItem>
-                    <SelectItem value="pending_payment">En attente paiement</SelectItem>
-                  </SelectContent>
-                </Select>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Select value={paymentFilter} onValueChange={(value: any) => setPaymentFilter(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrer par statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="paid">Payé</SelectItem>
+                      <SelectItem value="pending_oil">En attente huile</SelectItem>
+                      <SelectItem value="pending_payment">En attente paiement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={dateRangeFilter} onValueChange={(value: any) => setDateRangeFilter(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Période" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes les périodes</SelectItem>
+                      <SelectItem value="this_month">Ce mois</SelectItem>
+                      <SelectItem value="last_month">Mois dernier</SelectItem>
+                      <SelectItem value="custom">Période personnalisée</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Custom Date Range */}
+                {dateRangeFilter === "custom" && (
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div>
+                      <Label className="text-xs text-gray-600">Date début</Label>
+                      <Input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-600">Date fin</Label>
+                      <Input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Print Button */}
+                <Button
+                  onClick={() => {
+                    setPrintingAllFarmers(true)
+                    setTimeout(() => window.print(), 100)
+                  }}
+                  variant="outline"
+                  className="w-full border-2 border-[#6B8E4B] text-[#6B8E4B] hover:bg-[#6B8E4B] hover:text-white"
+                  disabled={filteredFarmers.length === 0}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimer Liste Complète ({filteredFarmers.length})
+                </Button>
               </div>
             </div>
 
@@ -3411,6 +3511,16 @@ export default function OilManagement() {
       {printingAllSessions && (
         <PrintAllSessions farmer={printingAllSessions} />
       )}
+      
+      {/* Print All Farmers Component - Hidden until print is triggered */}
+      {printingAllFarmers && (
+        <PrintAllFarmersReport 
+          farmers={filteredFarmers}
+          dateRangeFilter={dateRangeFilter}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+        />
+      )}
 
       {/* Enhanced Payment Modal */}
       {paymentSession && (
@@ -4092,6 +4202,363 @@ export default function OilManagement() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Print All Farmers Report Component with comprehensive session details
+const PrintAllFarmersReport = ({ 
+  farmers, 
+  dateRangeFilter,
+  customStartDate,
+  customEndDate
+}: { 
+  farmers: ProcessedFarmer[]
+  dateRangeFilter: string
+  customStartDate: string
+  customEndDate: string
+}) => {
+  // Helper function to convert Liters to KG (L ÷ 0.92 = kg)
+  const convertLitersToKg = (liters: number) => liters / 0.92
+
+  // Filter sessions by date range for each farmer
+  const getFilteredSessions = (farmerSessions: ProcessingSession[]) => {
+    if (dateRangeFilter === "all") return farmerSessions
+
+    const now = new Date()
+    let startDate: Date | null = null
+    let endDate: Date | null = null
+
+    if (dateRangeFilter === "this_month") {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    } else if (dateRangeFilter === "last_month") {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
+    } else if (dateRangeFilter === "custom" && customStartDate && customEndDate) {
+      startDate = new Date(customStartDate)
+      endDate = new Date(customEndDate)
+      endDate.setHours(23, 59, 59)
+    }
+
+    if (!startDate || !endDate) return farmerSessions
+
+    return farmerSessions.filter(s => {
+      const sessionDate = new Date(s.date || s.createdAt)
+      return sessionDate >= startDate! && sessionDate <= endDate!
+    })
+  }
+
+  // Calculate period label
+  const getPeriodLabel = () => {
+    if (dateRangeFilter === "this_month") return "Ce Mois"
+    if (dateRangeFilter === "last_month") return "Mois Dernier"
+    if (dateRangeFilter === "custom" && customStartDate && customEndDate) {
+      return `${new Date(customStartDate).toLocaleDateString('fr-FR')} - ${new Date(customEndDate).toLocaleDateString('fr-FR')}`
+    }
+    return "Toutes les périodes"
+  }
+
+  // Calculate grand totals
+  let grandTotalOlivesKg = 0
+  let grandTotalOilKg = 0
+  let grandTotalOilLiters = 0
+  let grandTotalAmount = 0
+  let grandTotalPaid = 0
+  let totalSessionsCount = 0
+
+  const farmersWithFilteredSessions = farmers.map(farmer => {
+    const filteredSessions = getFilteredSessions(farmer.sessions)
+    
+    // Only count PROCESSED sessions (sessions that have been through the mill)
+    // This matches the dashboard logic
+    const processedSessions = filteredSessions.filter(s => 
+      s.processingStatus === 'processed' || s.oilWeight > 0
+    )
+    
+    const totalOlivesKg = processedSessions.reduce((sum, s) => sum + s.totalBoxWeight, 0)
+    const totalOilKg = processedSessions
+      .filter(s => !s.oilUnit || s.oilUnit === 'kg')
+      .reduce((sum, s) => sum + s.oilWeight, 0)
+    const totalOilLiters = processedSessions
+      .filter(s => s.oilUnit === 'L')
+      .reduce((sum, s) => sum + s.oilWeight, 0)
+    const totalAmount = processedSessions
+      .filter(s => s.totalPrice !== null)
+      .reduce((sum, s) => sum + (s.totalPrice || 0), 0)
+    const totalPaid = processedSessions
+      .reduce((sum, s) => sum + (s.amountPaid || 0), 0)
+
+    grandTotalOlivesKg += totalOlivesKg
+    grandTotalOilKg += totalOilKg
+    grandTotalOilLiters += totalOilLiters
+    grandTotalAmount += totalAmount
+    grandTotalPaid += totalPaid
+    totalSessionsCount += processedSessions.length
+
+    return {
+      ...farmer,
+      filteredSessions: processedSessions, // Use processed sessions only
+      totalOlivesKg,
+      totalOilKg,
+      totalOilLiters,
+      totalAmount,
+      totalPaid,
+      totalRemaining: totalAmount - totalPaid
+    }
+  }).filter(f => f.filteredSessions.length > 0) // Only show farmers with processed sessions in period
+
+  // Calculate total oil in KG (converting liters)
+  const grandTotalOilKgEquivalent = grandTotalOilKg + convertLitersToKg(grandTotalOilLiters)
+  const grandTotalRemaining = grandTotalAmount - grandTotalPaid
+
+  return (
+    <div className="print-all-farmers-report">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          body * {
+            visibility: hidden;
+          }
+          
+          .print-all-farmers-report, .print-all-farmers-report * {
+            visibility: visible;
+          }
+          
+          .print-all-farmers-report {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0 !important;
+            padding: 15mm !important;
+            box-sizing: border-box !important;
+            font-size: 9px !important;
+            line-height: 1.3 !important;
+            font-family: Arial, sans-serif !important;
+            background: white !important;
+          }
+          
+          @page {
+            size: A4 landscape;
+            margin: 12mm;
+          }
+          
+          .farmers-report-table {
+            width: 100% !important;
+            font-size: 8px !important;
+            border-collapse: collapse !important;
+            margin: 8px 0 !important;
+          }
+          
+          .farmers-report-table thead {
+            display: table-header-group !important;
+          }
+          
+          .farmers-report-table tbody {
+            display: table-row-group !important;
+          }
+          
+          .farmers-report-table tr {
+            page-break-inside: avoid !important;
+          }
+          
+          .farmers-report-table th,
+          .farmers-report-table td {
+            border: 1px solid #333 !important;
+            padding: 5px 3px !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+          }
+          
+          .farmers-report-table th {
+            background-color: #6B8E4B !important;
+            color: white !important;
+            font-weight: bold !important;
+            font-size: 8px !important;
+          }
+          
+          .print-header-title {
+            font-size: 20px !important;
+            margin-bottom: 8px !important;
+            font-weight: bold !important;
+          }
+          
+          .print-footer {
+            margin-top: 12px !important;
+            padding-top: 8px !important;
+            border-top: 2px solid #6B8E4B !important;
+            text-align: center !important;
+            font-size: 8px !important;
+            page-break-inside: avoid !important;
+          }
+          
+          .stats-summary {
+            background-color: #f3f4f6 !important;
+            border: 2px solid #6B8E4B !important;
+            padding: 8px !important;
+            border-radius: 4px !important;
+            margin-bottom: 10px !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          
+          .grand-total-row {
+            background-color: #FEF3C7 !important;
+            font-weight: bold !important;
+            font-size: 9px !important;
+            border-top: 3px solid #6B8E4B !important;
+          }
+        }
+        
+        .print-all-farmers-report {
+          display: none;
+        }
+        
+        @media print {
+          .print-all-farmers-report {
+            display: block !important;
+          }
+        }
+        `
+      }} />
+
+      <div>
+        {/* Header */}
+        <div className="border-b-2 border-[#6B8E4B] pb-3 mb-3 flex justify-between items-start">
+          <div>
+            <h1 className="print-header-title text-2xl font-bold text-[#2C3E50]">HUILERIE MASMOUDI</h1>
+            <p className="text-xs text-gray-600">Rapport de Traitement - Gestion des Huiles</p>
+            <p className="text-sm font-semibold text-[#6B8E4B]">Période: {getPeriodLabel()}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-600">Date d'impression:</p>
+            <p className="text-sm font-bold">{new Date().toLocaleDateString('fr-FR')}</p>
+            <p className="text-xs text-gray-500">{new Date().toLocaleTimeString('fr-FR')}</p>
+          </div>
+        </div>
+
+        {/* Summary Statistics */}
+        <div className="stats-summary mb-3">
+          <div className="grid grid-cols-5 gap-4 text-center">
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Total Agriculteurs</p>
+              <p className="text-lg font-bold text-[#2C3E50]">{farmersWithFilteredSessions.length}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Total Sessions</p>
+              <p className="text-lg font-bold text-blue-600">{totalSessionsCount}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Total Olives</p>
+              <p className="text-lg font-bold text-amber-600">{grandTotalOlivesKg.toFixed(2)} kg</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Total Huile</p>
+              <p className="text-lg font-bold text-green-600">
+                {grandTotalOilKg > 0 && `${grandTotalOilKg.toFixed(2)} kg`}
+                {grandTotalOilKg > 0 && grandTotalOilLiters > 0 && ' + '}
+                {grandTotalOilLiters > 0 && `${grandTotalOilLiters.toFixed(2)} L`}
+              </p>
+              <p className="text-xs text-gray-500">≈ {grandTotalOilKgEquivalent.toFixed(2)} kg</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Montant Total</p>
+              <p className="text-lg font-bold text-purple-600">{grandTotalAmount.toFixed(3)} DT</p>
+              <p className="text-xs text-green-600">Payé: {grandTotalPaid.toFixed(3)} DT</p>
+              <p className="text-xs text-red-600">Reste: {grandTotalRemaining.toFixed(3)} DT</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Farmers Table */}
+        <table className="farmers-report-table">
+          <thead>
+            <tr>
+              <th style={{ width: '4%' }}>N°</th>
+              <th style={{ width: '16%' }}>Nom Agriculteur</th>
+              <th style={{ width: '10%' }}>Téléphone</th>
+              <th style={{ width: '8%' }}>Sessions</th>
+              <th style={{ width: '10%' }}>Total Olives (kg)</th>
+              <th style={{ width: '10%' }}>Huile (kg)</th>
+              <th style={{ width: '10%' }}>Huile (L)</th>
+              <th style={{ width: '8%' }}>Rendement</th>
+              <th style={{ width: '10%' }}>Montant Total</th>
+              <th style={{ width: '8%' }}>Payé</th>
+              <th style={{ width: '8%' }}>Reste</th>
+            </tr>
+          </thead>
+          <tbody>
+            {farmersWithFilteredSessions.map((farmer, index) => {
+              const hasKg = farmer.totalOilKg > 0
+              const hasLiters = farmer.totalOilLiters > 0
+              const totalOilEquivalentKg = farmer.totalOilKg + convertLitersToKg(farmer.totalOilLiters)
+              const yield_percentage = farmer.totalOlivesKg > 0 
+                ? (totalOilEquivalentKg / farmer.totalOlivesKg * 100) 
+                : 0
+
+              return (
+                <tr key={farmer.id}>
+                  <td style={{ fontWeight: 'bold' }}>{index + 1}</td>
+                  <td style={{ textAlign: 'left', fontWeight: 'bold' }}>{farmer.name}</td>
+                  <td style={{ fontSize: '7px' }}>{farmer.phone || '-'}</td>
+                  <td style={{ fontWeight: 'bold', color: '#2563eb' }}>{farmer.filteredSessions.length}</td>
+                  <td style={{ fontWeight: 'bold', color: '#d97706' }}>{farmer.totalOlivesKg.toFixed(2)}</td>
+                  <td style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                    {hasKg ? farmer.totalOilKg.toFixed(2) : '-'}
+                  </td>
+                  <td style={{ fontWeight: 'bold', color: '#0284c7' }}>
+                    {hasLiters ? farmer.totalOilLiters.toFixed(2) : '-'}
+                  </td>
+                  <td style={{ fontWeight: 'bold' }}>{yield_percentage.toFixed(1)}%</td>
+                  <td style={{ fontWeight: 'bold', color: '#7c3aed' }}>{farmer.totalAmount.toFixed(3)}</td>
+                  <td style={{ color: '#16a34a' }}>{farmer.totalPaid.toFixed(3)}</td>
+                  <td style={{ color: '#dc2626', fontWeight: farmer.totalRemaining > 0 ? 'bold' : 'normal' }}>
+                    {farmer.totalRemaining.toFixed(3)}
+                  </td>
+                </tr>
+              )
+            })}
+            
+            {/* Grand Total Row */}
+            <tr className="grand-total-row">
+              <td colSpan={3} style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAUX GÉNÉRAUX:</td>
+              <td style={{ fontWeight: 'bold', color: '#2563eb' }}>{totalSessionsCount}</td>
+              <td style={{ fontWeight: 'bold', color: '#d97706' }}>{grandTotalOlivesKg.toFixed(2)}</td>
+              <td style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                {grandTotalOilKg > 0 ? grandTotalOilKg.toFixed(2) : '-'}
+              </td>
+              <td style={{ fontWeight: 'bold', color: '#0284c7' }}>
+                {grandTotalOilLiters > 0 ? grandTotalOilLiters.toFixed(2) : '-'}
+              </td>
+              <td style={{ fontSize: '7px' }}>
+                ≈ {grandTotalOilKgEquivalent.toFixed(2)} kg
+              </td>
+              <td style={{ fontWeight: 'bold', color: '#7c3aed' }}>{grandTotalAmount.toFixed(3)}</td>
+              <td style={{ fontWeight: 'bold', color: '#16a34a' }}>{grandTotalPaid.toFixed(3)}</td>
+              <td style={{ fontWeight: 'bold', color: '#dc2626' }}>{grandTotalRemaining.toFixed(3)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Footer */}
+        <div className="print-footer">
+          <p className="font-semibold text-[#2C3E50] mb-1">
+            HUILERIE MASMOUDI - Votre partenaire pour une huile d'olive de qualité
+          </p>
+          <p className="text-gray-500">
+            Rapport généré automatiquement - {farmersWithFilteredSessions.length} agriculteur(s) • {totalSessionsCount} session(s) traitée(s) • Période: {getPeriodLabel()}
+          </p>
+          <p className="text-gray-400 text-xs mt-1">
+            Note: Seules les sessions traitées sont comptabilisées. Conversion litres: 1 L ÷ 0.92 = kg
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

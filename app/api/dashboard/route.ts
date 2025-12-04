@@ -205,25 +205,28 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // Today's oil and olive weights
-      prisma.processingSession.aggregate({
+      // Today's processed sessions (to properly handle kg vs L)
+      // Using processingDate instead of createdAt for accurate production reporting
+      prisma.processingSession.findMany({
         where: {
-          createdAt: { gte: todayStart, lte: todayEnd },
+          processingDate: { gte: todayStart, lte: todayEnd },
           processingStatus: 'PROCESSED'
         },
-        _sum: {
+        select: {
           oilWeight: true,
+          oilUnit: true,
           totalBoxWeight: true
         }
       }),
       
-      // All-time oil and olive weights
-      prisma.processingSession.aggregate({
+      // All-time processed sessions (to properly handle kg vs L)
+      prisma.processingSession.findMany({
         where: {
           processingStatus: 'PROCESSED'
         },
-        _sum: {
+        select: {
           oilWeight: true,
+          oilUnit: true,
           totalBoxWeight: true
         }
       }),
@@ -298,6 +301,31 @@ export async function GET(request: NextRequest) {
     // Calculate total revenue: Farmer Payments + Debits - Credits
     const calculatedTotalRevenue = totalFarmerPayments + totalDebits - totalCredits
     
+    // Helper function to convert liters to kg (L ÷ 0.92 = kg)
+    const convertLitersToKg = (liters: number) => liters / 0.92
+    
+    // Calculate today's oil and olive weights with proper L to kg conversion
+    const todayOilKg = todayOilAndOlive
+      .filter(s => !s.oilUnit || s.oilUnit === 'kg')
+      .reduce((sum, s) => sum + Number(s.oilWeight || 0), 0)
+    const todayOilLiters = todayOilAndOlive
+      .filter(s => s.oilUnit === 'L')
+      .reduce((sum, s) => sum + Number(s.oilWeight || 0), 0)
+    const todayOilWeightEquivalent = todayOilKg + convertLitersToKg(todayOilLiters)
+    const todayOliveWeightTotal = todayOilAndOlive
+      .reduce((sum, s) => sum + Number(s.totalBoxWeight || 0), 0)
+    
+    // Calculate all-time oil and olive weights with proper L to kg conversion
+    const allTimeOilKg = allTimeOilAndOlive
+      .filter(s => !s.oilUnit || s.oilUnit === 'kg')
+      .reduce((sum, s) => sum + Number(s.oilWeight || 0), 0)
+    const allTimeOilLiters = allTimeOilAndOlive
+      .filter(s => s.oilUnit === 'L')
+      .reduce((sum, s) => sum + Number(s.oilWeight || 0), 0)
+    const allTimeOilWeightEquivalent = allTimeOilKg + convertLitersToKg(allTimeOilLiters)
+    const allTimeOliveWeightTotal = allTimeOilAndOlive
+      .reduce((sum, s) => sum + Number(s.totalBoxWeight || 0), 0)
+    
     // Calculate metrics
     const metrics = {
       totalFarmers,
@@ -309,10 +337,10 @@ export async function GET(request: NextRequest) {
       averageOilExtraction: Number(avgOilExtraction._avg.oilWeight || 0),
       metricDate: todayStart.toISOString(),
       chkaraCount: chkaraCount, // Add Chkara count
-      todayOilWeight: Number(todayOilAndOlive._sum.oilWeight || 0),
-      todayOliveWeight: Number(todayOilAndOlive._sum.totalBoxWeight || 0),
-      totalOilWeight: Number(allTimeOilAndOlive._sum.oilWeight || 0),
-      totalOliveWeight: Number(allTimeOilAndOlive._sum.totalBoxWeight || 0)
+      todayOilWeight: todayOilWeightEquivalent, // Now includes L to kg conversion
+      todayOliveWeight: todayOliveWeightTotal,
+      totalOilWeight: allTimeOilWeightEquivalent, // Now includes L to kg conversion
+      totalOliveWeight: allTimeOliveWeightTotal
     }
 
     // Calculate box utilization
