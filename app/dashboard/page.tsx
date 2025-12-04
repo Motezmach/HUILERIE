@@ -161,6 +161,7 @@ export default function Dashboard() {
   const [transactionTotals, setTransactionTotals] = useState({ farmerPayments: 0, debits: 0, credits: 0, netRevenue: 0 })
   const [loadingTransactions, setLoadingTransactions] = useState(false)
   const [transactionSearchTerm, setTransactionSearchTerm] = useState('')
+  const [cashFlowFilter, setCashFlowFilter] = useState<'all' | 'farmer_payments' | 'debits' | 'credits'>('all')
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false)
   const [transactionType, setTransactionType] = useState<'DEBIT' | 'CREDIT'>('DEBIT')
   const [transactionForm, setTransactionForm] = useState({ amount: '', description: '', destination: '' })
@@ -2060,47 +2061,107 @@ export default function Dashboard() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto space-y-6 py-4">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+          <div 
+            className="flex-1 overflow-y-auto space-y-6 py-4"
+            onClick={(e) => {
+              // Reset filter if clicking outside the summary cards
+              const target = e.target as HTMLElement
+              if (!target.closest('.summary-cards-container')) {
+                setCashFlowFilter('all')
+              }
+            }}
+          >
+            {/* Summary Cards - Clickable Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 summary-cards-container">
+              <Card 
+                className={`border-2 transition-all duration-200 cursor-pointer transform hover:scale-105 ${
+                  cashFlowFilter === 'farmer_payments'
+                    ? 'border-green-500 bg-gradient-to-br from-green-100 to-emerald-100 shadow-lg ring-4 ring-green-200'
+                    : 'border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 hover:border-green-400'
+                }`}
+                onClick={() => setCashFlowFilter(cashFlowFilter === 'farmer_payments' ? 'all' : 'farmer_payments')}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-green-700 uppercase">Paiements Farmers</p>
+                      <p className="text-xs font-semibold text-green-700 uppercase flex items-center gap-2">
+                        Paiements Farmers
+                        {cashFlowFilter === 'farmer_payments' && (
+                          <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full">Actif</span>
+                        )}
+                      </p>
                       <p className="text-2xl font-black text-green-600 mt-1">
                         {transactionTotals.farmerPayments.toFixed(3)} DT
                       </p>
+                      <p className="text-xs text-green-600 font-medium mt-1">
+                        {transactions.filter(t => t.type === 'FARMER_PAYMENT').length} enregistrement(s)
+                      </p>
                     </div>
-                    <Users className="w-8 h-8 text-green-400" />
+                    <Users className={`w-8 h-8 transition-transform ${
+                      cashFlowFilter === 'farmer_payments' ? 'text-green-600 scale-110' : 'text-green-400'
+                    }`} />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50">
+              <Card 
+                className={`border-2 transition-all duration-200 cursor-pointer transform hover:scale-105 ${
+                  cashFlowFilter === 'debits'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-100 to-cyan-100 shadow-lg ring-4 ring-blue-200'
+                    : 'border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 hover:border-blue-400'
+                }`}
+                onClick={() => setCashFlowFilter(cashFlowFilter === 'debits' ? 'all' : 'debits')}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-blue-700 uppercase">Débits (+)</p>
+                      <p className="text-xs font-semibold text-blue-700 uppercase flex items-center gap-2">
+                        Débits (+)
+                        {cashFlowFilter === 'debits' && (
+                          <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full">Actif</span>
+                        )}
+                      </p>
                       <p className="text-2xl font-black text-blue-600 mt-1">
                         {transactionTotals.debits.toFixed(3)} DT
                       </p>
+                      <p className="text-xs text-blue-600 font-medium mt-1">
+                        {transactions.filter(t => t.type === 'DEBIT').length} enregistrement(s)
+                      </p>
                     </div>
-                    <PlusCircle className="w-8 h-8 text-blue-400" />
+                    <PlusCircle className={`w-8 h-8 transition-transform ${
+                      cashFlowFilter === 'debits' ? 'text-blue-600 scale-110' : 'text-blue-400'
+                    }`} />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-rose-50">
+              <Card 
+                className={`border-2 transition-all duration-200 cursor-pointer transform hover:scale-105 ${
+                  cashFlowFilter === 'credits'
+                    ? 'border-red-500 bg-gradient-to-br from-red-100 to-rose-100 shadow-lg ring-4 ring-red-200'
+                    : 'border-red-200 bg-gradient-to-br from-red-50 to-rose-50 hover:border-red-400'
+                }`}
+                onClick={() => setCashFlowFilter(cashFlowFilter === 'credits' ? 'all' : 'credits')}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-red-700 uppercase">Crédits (-)</p>
+                      <p className="text-xs font-semibold text-red-700 uppercase flex items-center gap-2">
+                        Crédits (-)
+                        {cashFlowFilter === 'credits' && (
+                          <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full">Actif</span>
+                        )}
+                      </p>
                       <p className="text-2xl font-black text-red-600 mt-1">
                         {transactionTotals.credits.toFixed(3)} DT
                       </p>
+                      <p className="text-xs text-red-600 font-medium mt-1">
+                        {transactions.filter(t => t.type === 'CREDIT').length} enregistrement(s)
+                      </p>
                     </div>
-                    <MinusCircle className="w-8 h-8 text-red-400" />
+                    <MinusCircle className={`w-8 h-8 transition-transform ${
+                      cashFlowFilter === 'credits' ? 'text-red-600 scale-110' : 'text-red-400'
+                    }`} />
                   </div>
                 </CardContent>
               </Card>
@@ -2189,12 +2250,25 @@ export default function Dashboard() {
                           <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#6B8E4B]" />
                         </TableCell>
                       </TableRow>
-                    ) : transactions.filter(t => 
-                      transactionSearchTerm === '' ||
-                      t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
-                      (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
-                      (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
-                    ).length === 0 ? (
+                    ) : transactions.filter(t => {
+                      // Apply cashflow filter
+                      let matchesFilter = true
+                      if (cashFlowFilter === 'farmer_payments') {
+                        matchesFilter = t.type === 'FARMER_PAYMENT'
+                      } else if (cashFlowFilter === 'debits') {
+                        matchesFilter = t.type === 'DEBIT'
+                      } else if (cashFlowFilter === 'credits') {
+                        matchesFilter = t.type === 'CREDIT'
+                      }
+                      
+                      // Apply search filter
+                      const matchesSearch = transactionSearchTerm === '' ||
+                        t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
+                        (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
+                        (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
+                      
+                      return matchesFilter && matchesSearch
+                    }).length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                           Aucune transaction trouvée
@@ -2202,12 +2276,25 @@ export default function Dashboard() {
                       </TableRow>
                     ) : (
                       transactions
-                        .filter(t => 
-                          transactionSearchTerm === '' ||
-                          t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
-                          (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
-                          (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
-                        )
+                        .filter(t => {
+                          // Apply cashflow filter
+                          let matchesFilter = true
+                          if (cashFlowFilter === 'farmer_payments') {
+                            matchesFilter = t.type === 'FARMER_PAYMENT'
+                          } else if (cashFlowFilter === 'debits') {
+                            matchesFilter = t.type === 'DEBIT'
+                          } else if (cashFlowFilter === 'credits') {
+                            matchesFilter = t.type === 'CREDIT'
+                          }
+                          
+                          // Apply search filter
+                          const matchesSearch = transactionSearchTerm === '' ||
+                            t.description.toLowerCase().includes(transactionSearchTerm.toLowerCase()) ||
+                            (t.farmerName && t.farmerName.toLowerCase().includes(transactionSearchTerm.toLowerCase())) ||
+                            (t.destination && t.destination.toLowerCase().includes(transactionSearchTerm.toLowerCase()))
+                          
+                          return matchesFilter && matchesSearch
+                        })
                         .map((transaction) => (
                           <TableRow key={transaction.id} className="hover:bg-gray-50">
                             <TableCell className="font-medium">
