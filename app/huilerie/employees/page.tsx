@@ -925,11 +925,12 @@ export default function EmployeesPage() {
                             
                             {/* Payment History */}
                             {employeePayments.length > 0 && (
-                              <div className="space-y-1 max-h-32 overflow-y-auto">
-                                <p className="text-[10px] text-gray-600 font-semibold uppercase mb-1">Historique</p>
+                              <div className="space-y-1 max-h-64 overflow-y-auto">
+                                <p className="text-[10px] text-gray-600 font-semibold uppercase mb-1">
+                                  Historique ({employeePayments.length} paiement{employeePayments.length > 1 ? 's' : ''})
+                                </p>
                                 {employeePayments
                                   .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
-                                  .slice(0, 5)
                                   .map(payment => (
                                     <div 
                                       key={payment.id}

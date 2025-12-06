@@ -118,7 +118,8 @@ export default function HuileriePage() {
     notes: '',
     purchaseDate: new Date().toISOString().split('T')[0],
     sessionIds: [] as string[], // Track sessions to delete after purchase
-    farmerId: '' // Track farmer ID for session deletion
+    farmerId: '', // Track farmer ID for session deletion
+    isBasePurchase: false // Toggle for manual BASE purchases (calculate on oil, not olives)
   })
 
   // Initialize user and load data
@@ -422,8 +423,8 @@ export default function HuileriePage() {
       return
     }
 
-    // Determine if this is a BASE purchase (from sessions)
-    const isBasePurchase = purchaseForm.sessionIds.length > 0
+    // Determine if this is a BASE purchase (from sessions OR manually toggled)
+    const isBasePurchase = purchaseForm.sessionIds.length > 0 || purchaseForm.isBasePurchase
     
     setCreating(true)
     try {
@@ -478,7 +479,8 @@ export default function HuileriePage() {
           notes: '',
           purchaseDate: new Date().toISOString().split('T')[0],
           sessionIds: [],
-          farmerId: ''
+          farmerId: '',
+          isBasePurchase: false
         })
         loadSafes() // Reload to update stock levels
       } else {
@@ -1837,23 +1839,60 @@ export default function HuileriePage() {
               />
                       </div>
                       
+            {/* BASE Purchase Toggle - Only show for manual purchases (not from sessions) */}
+            {purchaseForm.sessionIds.length === 0 && purchaseForm.oilProduced && (
+              <div 
+                className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                  purchaseForm.isBasePurchase 
+                    ? 'bg-amber-50 border-amber-400' 
+                    : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setPurchaseForm({...purchaseForm, isBasePurchase: !purchaseForm.isBasePurchase})}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                    purchaseForm.isBasePurchase 
+                      ? 'bg-amber-500 border-amber-500' 
+                      : 'border-gray-400'
+                  }`}>
+                    {purchaseForm.isBasePurchase && (
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <p className={`font-semibold text-sm ${purchaseForm.isBasePurchase ? 'text-amber-900' : 'text-gray-700'}`}>
+                      🛢️ Achat BASE (calcul sur l'huile)
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {purchaseForm.isBasePurchase 
+                        ? 'Prix calculé: Prix/kg × Huile (kg)' 
+                        : 'Prix calculé: Prix/kg × Olives (kg)'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+                      
             {/* Calculation Preview - Different for BASE vs Regular purchases */}
             {purchaseForm.pricePerKg && purchaseForm.oilProduced && (
               <div className={`border rounded-lg p-4 ${
-                purchaseForm.sessionIds.length > 0 
+                (purchaseForm.sessionIds.length > 0 || purchaseForm.isBasePurchase)
                   ? 'bg-amber-50 border-amber-300' 
                   : 'bg-green-50 border-green-200'
               }`}>
                 <p className={`text-sm font-semibold mb-2 ${
-                  purchaseForm.sessionIds.length > 0 ? 'text-amber-800' : 'text-green-800'
+                  (purchaseForm.sessionIds.length > 0 || purchaseForm.isBasePurchase) ? 'text-amber-800' : 'text-green-800'
                 }`}>
-                  {purchaseForm.sessionIds.length > 0 ? '🛢️ Calcul BASE (Huile)' : '🫒 Calcul Olives'}
+                  {(purchaseForm.sessionIds.length > 0 || purchaseForm.isBasePurchase) ? '🛢️ Calcul BASE (Huile)' : '🫒 Calcul Olives'}
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-gray-600">Coût Total:</span>
                     <span className="font-bold ml-2 text-amber-900">
-                      {purchaseForm.sessionIds.length > 0 
+                      {(purchaseForm.sessionIds.length > 0 || purchaseForm.isBasePurchase)
                         ? (parseFloat(purchaseForm.oilProduced) * parseFloat(purchaseForm.pricePerKg)).toFixed(3)
                         : purchaseForm.oliveWeight 
                           ? (parseFloat(purchaseForm.oliveWeight) * parseFloat(purchaseForm.pricePerKg)).toFixed(3)
@@ -1864,7 +1903,7 @@ export default function HuileriePage() {
                   <div>
                     <span className="text-gray-600">Formule:</span>
                     <span className="font-bold ml-2 text-gray-800 text-xs">
-                      {purchaseForm.sessionIds.length > 0 
+                      {(purchaseForm.sessionIds.length > 0 || purchaseForm.isBasePurchase)
                         ? `${purchaseForm.pricePerKg} × ${purchaseForm.oilProduced} kg (huile)`
                         : purchaseForm.oliveWeight 
                           ? `${purchaseForm.pricePerKg} × ${purchaseForm.oliveWeight} kg (olives)`
