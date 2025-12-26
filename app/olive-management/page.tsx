@@ -58,6 +58,7 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  Weight,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -128,6 +129,7 @@ export default function OliveManagement() {
   )
   const [bulkStep, setBulkStep] = useState(1)
   const [bulkCount, setBulkCount] = useState("")
+  const [bulkWeight, setBulkWeight] = useState("") // 🚀 NEW: Total bulk weight
   const [bulkBoxes, setBulkBoxes] = useState<BulkBoxEntry[]>([])
   const [user, setUser] = useState<any>(null)
   const [deletingFarmerId, setDeletingFarmerId] = useState<string | null>(null)
@@ -1143,42 +1145,28 @@ export default function OliveManagement() {
   const handleBulkAdd = async () => {
     if (!selectedFarmer) return
 
-    // Guard client-side: prevent submit if any errors
-    if (bulkBoxes.some((b) => b.idError || b.weightError || !b.id)) {
-      showNotification("Veuillez corriger les erreurs avant de soumettre.", "warning")
+    // 🚀 NEW: Validate quantity and total weight
+    const quantity = parseInt(bulkCount)
+    const totalWeight = parseFloat(bulkWeight)
+    
+    if (!quantity || quantity <= 0 || quantity > 50) {
+      showNotification("Veuillez saisir une quantité valide (1-50)", "warning")
       return
     }
-
-    const validBoxes = bulkBoxes.filter((box) => !box.idError && !box.weightError && box.id)
-    if (validBoxes.length === 0) {
-      showNotification("Aucune boîte valide à ajouter", "error")
-      return
-    }
-
-    // Check for duplicate IDs within the bulk operation
-    const boxIds = validBoxes.map(box => box.id)
-    const duplicateIds = boxIds.filter((id, index) => boxIds.indexOf(id) !== index)
-    if (duplicateIds.length > 0) {
-      // Mark duplicates inline and block submission
-      setBulkBoxes(prev => prev.map(b => {
-        if (duplicateIds.includes(b.id)) {
-          return { ...b, idError: "ID en double dans ce lot" }
-        }
-        return b
-      }))
-      showNotification(`IDs en double détectés: ${duplicateIds.join(', ')}`, "warning")
+    
+    if (!totalWeight || totalWeight <= 0) {
+      showNotification("Veuillez saisir un poids total valide", "warning")
       return
     }
 
     setCreating(true)
     try {
-      const boxesToCreate = validBoxes.map((box) => ({
-        id: box.id,
-        type: "normal" as const,
-        weight: box.weight ? Number.parseFloat(box.weight) : undefined,
-      }))
-
-      const response = await farmersApi.addBoxes(selectedFarmer.id, boxesToCreate)
+      // 🚀 NEW: Use smart bulk add API
+      const response = await farmersApi.addBoxesBulkSmart(
+        selectedFarmer.id, 
+        quantity, 
+        totalWeight
+      )
 
       if (response.success) {
         // Transform the new boxes from the response
@@ -1197,30 +1185,26 @@ export default function OliveManagement() {
           boxes: [...prev.boxes, ...newBoxes]
         } : null)
 
-        console.log(`✅ Added ${newBoxes.length} boxes immediately to farmer ${selectedFarmer.name}`)
+        const avgWeight = (totalWeight / quantity).toFixed(2)
+        console.log(`✅ Smart bulk add: ${newBoxes.length} boxes @ ${avgWeight}kg each to farmer ${selectedFarmer.name}`)
         
         // Also reload farmer data from server to ensure consistency
         await reloadFarmer(selectedFarmer.id)
 
+        // Reset form
         setBulkStep(1)
         setBulkCount("")
+        setBulkWeight("")
         setBulkBoxes([])
         setIsBulkAddOpen(false)
-        showNotification(`${response.data.length} boîtes ajoutées avec succès!`, "success")
+        
+        showNotification(`${response.data.length} boîtes ajoutées automatiquement! ${avgWeight}kg par boîte`, "success")
       } else {
         showNotification(response.error || 'Erreur lors de la création en lot', 'error')
       }
     } catch (error: any) {
-      console.error('Error bulk creating boxes:', error)
-      
-      // Handle specific error messages
-      if (error.message && error.message.includes("n'existe pas dans l'inventaire")) {
-        showNotification('Erreur: Certaines boîtes ne sont pas disponibles dans l\'inventaire de l\'usine. Veuillez vérifier les IDs.', 'error')
-      } else if (error.message && error.message.includes("n'est pas disponible")) {
-        showNotification('Erreur: Certaines boîtes sont déjà utilisées par d\'autres agriculteurs.', 'error')
-      } else {
-        showNotification('Erreur de connexion au serveur', 'error')
-      }
+      console.error('Error smart bulk add:', error)
+      showNotification(error.message || 'Erreur lors de la création en lot', 'error')
     } finally {
       setCreating(false)
     }
@@ -2473,198 +2457,127 @@ export default function OliveManagement() {
                             )}
 
                                                         {bulkStep === 2 && (
-                              <div className="space-y-4 overflow-hidden relative">
-                                {/* Step 2 Header - Mobile Enhanced */}
-                                <div className="space-y-3">
-                                  <div className="text-center sm:text-left">
-                                    <h3 className="text-lg font-semibold text-gray-900">
-                                      Configuration des boîtes
-                                    </h3>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                      Saisissez l'ID et le poids pour chaque boîte
-                                    </p>
-                                  </div>
-                                  
-                                  {/* Progress Section - Mobile Optimized */}
-                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                      <span className="text-sm font-medium text-gray-700 text-center sm:text-left">
-                                        Progression: {bulkBoxes.filter((b) => b.id && b.weight).length} / {bulkBoxes.length} boîtes
-                                      </span>
-                                      <Progress
-                                        value={(bulkBoxes.filter((b) => b.id && b.weight).length / bulkBoxes.length) * 100}
-                                        className="w-full sm:w-32 h-2"
-                                      />
-                                    </div>
-                                  </div>
+                              <div className="space-y-6 py-4 overflow-y-auto">
+                                {/* 🚀 NEW Step 2 - Simple Total Weight Input */}
+                                <div className="text-center sm:text-left">
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                    Poids total des boîtes
+                                  </h3>
+                                  <p className="text-sm text-gray-600 mb-4">
+                                    Les boîtes disponibles seront automatiquement assignées
+                                  </p>
                                 </div>
-
-                                {/* Scrollable Boxes Container - Mobile Enhanced */}
-                                <div className="overflow-y-auto max-h-72 sm:max-h-96 -mx-1 pb-20 sm:pb-4">
-                                  <div className="grid grid-cols-1 gap-3 px-1">
-                                     {bulkBoxes.map((box, index) => (
-                                       <Card key={index} className={`p-3 sm:p-4 ${box.idError || box.weightError ? "border-red-300 bg-red-50" : "border-gray-200"} shadow-sm`}>
-                                         <div className="space-y-4">
-                                           {/* Box Header */}
-                                           <div className="flex items-center justify-between">
-                                             <h4 className="font-semibold text-base text-gray-900">
-                                               Boîte #{index + 1}
-                                             </h4>
-                                             {!box.idError && !box.weightError && box.id && box.weight && (
-                                               <Badge className="bg-green-100 text-green-800 text-xs">
-                                                 ✓ Complète
-                                               </Badge>
-                                             )}
-                                           </div>
-                                           
-                                           {/* ID Input */}
-                                           <div>
-                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                               ID de la boîte (1-600) *
-                                             </Label>
-                                             <Input
-                                               type="number"
-                                               min="1"
-                                               max="600"
-                                               value={box.id}
-                                               onChange={(e) => updateBulkBox(index, "id", e.target.value)}
-                                               placeholder="Ex: 123"
-                                               className={`h-11 text-base ${box.idError ? "border-red-500 focus-visible:ring-red-500" : "border-gray-300 focus:border-blue-500"}`}
-                                             />
-                                             {box.idError && (
-                                               <div className="mt-2 flex items-center text-xs text-red-600 bg-red-50 p-2 rounded">
-                                                 <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
-                                                 <span>{box.idError}</span>
-                                               </div>
-                                             )}
-                                           </div>
-                                           
-                                           {/* Weight Input */}
-                                           <div>
-                                             <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                               Poids (kg)
-                                             </Label>
-                                             <Input
-                                               type="number"
-                                               step="0.1"
-                                               value={box.weight}
-                                               onChange={(e) => updateBulkBox(index, "weight", e.target.value)}
-                                               placeholder="Ex: 25.5"
-                                               className={`h-11 text-base ${box.weightError ? "border-red-500 focus-visible:ring-red-500" : "border-gray-300 focus:border-blue-500"}`}
-                                             />
-                                             {box.weightError && (
-                                               <div className="mt-2 flex items-center text-xs text-red-600 bg-red-50 p-2 rounded">
-                                                 <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
-                                                 <span>{box.weightError}</span>
-                                               </div>
-                                             )}
-                                           </div>
-                                         </div>
-                                       </Card>
-                                                                        ))}
-                                   </div>
-                                 </div>
-
-
-
-                                {/* Mobile Floating Action Button */}
-                                <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50">
-                                  <div className="max-w-sm mx-auto space-y-3">
-                                    <Button
-                                      onClick={handleBulkAdd}
-                                      disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id)}
-                                      className="w-full h-14 text-lg font-bold bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      <Save className="w-6 h-6 mr-3" />
-                                      {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) ? (
-                                        <>Complétez les boîtes</>
-                                      ) : (
-                                        <>Ajouter {bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length} boîte{bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length > 1 ? 's' : ''}</>
-                                      )}
-                                    </Button>
-                                    
-                                    {/* Mobile Progress Indicator */}
-                                    {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) && (
-                                      <div className="text-center">
-                                        <p className="text-xs text-orange-600 font-medium">
-                                          ⚠ {bulkBoxes.filter((b) => b.idError || b.weightError || !b.id).length} boîte(s) à corriger
-                                        </p>
+                                
+                                {/* Summary Card */}
+                                <div className="bg-gradient-to-br from-blue-50 to-green-50 border-2 border-blue-200 rounded-lg p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <Package className="w-5 h-5 text-blue-600" />
+                                      <span className="font-medium text-gray-900">Résumé</span>
+                                    </div>
+                                    <Badge className="bg-blue-100 text-blue-800 border-blue-300">
+                                      {bulkCount} boîte{parseInt(bulkCount) > 1 ? 's' : ''}
+                                    </Badge>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                    <div className="bg-white rounded p-3">
+                                      <span className="text-gray-600">Nombre de boîtes :</span>
+                                      <span className="font-bold text-gray-900 ml-2">{bulkCount}</span>
+                                    </div>
+                                    {bulkWeight && parseFloat(bulkWeight) > 0 && (
+                                      <div className="bg-white rounded p-3">
+                                        <span className="text-gray-600">Poids par boîte :</span>
+                                        <span className="font-bold text-green-600 ml-2">
+                                          {(parseFloat(bulkWeight) / parseInt(bulkCount)).toFixed(2)} kg
+                                        </span>
                                       </div>
                                     )}
                                   </div>
                                 </div>
-
-                                {/* Action Buttons - Mobile Enhanced */}
-                                <div className="space-y-4 pt-6 border-t border-gray-200">
-                                                                                                        {/* Desktop Button Layout - Enhanced Visibility */}
-                                   <div className="hidden sm:block">
-                                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-                                       {/* Desktop Submit Button - Prominent */}
-                                       <Button
-                                         onClick={handleBulkAdd}
-                                         disabled={bulkBoxes.some((b) => b.idError || b.weightError || !b.id)}
-                                         className="w-full h-14 text-lg font-bold bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                                       >
-                                         <Save className="w-6 h-6 mr-3" />
-                                         {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) ? (
-                                           <>Complétez les boîtes pour continuer</>
-                                         ) : (
-                                           <>Ajouter toutes les boîtes ({bulkBoxes.filter((b) => !b.idError && !b.weightError && b.id).length})</>
-                                         )}
-                                       </Button>
-                                       
-                                       {/* Desktop Navigation Buttons */}
-                                       <div className="flex items-center justify-center gap-4">
-                                         <Button 
-                                           variant="outline" 
-                                           onClick={() => setBulkStep(1)}
-                                           className="h-11 text-base font-medium border-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                         >
-                                           <ArrowLeft className="w-4 h-4 mr-2" />
-                                           Retour à l'étape 1
-                                         </Button>
-                                         <Button 
-                                           variant="outline" 
-                                           onClick={() => setIsBulkAddOpen(false)}
-                                           className="h-11 text-base font-medium border-2 border-gray-300 text-gray-700 hover:bg-gray-100"
-                                         >
-                                           <X className="w-4 h-4 mr-2" />
-                                           Annuler
-                                         </Button>
-                                       </div>
-                                       
-                                       {/* Desktop Progress Indicator */}
-                                       {bulkBoxes.some((b) => b.idError || b.weightError || !b.id) && (
-                                         <div className="text-center">
-                                           <p className="text-sm text-orange-600 font-medium">
-                                             ⚠ {bulkBoxes.filter((b) => b.idError || b.weightError || !b.id).length} boîte(s) nécessitent une correction
-                                           </p>
-                                         </div>
-                                       )}
-                                     </div>
-                                   </div>
+                                
+                                {/* Total Weight Input */}
+                                <div className="space-y-4">
+                                  <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                                    <Label htmlFor="bulkWeight" className="text-base font-medium text-gray-900 block mb-3">
+                                      <div className="flex items-center gap-2">
+                                        <Weight className="w-5 h-5 text-green-600" />
+                                        Poids total (kg)
+                                      </div>
+                                    </Label>
+                                    <Input
+                                      id="bulkWeight"
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={bulkWeight}
+                                      onChange={(e) => setBulkWeight(e.target.value)}
+                                      placeholder="Ex: 4500"
+                                      className="text-lg h-14 text-center sm:text-left border-green-300 focus:border-green-500 focus:ring-green-500"
+                                    />
+                                    {bulkWeight && parseFloat(bulkWeight) > 0 && (
+                                      <div className="mt-3 text-center sm:text-left">
+                                        <Badge className="bg-green-100 text-green-800 border-green-300">
+                                          ✓ Prêt à assigner {bulkCount} boîtes @ {(parseFloat(bulkWeight) / parseInt(bulkCount)).toFixed(2)} kg chacune
+                                        </Badge>
+                                      </div>
+                                    )}
+                                  </div>
                                   
-                                  {/* Mobile Navigation Buttons */}
-                                  <div className="sm:hidden">
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <Button 
-                                        variant="outline" 
-                                        onClick={() => setBulkStep(1)}
-                                        className="h-12 text-base font-medium border-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                      >
-                                        <ArrowLeft className="w-5 h-5 mr-2" />
-                                        Retour
-                                      </Button>
-                                      <Button 
-                                        variant="outline" 
-                                        onClick={() => setIsBulkAddOpen(false)}
-                                        className="h-12 text-base font-medium border-2 border-gray-300 text-gray-700 hover:bg-gray-50"
-                                      >
-                                        <X className="w-5 h-5 mr-2" />
-                                        Annuler
-                                      </Button>
+                                  {/* Info Banner */}
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3">
+                                      <div className="text-blue-600 mt-0.5">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1">
+                                        <p className="text-sm text-blue-900 font-medium">Assignation automatique</p>
+                                        <p className="text-xs text-blue-700 mt-1">
+                                          Les {bulkCount} premières boîtes disponibles seront automatiquement assignées avec un poids égal ({bulkWeight && parseFloat(bulkWeight) > 0 ? (parseFloat(bulkWeight) / parseInt(bulkCount)).toFixed(2) : '...'} kg/boîte)
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
+                                </div>
+                                
+                                {/* Action Buttons */}
+                                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
+                                  <Button
+                                    onClick={handleBulkAdd}
+                                    disabled={!bulkWeight || parseFloat(bulkWeight) <= 0 || creating}
+                                    className="bg-gradient-to-r from-[#6B8E4B] to-[#5A7A3F] hover:from-[#5A7A3F] hover:to-[#4A6A35] h-14 text-lg font-bold flex-1 sm:flex-none disabled:opacity-50"
+                                  >
+                                    {creating ? (
+                                      <>
+                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                        Assignation...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Save className="w-5 h-5 mr-2" />
+                                        Assigner automatiquement
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    onClick={() => setBulkStep(1)}
+                                    disabled={creating}
+                                    className="h-14 text-base font-medium flex-1 sm:flex-none"
+                                  >
+                                    <ArrowLeft className="w-4 h-4 mr-2" />
+                                    Retour
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    onClick={() => setIsBulkAddOpen(false)}
+                                    disabled={creating}
+                                    className="h-14 text-base flex-1 sm:flex-none"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    Annuler
+                                  </Button>
                                 </div>
                               </div>
                             )}

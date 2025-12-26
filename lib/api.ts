@@ -156,6 +156,13 @@ export const farmersApi = {
       method: 'POST',
       body: JSON.stringify({ boxes }),
     }),
+  
+  // 🚀 NEW: Smart bulk add - auto-assign available boxes with total weight
+  addBoxesBulkSmart: (id: string, bulkQuantity: number, bulkWeight: number): Promise<ApiResponse<any[]>> => 
+    apiRequest(`/farmers/${id}/boxes`, {
+      method: 'POST',
+      body: JSON.stringify({ bulkQuantity, bulkWeight }),
+    }),
 }
 
 // BOXES API

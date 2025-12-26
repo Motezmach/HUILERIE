@@ -192,6 +192,94 @@ export async function POST(
         createSuccessResponse(formattedBoxes, `${assignedBoxes.length} boîtes assignées avec succès`),
         { status: 201 }
       )
+    } else if (body.bulkQuantity && body.bulkWeight) {
+      // 🚀 NEW SMART BULK ADD - Auto-assign available boxes with distributed weight
+      const { bulkQuantity, bulkWeight } = body
+      
+      console.log('🎯 Smart bulk add:', { farmerId, bulkQuantity, bulkWeight })
+      
+      // Validate inputs
+      if (!Number.isInteger(bulkQuantity) || bulkQuantity <= 0 || bulkQuantity > 50) {
+        return NextResponse.json(
+          createErrorResponse('Quantité invalide. Doit être entre 1 et 50'),
+          { status: 400 }
+        )
+      }
+      
+      if (typeof bulkWeight !== 'number' || bulkWeight <= 0) {
+        return NextResponse.json(
+          createErrorResponse('Poids total invalide. Doit être supérieur à 0'),
+          { status: 400 }
+        )
+      }
+      
+      // Fetch available factory boxes (sorted numerically)
+      const availableBoxes = await prisma.box.findMany({
+        where: {
+          status: 'AVAILABLE',
+          type: { not: 'CHKARA' }
+        },
+        select: { id: true },
+        orderBy: { id: 'asc' },
+        take: bulkQuantity
+      })
+      
+      // Check if we have enough available boxes
+      if (availableBoxes.length < bulkQuantity) {
+        return NextResponse.json(
+          createErrorResponse(`Pas assez de boîtes disponibles. Demandé: ${bulkQuantity}, Disponible: ${availableBoxes.length}`),
+          { status: 400 }
+        )
+      }
+      
+      // Calculate weight per box (evenly distributed)
+      const weightPerBox = bulkWeight / bulkQuantity
+      
+      console.log('📦 Auto-assigning boxes:', {
+        quantity: bulkQuantity,
+        totalWeight: bulkWeight,
+        weightPerBox: weightPerBox.toFixed(2),
+        boxIds: availableBoxes.map(b => b.id)
+      })
+      
+      // Assign all boxes in parallel
+      const assignmentPromises = availableBoxes.map(box =>
+        prisma.box.update({
+          where: { id: box.id },
+          data: {
+            status: 'IN_USE',
+            currentFarmerId: farmerId,
+            currentWeight: weightPerBox,
+            assignedAt: new Date(),
+            type: 'NORMAL'
+          }
+        })
+      )
+      
+      const assignedBoxes = await Promise.all(assignmentPromises)
+      
+      const formattedBoxes = assignedBoxes.map((box: any) => ({
+        ...box,
+        type: box.type.toLowerCase(),
+        weight: Number(box.currentWeight || 0),
+        farmerId: box.currentFarmerId,
+        selected: box.isSelected || false,
+        status: box.status.toLowerCase()
+      }))
+      
+      // Trigger dashboard update
+      await triggerDashboardUpdate(`Smart bulk assigned ${assignedBoxes.length} boxes to farmer ${farmerId}`)
+      
+      console.log('✅ Smart bulk add successful:', {
+        boxCount: assignedBoxes.length,
+        totalWeight: bulkWeight,
+        avgWeight: weightPerBox.toFixed(2)
+      })
+      
+      return NextResponse.json(
+        createSuccessResponse(formattedBoxes, `${assignedBoxes.length} boîtes assignées automatiquement avec ${weightPerBox.toFixed(2)} kg chacune`),
+        { status: 201 }
+      )
     } else {
       // Single box operation
       const validatedData = createBoxItemSchema.parse(body)
