@@ -142,7 +142,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       
       // Set payment date if marking as paid
       if (validatedData.paymentStatus === 'paid') {
-        updateData.paymentDate = new Date()
+        // Preserve existing paymentDate if already set, otherwise use current date
+        updateData.paymentDate = existingSession.paymentDate || new Date()
       } else if (validatedData.paymentStatus === 'unpaid') {
         updateData.paymentDate = null
       }

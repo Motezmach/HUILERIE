@@ -296,15 +296,31 @@ export default function Dashboard() {
     try {
       const params = new URLSearchParams()
       
-      // Apply active date filter if exists
-      if (activeDateFilter) {
-        if (activeDateFilter.mode === 'single') {
-          params.append('date', activeDateFilter.from)
-        } else {
-          params.append('dateFrom', activeDateFilter.from)
-          params.append('dateTo', activeDateFilter.to)
-        }
-      }
+      // CRITICAL FIX: For Flux de Trésorerie, show wider date range to include all recent transactions
+      // This ensures transactions with manually-set payment dates are visible
+      // Show last 30 days of transactions instead of just the filtered date
+      const today = new Date()
+      const thirtyDaysAgo = new Date(today)
+      thirtyDaysAgo.setDate(today.getDate() - 30)
+      
+      // If there's an active filter, use it as the "to" date, otherwise use today
+      const toDate = activeDateFilter 
+        ? (activeDateFilter.mode === 'single' ? activeDateFilter.from : activeDateFilter.to)
+        : today.toISOString().split('T')[0]
+      
+      // Always look back 30 days from the end date to ensure we see recent transactions
+      const fromDateObj = new Date(toDate)
+      fromDateObj.setDate(fromDateObj.getDate() - 30)
+      const fromDate = fromDateObj.toISOString().split('T')[0]
+      
+      params.append('dateFrom', fromDate)
+      params.append('dateTo', toDate)
+
+      console.log('📊 Loading transactions with date range:', {
+        from: fromDate,
+        to: toDate,
+        activeDateFilter: activeDateFilter
+      })
 
       const response = await fetch(`/api/transactions?${params.toString()}`)
       const result = await response.json()
@@ -312,6 +328,10 @@ export default function Dashboard() {
       if (result.success) {
         setTransactions(result.data.transactions)
         setTransactionTotals(result.data.totals)
+        console.log('✅ Loaded transactions:', {
+          count: result.data.transactions.length,
+          totals: result.data.totals
+        })
       }
     } catch (error) {
       console.error('Error loading transactions:', error)

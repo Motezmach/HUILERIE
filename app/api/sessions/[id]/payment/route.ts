@@ -105,6 +105,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Calculate remaining amount
     const remainingAmount = Math.max(0, totalPrice - newTotalPaid)
 
+    // Determine the payment date to use
+    // If session already has a paymentDate (manually set by user), preserve it
+    // Otherwise, use current date
+    const paymentDateToUse = existingSession.paymentDate || new Date()
+
     // Use database transaction for consistency
     const result = await prisma.$transaction(async (tx) => {
       // Create payment transaction record
@@ -118,6 +123,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       })
 
       // Create revenue transaction for tracking (FARMER_PAYMENT)
+      // Use the same date as the payment date for consistency in Flux de Trésorerie
+      // Always use paymentDateToUse for both full and partial payments
       await tx.transaction.create({
         data: {
           type: 'FARMER_PAYMENT',
@@ -126,7 +133,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           farmerName: existingSession.farmer?.name || 'Agriculteur',
           farmerId: existingSession.farmerId,
           sessionId: sessionId,
-          transactionDate: new Date()
+          transactionDate: paymentDateToUse
         }
       })
 
@@ -140,8 +147,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
 
       // Set payment date only when fully paid
+      // Preserve existing paymentDate if it was manually set
       if (paymentStatus === 'PAID') {
-        updateData.paymentDate = new Date()
+        updateData.paymentDate = paymentDateToUse
       }
 
       const updatedSession = await tx.processingSession.update({

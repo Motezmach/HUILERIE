@@ -130,6 +130,9 @@ export async function GET(request: NextRequest) {
           totalBoxWeight: session.totalBoxWeight ? Number(session.totalBoxWeight) : 0,
           totalPrice: session.totalPrice ? Number(session.totalPrice) : 0,
           pricePerKg: session.pricePerKg ? Number(session.pricePerKg) : null, // Return null, not 0.15
+          paymentDate: session.paymentDate || null, // Explicitly include paymentDate
+          amountPaid: session.amountPaid ? Number(session.amountPaid) : 0,
+          remainingAmount: session.remainingAmount ? Number(session.remainingAmount) : 0,
       farmer: query.includeFarmer && session.farmer ? {
         ...session.farmer,
             type: session.farmer.type?.toLowerCase() || 'small',

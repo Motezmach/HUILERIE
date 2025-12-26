@@ -69,6 +69,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       // Payment status should only be changed through the payment endpoints
       if (paymentDate) {
         updateData.paymentDate = new Date(paymentDate)
+        console.log('📅 Manually setting payment date:', {
+          sessionId: sessionId,
+          paymentDate: paymentDate,
+          convertedDate: new Date(paymentDate),
+          currentPaymentStatus: existingSession.paymentStatus
+        })
         // DO NOT set paymentStatus here - it's managed separately via payment flow
       }
 

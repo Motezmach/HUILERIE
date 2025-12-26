@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
         })
 
         // Create revenue transaction for tracking (FARMER_PAYMENT)
+        // Use the provided paymentDate if available, otherwise use current date
         await tx.transaction.create({
           data: {
             type: 'FARMER_PAYMENT',
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
             farmerName: farmer.name,
             farmerId: farmerId,
             sessionId: combinedSession.id,
-            transactionDate: new Date()
+            transactionDate: paymentDate ? new Date(paymentDate) : new Date()
           }
         })
       }
