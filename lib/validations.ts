@@ -50,7 +50,11 @@ export const updateFarmerSchema = z.object({
     .regex(/^[0-9]{8}$/, "Le numéro de téléphone doit contenir exactement 8 chiffres")
     .optional()
     .or(z.literal("")),
-  type: z.enum(['small', 'large']).optional()
+  type: z.enum(['small', 'large']).optional(),
+  farmerNote: z.union([
+    z.string().max(5000, "La note ne peut pas dépasser 5000 caractères"),
+    z.literal("")
+  ]).optional()
   // Removed pricePerKg - each session now has flexible pricing
 })
 

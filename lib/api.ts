@@ -119,6 +119,7 @@ export const farmersApi = {
     nickname: string
     phone: string
     type: 'small' | 'large'
+    farmerNote: string
   }>): Promise<ApiResponse<any>> => 
     apiRequest(`/farmers/${id}`, {
       method: 'PUT',

@@ -95,6 +95,10 @@ export async function PUT(
       // Note: pricePerKg is now nullable - no default pricing
       // Actual pricing is handled per-session during payment
     }
+    if (validatedData.farmerNote !== undefined) {
+      const trimmed = validatedData.farmerNote.trim()
+      updateData.farmerNote = trimmed ? trimmed : null
+    }
 
     const farmer = await prisma.farmer.update({
       where: { id: farmerId },

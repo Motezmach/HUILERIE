@@ -33,6 +33,7 @@ model Farmer {
   phone                String?
   type                 FarmerType         @default(SMALL)
   pricePerKg           Decimal?           // Made nullable - pricing is now per-session
+  farmerNote           String?            @db.Text
   dateAdded            DateTime           @default(now())
   totalAmountDue       Decimal            @default(0)
   totalAmountPaid      Decimal            @default(0)

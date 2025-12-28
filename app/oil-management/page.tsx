@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -40,7 +41,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { sessionsApi, farmersApi } from "@/lib/api"
 import { logout, getCurrentUser } from '@/lib/auth-client'
-import { formatFarmerDisplayName, formatFarmerInvoiceName } from '@/lib/utils'
+import { formatFarmerDisplayName, formatFarmerInvoiceName, formatWeight } from '@/lib/utils'
 
 interface ProcessedFarmer {
   id: string
@@ -49,6 +50,7 @@ interface ProcessedFarmer {
   phone: string
   type: "small" | "large"
   pricePerKg: number
+  farmerNote?: string | null
   sessions: ProcessingSession[]
   totalAmountDue: number
   totalAmountPaid: number
@@ -82,6 +84,7 @@ interface ProcessingSession {
   notes?: string             // Session notes
 }
 
+
 export default function OilManagement() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -107,6 +110,72 @@ export default function OilManagement() {
       return () => window.removeEventListener('afterprint', handleAfterPrint)
     }
   }, [printingAllFarmers])
+
+  // Farmer notebook (DB-backed)
+  const [isFarmerNoteOpen, setIsFarmerNoteOpen] = useState(false)
+  const [farmerNoteDraft, setFarmerNoteDraft] = useState("")
+  const [farmerNoteSavedPulse, setFarmerNoteSavedPulse] = useState(false)
+  const [isSavingFarmerNote, setIsSavingFarmerNote] = useState(false)
+  const notePulseTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!selectedFarmer) return
+    setIsFarmerNoteOpen(false)
+    // Fetch farmer note from DB (permanent)
+    ;(async () => {
+      try {
+        const res = await farmersApi.getById(selectedFarmer.id)
+        if (res?.success) {
+          const note = (res.data?.farmerNote ?? "") as string
+          setFarmerNoteDraft(note)
+          setSelectedFarmer((prev) => (prev && prev.id === selectedFarmer.id ? { ...prev, farmerNote: note } : prev))
+        }
+      } catch {
+        // If API fails, keep draft as-is
+      }
+    })()
+  }, [selectedFarmer?.id])
+
+  useEffect(() => {
+    return () => {
+      if (notePulseTimeoutRef.current) {
+        window.clearTimeout(notePulseTimeoutRef.current)
+        notePulseTimeoutRef.current = null
+      }
+    }
+  }, [])
+
+  const handleSaveFarmerNote = () => {
+    if (!selectedFarmer) return
+    if (isSavingFarmerNote) return
+
+    setIsSavingFarmerNote(true)
+    ;(async () => {
+      try {
+        const res = await farmersApi.update(selectedFarmer.id, { farmerNote: farmerNoteDraft })
+        if (res?.success) {
+          const saved = ((res.data?.farmerNote ?? farmerNoteDraft) as string) ?? ""
+          setFarmerNoteDraft(saved)
+          setSelectedFarmer((prev) => (prev && prev.id === selectedFarmer.id ? { ...prev, farmerNote: saved } : prev))
+
+          setFarmerNoteSavedPulse(true)
+          if (notePulseTimeoutRef.current) window.clearTimeout(notePulseTimeoutRef.current)
+          notePulseTimeoutRef.current = window.setTimeout(() => {
+            setFarmerNoteSavedPulse(false)
+          }, 1200)
+        } else {
+          showNotification("Erreur lors de l'enregistrement de la note", "error")
+        }
+      } catch {
+        showNotification("Erreur lors de l'enregistrement de la note", "error")
+      } finally {
+        setIsSavingFarmerNote(false)
+      }
+    })()
+  }
+
+  const farmerNoteHasContent = farmerNoteDraft.trim().length > 0
+  const handleToggleFarmerNote = () => setIsFarmerNoteOpen((v) => !v)
   
   const [sessionForm, setSessionForm] = useState({
     oilWeight: "",
@@ -1672,7 +1741,7 @@ export default function OilManagement() {
                   <p className="text-xs text-gray-600">Session: {session.sessionNumber}</p>
                   {session.oilWeight > 0 && (
                     <p className="text-xs text-green-600 font-medium">
-                      ✓ Huile extraite: {session.oilWeight} {session.oilUnit || 'kg'}
+                      ✓ Huile extraite: {formatWeight(session.oilWeight)} {session.oilUnit || 'kg'}
                     </p>
                   )}
                   {session.date && (
@@ -1681,7 +1750,7 @@ export default function OilManagement() {
                 </div>
               </td>
               <td className="font-semibold">{session.boxCount}</td>
-              <td className="font-semibold">{session.totalBoxWeight.toFixed(1)}</td>
+              <td className="font-semibold">{formatWeight(session.totalBoxWeight)}</td>
               <td className="font-semibold">{session.pricePerKg ? session.pricePerKg.toFixed(3) : 'Non défini'}</td>
               <td className="font-bold text-lg">{session.totalPrice ? session.totalPrice.toFixed(3) : 'Non défini'}</td>
             </tr>
@@ -1718,7 +1787,7 @@ export default function OilManagement() {
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-gray-600">Poids olives:</p>
-              <p className="font-semibold">{session.totalBoxWeight.toFixed(1)} kg</p>
+              <p className="font-semibold">{formatWeight(session.totalBoxWeight)} kg</p>
             </div>
             <div>
               <p className="text-gray-600">Huile extraite:</p>
@@ -2064,7 +2133,7 @@ export default function OilManagement() {
                     <td style={{ fontWeight: 'bold' }}>{session.sessionNumber}</td>
                     <td>{session.date ? new Date(session.date).toLocaleDateString('fr-FR') : '-'}</td>
                     <td>{session.boxCount}</td>
-                    <td>{session.totalBoxWeight.toFixed(2)}</td>
+                    <td>{formatWeight(session.totalBoxWeight)}</td>
                     <td style={{ fontWeight: 'bold' }}>
                       {isProcessed ? `${session.oilWeight.toFixed(2)} ${session.oilUnit || 'kg'}` : '-'}
                     </td>
@@ -2124,7 +2193,7 @@ export default function OilManagement() {
                 </div>
                 <div>
                   <p className="text-gray-600 mb-1">Poids Total Olives</p>
-                  <p className="font-bold text-sm">{totalBoxWeight.toFixed(2)} kg</p>
+                  <p className="font-bold text-sm">{formatWeight(totalBoxWeight)} kg</p>
                 </div>
                 <div>
                   <p className="text-gray-600 mb-1">Total Huile</p>
@@ -2741,10 +2810,59 @@ export default function OilManagement() {
               <div className="space-y-6">
                 {/* Farmer Info */}
                 <Card className="border-0 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="text-[#2C3E50]">Informations de l'agriculteur</CardTitle>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <CardTitle className="text-[#2C3E50]">Informations de l'agriculteur</CardTitle>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleToggleFarmerNote}
+                          aria-label="Ouvrir les notes de l'agriculteur"
+                          className={[
+                            "relative text-[#2C3E50]/80 hover:text-[#2C3E50]",
+                            farmerNoteHasContent ? "bg-amber-50 hover:bg-amber-100" : "",
+                          ].join(" ")}
+                        >
+                          <FileText className="w-4 h-4" />
+                          {farmerNoteHasContent && (
+                            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500 shadow-sm" />
+                          )}
+                        </Button>
+
+                        {isFarmerNoteOpen && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleSaveFarmerNote}
+                            aria-label="Enregistrer la note de l'agriculteur"
+                            className="text-[#6B8E4B] hover:text-[#5A7A3F] hover:bg-green-50"
+                            disabled={isSavingFarmerNote}
+                          >
+                            {isSavingFarmerNote ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : farmerNoteSavedPulse ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <Save className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
+                    {isFarmerNoteOpen && (
+                      <div className="mb-4 rounded-xl border border-amber-200/70 bg-gradient-to-br from-amber-50 to-white p-3 shadow-sm">
+                        <Textarea
+                          value={farmerNoteDraft}
+                          onChange={(e) => setFarmerNoteDraft(e.target.value)}
+                          aria-label="Note de l'agriculteur"
+                          className="min-h-[96px] resize-y border-amber-200/60 bg-white/60 focus-visible:ring-amber-300"
+                        />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-gray-600">Nom</p>
@@ -2979,12 +3097,12 @@ export default function OilManagement() {
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Poids total des boîtes</p>
-                                <p className="font-semibold">{session.totalBoxWeight} kg</p>
+                                <p className="font-semibold">{formatWeight(session.totalBoxWeight)} kg</p>
                               </div>
                               <div>
                                 <p className="text-sm text-gray-600">Poids d'huile</p>
                                 <p className="font-semibold">
-                                  {session.oilWeight > 0 ? `${session.oilWeight} ${session.oilUnit || 'kg'}` : "Non saisi"}
+                                  {session.oilWeight > 0 ? `${formatWeight(session.oilWeight)} ${session.oilUnit || 'kg'}` : "Non saisi"}
                                 </p>
                               </div>
                               <div>
@@ -3178,7 +3296,7 @@ export default function OilManagement() {
                       </div>
                       <div>
                   <p className="font-medium text-gray-700">Boîtes traitées: {editingSession.boxCount}</p>
-                  <p className="text-gray-600">Poids total: {editingSession.totalBoxWeight} kg</p>
+                  <p className="text-gray-600">Poids total: {formatWeight(editingSession.totalBoxWeight)} kg</p>
                       </div>
                     </div>
               {editingSession.boxIds && editingSession.boxIds.length > 0 && (
@@ -3236,7 +3354,7 @@ export default function OilManagement() {
                     )}
                     {editingSession.oilWeight > 0 && (
                       <span className="text-sm text-gray-500">
-                        (Précédent: {editingSession.oilWeight} {editingSession.oilUnit || 'kg'})
+                        (Précédent: {formatWeight(editingSession.oilWeight)} {editingSession.oilUnit || 'kg'})
                       </span>
                     )}
                   </span>
@@ -3546,7 +3664,7 @@ export default function OilManagement() {
                   <p className="text-gray-600">Agriculteur: {selectedFarmer ? formatFarmerDisplayName(selectedFarmer.name, selectedFarmer.nickname) : ''}</p>
                 </div>
                 <div>
-                  <p className="font-medium text-gray-700">Poids total: {paymentSession.totalBoxWeight} kg</p>
+                  <p className="font-medium text-gray-700">Poids total: {formatWeight(paymentSession.totalBoxWeight)} kg</p>
                   <p className="text-gray-600">Nombre de boîtes: {paymentSession.boxCount}</p>
                 </div>
               </div>
@@ -3678,7 +3796,7 @@ export default function OilManagement() {
                     </span>
                   </div>
                   <p className="text-sm text-blue-600 mt-1">
-                    {paymentSession.totalBoxWeight} kg × {paymentForm.pricePerKg} DT/kg
+                    {formatWeight(paymentSession.totalBoxWeight)} kg × {paymentForm.pricePerKg} DT/kg
                   </p>
                 </div>
               )}
@@ -3885,8 +4003,8 @@ export default function OilManagement() {
                 </h4>
                 <div className="space-y-2 text-sm">
                   <p><span className="text-gray-600">Nombre de boîtes:</span> <span className="font-medium">{sessionDetailsModal.boxCount}</span></p>
-                  <p><span className="text-gray-600">Poids total des olives:</span> <span className="font-medium">{sessionDetailsModal.totalBoxWeight} kg</span></p>
-                  <p><span className="text-gray-600">Huile extraite:</span> <span className="font-medium text-green-600">{sessionDetailsModal.oilWeight > 0 ? `${sessionDetailsModal.oilWeight} kg` : 'Non extraite'}</span></p>
+                  <p><span className="text-gray-600">Poids total des olives:</span> <span className="font-medium">{formatWeight(sessionDetailsModal.totalBoxWeight)} kg</span></p>
+                  <p><span className="text-gray-600">Huile extraite:</span> <span className="font-medium text-green-600">{sessionDetailsModal.oilWeight > 0 ? `${formatWeight(sessionDetailsModal.oilWeight)} kg` : 'Non extraite'}</span></p>
                   {sessionDetailsModal.oilWeight > 0 && (
                     <p><span className="text-gray-600">Rendement:</span> <span className="font-medium text-green-600">{((sessionDetailsModal.oilWeight / sessionDetailsModal.totalBoxWeight) * 100).toFixed(1)}%</span></p>
                   )}
@@ -4029,9 +4147,9 @@ export default function OilManagement() {
                       <div key={session.id} className="flex items-center justify-between bg-white border border-yellow-200 rounded p-2 text-sm">
                         <div>
                           <span className="font-semibold">Session {session.sessionNumber}</span>
-                          <span className="text-gray-500 ml-2">{session.oilWeight} {session.oilUnit || 'kg'}</span>
+                          <span className="text-gray-500 ml-2">{formatWeight(session.oilWeight)} {session.oilUnit || 'kg'}</span>
                         </div>
-                        <span className="text-gray-600">{session.totalBoxWeight} kg olives</span>
+                        <span className="text-gray-600">{formatWeight(session.totalBoxWeight)} kg olives</span>
                       </div>
                     ))}
                 </div>
@@ -4044,10 +4162,9 @@ export default function OilManagement() {
                   <div className="flex justify-between">
                     <span className="text-gray-700">Total olives:</span>
                     <span className="font-bold text-blue-700">
-                      {selectedFarmer.sessions
+                      {formatWeight(selectedFarmer.sessions
                         .filter(s => selectedSessions.has(s.id))
-                        .reduce((sum, s) => sum + s.totalBoxWeight, 0)
-                        .toFixed(2)} kg
+                        .reduce((sum, s) => sum + s.totalBoxWeight, 0))} kg
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -4125,10 +4242,9 @@ export default function OilManagement() {
                     className="mt-2"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Ce prix sera multiplié par le poids total des olives ({selectedFarmer.sessions
+                    Ce prix sera multiplié par le poids total des olives ({formatWeight(selectedFarmer.sessions
                       .filter(s => selectedSessions.has(s.id))
-                      .reduce((sum, s) => sum + s.totalBoxWeight, 0)
-                      .toFixed(2)} kg)
+                      .reduce((sum, s) => sum + s.totalBoxWeight, 0))} kg)
                   </p>
                 </div>
 

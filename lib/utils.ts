@@ -37,9 +37,10 @@ export function formatCurrency(amount: number): string {
   return `${amount.toFixed(2)} DT`
 }
 
-// Weight formatting
+// Weight formatting: max 2 decimal places, remove trailing zeros
 export function formatWeight(weight: number): string {
-  return `${weight} kg`
+  const rounded = Math.round(weight * 100) / 100 // Round to 2 decimal places
+  return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(2).replace(/\.?0+$/, '')
 }
 
 // Box ID validation
