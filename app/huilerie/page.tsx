@@ -38,6 +38,7 @@ import {
   RefreshCw,
   Printer,
   List,
+  ArrowRightLeft,
 } from "lucide-react"
 import { useRouter } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth-client'
@@ -100,6 +101,11 @@ export default function HuileriePage() {
   const [editForm, setEditForm] = useState<any>({})
   const [addingOilToPurchaseId, setAddingOilToPurchaseId] = useState<string | null>(null)
   const [addOilForm, setAddOilForm] = useState({ oilProduced: '' })
+  const [movingPurchaseId, setMovingPurchaseId] = useState<string | null>(null)
+  const [moveToSafeId, setMoveToSafeId] = useState<string>('')
+  const [isMoving, setIsMoving] = useState(false)
+  const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   // Forms
   const [safeForm, setSafeForm] = useState({
@@ -154,7 +160,8 @@ export default function HuileriePage() {
             notes: `Achat depuis ${purchaseData.sessionIds.length} session(s) du farmer`,
             purchaseDate: new Date().toISOString().split('T')[0],
             sessionIds: purchaseData.sessionIds,
-            farmerId: purchaseData.farmerId
+            farmerId: purchaseData.farmerId,
+            isBasePurchase: true // Sessions are always BASE purchases
           })
           // Open the dialog
           setIsCreatePurchaseOpen(true)
@@ -616,6 +623,104 @@ export default function HuileriePage() {
     } finally {
       setCreating(false)
     }
+  }
+
+  const handleOpenMovePurchase = (purchase: Purchase) => {
+    setMovingPurchaseId(purchase.id)
+    setMoveToSafeId('')
+  }
+
+  const handleMovePurchase = async () => {
+    if (!movingPurchaseId || !moveToSafeId) {
+      showNotification('Veuillez sélectionner un coffre de destination', 'error')
+      return
+    }
+
+    const purchase = purchases.find(p => p.id === movingPurchaseId)
+    if (!purchase) return
+
+    setIsMoving(true)
+    try {
+      const response = await fetch(`/api/stock/purchases/${movingPurchaseId}/move`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newSafeId: moveToSafeId
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        // Update purchases list
+        setPurchases(purchases.map(p => p.id === movingPurchaseId ? data.data : p))
+        setMovingPurchaseId(null)
+        setMoveToSafeId('')
+        showNotification('Achat déplacé avec succès!', 'success')
+        // Reload safes to update stock levels
+        loadSafes()
+        // Reload purchases for the selected safe
+        if (selectedSafe) {
+          loadPurchases(selectedSafe.id)
+        }
+      } else {
+        showNotification(data.error || 'Erreur lors du déplacement', 'error')
+      }
+    } catch (error) {
+      console.error('Error moving purchase:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setIsMoving(false)
+    }
+  }
+
+  const handleCancelMove = () => {
+    setMovingPurchaseId(null)
+    setMoveToSafeId('')
+  }
+
+  const handleOpenDeletePurchase = (purchase: Purchase) => {
+    setDeletingPurchaseId(purchase.id)
+  }
+
+  const handleDeletePurchase = async () => {
+    if (!deletingPurchaseId) return
+
+    const purchase = purchases.find(p => p.id === deletingPurchaseId)
+    if (!purchase) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/stock/purchases/${deletingPurchaseId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        // Remove purchase from the list
+        setPurchases(purchases.filter(p => p.id !== deletingPurchaseId))
+        setDeletingPurchaseId(null)
+        showNotification('Achat supprimé avec succès!', 'success')
+        // Reload safes to update stock levels
+        loadSafes()
+        // If viewing a specific safe, reload its purchases
+        if (selectedSafe) {
+          loadPurchases(selectedSafe.id)
+        }
+      } else {
+        showNotification(data.error || 'Erreur lors de la suppression', 'error')
+      }
+    } catch (error) {
+      console.error('Error deleting purchase:', error)
+      showNotification('Erreur de connexion au serveur', 'error')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setDeletingPurchaseId(null)
   }
 
   // Calculate totals from real data
@@ -1219,21 +1324,49 @@ export default function HuileriePage() {
                                   )}
                       </div>
 
-                                {/* Edit Button - Only show if not pending */}
+                                {/* Action Buttons - Only show if not pending */}
                                 {!isPending && (
-                                  <div className="mt-4 pt-4 border-t flex justify-end">
+                                  <div className="mt-4 pt-4 border-t flex justify-between">
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        handleEditPurchase(purchase)
+                                        handleOpenDeletePurchase(purchase)
                                       }}
-                                      className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                                      className="text-red-600 border-red-300 hover:bg-red-50"
+                                      title="Supprimer cet achat"
                                     >
-                                      <Edit className="w-4 h-4 mr-2" />
-                                      Modifier
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Supprimer
                                     </Button>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleOpenMovePurchase(purchase)
+                                        }}
+                                        className="text-purple-600 border-purple-300 hover:bg-purple-50"
+                                        title="Déplacer vers un autre coffre"
+                                      >
+                                        <ArrowRightLeft className="w-4 h-4 mr-2" />
+                                        Déplacer
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleEditPurchase(purchase)
+                                        }}
+                                        className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                                      >
+                                        <Edit className="w-4 h-4 mr-2" />
+                                        Modifier
+                                      </Button>
+                                    </div>
                                   </div>
                                 )}
                               </>
@@ -1353,30 +1486,52 @@ export default function HuileriePage() {
                           </div>
                         )}
                         
-                        {/* Edit Button */}
-                        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-end">
+                        {/* Action Buttons */}
+                        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEditPurchase(purchase)
-                              // Switch to safe view to see the edit form
-                              const safe = safes.find(s => s.id === purchase.safeId)
-                              if (safe) {
-                                setSelectedSafe(safe)
-                                setShowAllPurchases(false)
-                                loadPurchases(safe.id)
-                              }
-                            }}
-                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                            onClick={() => handleOpenDeletePurchase(purchase)}
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            title="Supprimer cet achat"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Supprimer
+                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOpenMovePurchase(purchase)}
+                              className="text-purple-600 border-purple-300 hover:bg-purple-50"
+                              title="Déplacer vers un autre coffre"
+                            >
+                              <ArrowRightLeft className="w-4 h-4 mr-2" />
+                              Déplacer
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEditPurchase(purchase)
+                                // Switch to safe view to see the edit form
+                                const safe = safes.find(s => s.id === purchase.safeId)
+                                if (safe) {
+                                  setSelectedSafe(safe)
+                                  setShowAllPurchases(false)
+                                  loadPurchases(safe.id)
+                                }
+                              }}
+                              className="text-blue-600 border-blue-300 hover:bg-blue-50"
                           >
                             <Edit className="w-4 h-4 mr-2" />
                             Modifier (Recalculer le prix)
                           </Button>
+                          </div>
                         </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
                   )
                 })}
                   </div>
@@ -1950,6 +2105,199 @@ export default function HuileriePage() {
                         </Button>
                       </div>
                     </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Purchase Dialog */}
+      <Dialog open={!!movingPurchaseId} onOpenChange={() => handleCancelMove()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-purple-600">
+              <ArrowRightLeft className="w-5 h-5 mr-2" />
+              Déplacer l'Achat
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Current Purchase Info */}
+            {movingPurchaseId && (() => {
+              const purchase = purchases.find(p => p.id === movingPurchaseId)
+              if (!purchase) return null
+              
+              return (
+                <div className="p-4 bg-gray-50 rounded-lg border">
+                  <p className="text-sm text-gray-600 mb-2">Achat actuel:</p>
+                  <div className="space-y-1">
+                    <p className="font-semibold">{purchase.farmerName}</p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Coffre actuel:</span> {purchase.safeName}
+                    </p>
+                    {purchase.oilProduced && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-medium">Huile:</span> {purchase.oilProduced.toFixed(2)} kg
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Destination Safe Selection */}
+            <div>
+              <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                Sélectionner le coffre de destination
+              </Label>
+              <Select value={moveToSafeId} onValueChange={setMoveToSafeId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choisir un coffre..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {safes
+                    .filter(s => {
+                      const purchase = purchases.find(p => p.id === movingPurchaseId)
+                      return s.id !== purchase?.safeId && s.isActive
+                    })
+                    .map(safe => {
+                      const purchase = purchases.find(p => p.id === movingPurchaseId)
+                      const oilAmount = purchase?.oilProduced || 0
+                      const hasCapacity = safe.availableCapacity >= oilAmount
+                      
+                      return (
+                        <SelectItem 
+                          key={safe.id} 
+                          value={safe.id}
+                          disabled={!hasCapacity}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>{safe.name}</span>
+                            <span className={`text-xs ml-2 ${hasCapacity ? 'text-green-600' : 'text-red-600'}`}>
+                              {hasCapacity 
+                                ? `${safe.availableCapacity.toFixed(1)} kg dispo` 
+                                : 'Capacité insuffisante'
+                              }
+                            </span>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                Seuls les coffres avec capacité suffisante sont disponibles
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button
+                onClick={handleMovePurchase}
+                disabled={isMoving || !moveToSafeId}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {isMoving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                )}
+                {isMoving ? 'Déplacement...' : 'Confirmer le Déplacement'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCancelMove}
+                disabled={isMoving}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Purchase Confirmation Dialog */}
+      <Dialog open={!!deletingPurchaseId} onOpenChange={() => handleCancelDelete()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-red-600">
+              <Trash2 className="w-5 h-5 mr-2" />
+              Supprimer l'Achat
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Purchase Info */}
+            {deletingPurchaseId && (() => {
+              const purchase = purchases.find(p => p.id === deletingPurchaseId)
+              if (!purchase) return null
+              
+              return (
+                <>
+                  <Alert className="bg-red-50 border-red-300">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-800 font-medium">
+                      ⚠️ Cette action est irréversible!
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="p-4 bg-gray-50 rounded-lg border">
+                    <p className="text-sm text-gray-600 mb-3">Vous êtes sur le point de supprimer:</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Fournisseur:</span>
+                        <span className="font-semibold">{purchase.farmerName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Coffre:</span>
+                        <span className="font-semibold">{purchase.safeName}</span>
+                      </div>
+                      {purchase.oilProduced && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Huile:</span>
+                          <span className="font-semibold text-red-600">{purchase.oilProduced.toFixed(2)} kg</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Coût:</span>
+                        <span className="font-semibold text-red-600">{purchase.totalCost.toFixed(2)} DT</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Date:</span>
+                        <span className="font-semibold">{new Date(purchase.purchaseDate).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <strong>Note:</strong> L'huile sera retirée du coffre "{purchase.safeName}". Les sessions farmer ne seront pas restaurées.
+                    </p>
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button
+                onClick={handleDeletePurchase}
+                disabled={isDeleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2" />
+                )}
+                {isDeleting ? 'Suppression...' : 'Confirmer la Suppression'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCancelDelete}
+                disabled={isDeleting}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
                   </div>
