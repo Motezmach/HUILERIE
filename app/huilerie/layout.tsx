@@ -72,7 +72,27 @@ export default function HuilerieLayout({
 
   const handleDownloadExcel = async () => {
     try {
-      const response = await fetch('/api/export/excel', {
+      // Determine which export to use based on current section
+      let exportEndpoint = '/api/export/excel' // Default: farmers data
+      let exportType = 'Données Agriculteurs'
+      
+      if (pathname === '/huilerie') {
+        // Citerne section: export purchases
+        exportEndpoint = '/api/export/excel-purchases'
+        exportType = 'Achats Citerne'
+      } else if (pathname === '/huilerie/employees') {
+        // Employees section: export employees data
+        exportEndpoint = '/api/export/excel-employees'
+        exportType = 'Données Employés'
+      } else if (pathname === '/huilerie/collectors') {
+        // Collectors section: export collectors data
+        exportEndpoint = '/api/export/excel-collectors'
+        exportType = 'Données Collecteurs'
+      }
+
+      console.log(`Downloading ${exportType} from ${exportEndpoint}...`)
+
+      const response = await fetch(exportEndpoint, {
         method: 'GET'
       })
 
@@ -95,8 +115,11 @@ export default function HuilerieLayout({
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      
+      console.log(`${exportType} téléchargé avec succès!`)
     } catch (error) {
       console.error('Error downloading Excel:', error)
+      alert('Erreur lors du téléchargement du fichier Excel')
     }
   }
 
@@ -198,7 +221,15 @@ export default function HuilerieLayout({
                 size="sm"
                 onClick={handleDownloadExcel}
                 className="h-8 w-8 p-0 text-white hover:bg-white/20 transition-colors"
-                title="Télécharger l'export Excel de toutes les données"
+                title={
+                  pathname === '/huilerie' 
+                    ? 'Télécharger l\'export Excel des Achats Citerne' 
+                    : pathname === '/huilerie/employees'
+                    ? 'Télécharger l\'export Excel des Employés'
+                    : pathname === '/huilerie/collectors'
+                    ? 'Télécharger l\'export Excel des Collecteurs'
+                    : 'Télécharger l\'export Excel'
+                }
               >
                 <Download className="w-5 h-5" />
               </Button>
