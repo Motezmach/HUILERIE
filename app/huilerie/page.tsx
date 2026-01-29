@@ -39,6 +39,7 @@ import {
   Printer,
   List,
   ArrowRightLeft,
+  Search,
 } from "lucide-react"
 import { useRouter } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth-client'
@@ -106,6 +107,8 @@ export default function HuileriePage() {
   const [isMoving, setIsMoving] = useState(false)
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [searchSafePurchases, setSearchSafePurchases] = useState<string>('')
+  const [searchAllPurchases, setSearchAllPurchases] = useState<string>('')
   
   // Forms
   const [safeForm, setSafeForm] = useState({
@@ -1048,20 +1051,51 @@ export default function HuileriePage() {
                   
               {/* Purchases for this safe */}
                   <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-[#2C3E50]">
-                    Historique des Achats ({purchases.filter(p => p.safeId === selectedSafe.id).length})
-                  </h3>
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-[#2C3E50]">
+                      Historique des Achats
+                    </h3>
+                    <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-sm px-3 py-1">
+                      {purchases.filter(p => p.safeId === selectedSafe.id && 
+                        p.farmerName.toLowerCase().includes(searchSafePurchases.toLowerCase())
+                      ).length} achat(s)
+                    </Badge>
                   </div>
                   
-                {purchases.filter(p => p.safeId === selectedSafe.id).length === 0 ? (
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Rechercher par agriculteur..."
+                      value={searchSafePurchases}
+                      onChange={(e) => setSearchSafePurchases(e.target.value)}
+                      className="pl-10 bg-white border-gray-300 focus:border-[#6B8E4B] focus:ring-[#6B8E4B]"
+                    />
+                    {searchSafePurchases && (
+                      <button
+                        onClick={() => setSearchSafePurchases('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  </div>
+                  
+                {purchases.filter(p => p.safeId === selectedSafe.id && 
+                  p.farmerName.toLowerCase().includes(searchSafePurchases.toLowerCase())
+                ).length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    <p>Aucun achat pour ce coffre</p>
+                    <p>{searchSafePurchases ? 'Aucun résultat trouvé' : 'Aucun achat pour ce coffre'}</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {purchases.filter(p => p.safeId === selectedSafe.id).map(purchase => {
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                    {purchases.filter(p => p.safeId === selectedSafe.id && 
+                      p.farmerName.toLowerCase().includes(searchSafePurchases.toLowerCase())
+                    ).map(purchase => {
                       const isEditing = editingPurchaseId === purchase.id
                       const calculatedYield = isEditing && editForm.oliveWeight && editForm.oilProduced
                         ? ((parseFloat(editForm.oilProduced) / parseFloat(editForm.oliveWeight)) * 100).toFixed(1)
@@ -1387,10 +1421,17 @@ export default function HuileriePage() {
           <Card className="border-0 shadow-xl">
             <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
                   <div className="flex items-center justify-between">
-                <CardTitle className="text-xl flex items-center">
-                  <List className="w-5 h-5 mr-2" />
-                  Tous les Achats ({purchases.length})
-                </CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-xl flex items-center">
+                    <List className="w-5 h-5 mr-2" />
+                    Tous les Achats
+                  </CardTitle>
+                  <Badge variant="secondary" className="bg-white/20 text-white text-sm px-3 py-1">
+                    {purchases.filter(p => 
+                      p.farmerName.toLowerCase().includes(searchAllPurchases.toLowerCase())
+                    ).length} achat(s)
+                  </Badge>
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -1413,8 +1454,38 @@ export default function HuileriePage() {
                     </div>
               </CardHeader>
                 <CardContent className="p-6">
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                {purchases.map(purchase => {
+              {/* Search Bar */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Rechercher par agriculteur..."
+                  value={searchAllPurchases}
+                  onChange={(e) => setSearchAllPurchases(e.target.value)}
+                  className="pl-10 bg-white border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                />
+                {searchAllPurchases && (
+                  <button
+                    onClick={() => setSearchAllPurchases('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {purchases.filter(p => 
+                p.farmerName.toLowerCase().includes(searchAllPurchases.toLowerCase())
+              ).length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>{searchAllPurchases ? 'Aucun résultat trouvé' : 'Aucun achat'}</p>
+                </div>
+              ) : (
+              <div className="space-y-3 max-h-[700px] overflow-y-auto pr-2">
+                {purchases.filter(p => 
+                  p.farmerName.toLowerCase().includes(searchAllPurchases.toLowerCase())
+                ).map(purchase => {
                   const purchaseSafe = safes.find(s => s.id === purchase.safeId)
                   return (
                     <Card key={purchase.id} className="border border-gray-200 hover:shadow-md transition-shadow">
@@ -1535,37 +1606,55 @@ export default function HuileriePage() {
                   )
                 })}
                   </div>
+              )}
 
               {/* Summary Stats for All Purchases */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-lg font-semibold text-[#2C3E50] mb-4">Résumé Global</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                    <p className="text-sm text-blue-700 mb-1">Total Olives</p>
-                    <p className="text-2xl font-bold text-blue-900">
-                      {purchases.reduce((sum, p) => sum + p.oliveWeight, 0).toFixed(2)} kg
-                    </p>
-                          </div>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                    <p className="text-sm text-green-700 mb-1">Total Huile</p>
-                    <p className="text-2xl font-bold text-green-900">
-                      {totalOilProduced.toFixed(2)} kg
-                    </p>
-                          </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-                    <p className="text-sm text-amber-700 mb-1">Investissement</p>
-                    <p className="text-2xl font-bold text-amber-900">
-                      {totalInvestment.toFixed(2)} DT
-                    </p>
-                        </div>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
-                    <p className="text-sm text-purple-700 mb-1">Rendement Moyen</p>
-                    <p className="text-2xl font-bold text-purple-900">
-                      {averageYield.toFixed(1)}%
-                    </p>
+              {purchases.filter(p => 
+                p.farmerName.toLowerCase().includes(searchAllPurchases.toLowerCase())
+              ).length > 0 && (() => {
+                const filteredPurchases = purchases.filter(p => 
+                  p.farmerName.toLowerCase().includes(searchAllPurchases.toLowerCase())
+                )
+                const filteredTotalOlives = filteredPurchases.reduce((sum, p) => sum + p.oliveWeight, 0)
+                const filteredTotalOil = filteredPurchases.reduce((sum, p) => sum + (p.oilProduced || 0), 0)
+                const filteredTotalCost = filteredPurchases.reduce((sum, p) => sum + p.totalCost, 0)
+                const filteredWithOil = filteredPurchases.filter(p => p.oilProduced !== null)
+                const filteredAvgYield = filteredWithOil.length > 0
+                  ? filteredWithOil.reduce((sum, p) => sum + (p.yieldPercentage || 0), 0) / filteredWithOil.length
+                  : 0
+                
+                return (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h4 className="text-lg font-semibold text-[#2C3E50] mb-4">Résumé Global</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                        <p className="text-sm text-blue-700 mb-1">Total Olives</p>
+                        <p className="text-2xl font-bold text-blue-900">
+                          {filteredTotalOlives.toFixed(2)} kg
+                        </p>
+                      </div>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                        <p className="text-sm text-green-700 mb-1">Total Huile</p>
+                        <p className="text-2xl font-bold text-green-900">
+                          {filteredTotalOil.toFixed(2)} kg
+                        </p>
+                      </div>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                        <p className="text-sm text-amber-700 mb-1">Investissement</p>
+                        <p className="text-2xl font-bold text-amber-900">
+                          {filteredTotalCost.toFixed(2)} DT
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                        <p className="text-sm text-purple-700 mb-1">Rendement Moyen</p>
+                        <p className="text-2xl font-bold text-purple-900">
+                          {filteredAvgYield.toFixed(1)}%
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )
+              })()}
               </CardContent>
             </Card>
         )}
