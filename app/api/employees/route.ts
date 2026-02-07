@@ -16,6 +16,11 @@ export async function GET(request: NextRequest) {
           }
           // Removed take limit to load ALL attendance records (not just last 30 days)
           // This ensures historical data (October, November, etc.) is always accessible
+        },
+        payments: {
+          orderBy: {
+            paymentDate: 'desc'
+          }
         }
       },
       orderBy: {
@@ -37,6 +42,13 @@ export async function GET(request: NextRequest) {
         date: att.date,
         status: att.status.toLowerCase(),
         notes: att.notes
+      })),
+      payments: emp.payments.map(pay => ({
+        id: pay.id,
+        employeeId: pay.employeeId,
+        amount: pay.amount,
+        paymentDate: pay.paymentDate,
+        notes: pay.notes
       }))
     }))
 

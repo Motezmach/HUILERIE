@@ -356,6 +356,18 @@ export default function EmployeesPage() {
     })
   }
 
+  // Calculate total paid advances for an employee in a specific month
+  const getTotalPaidAdvancesForMonth = (employee: Employee, year: number, month: number) => {
+    if (!employee.payments || employee.payments.length === 0) return 0
+
+    return employee.payments
+      .filter(payment => {
+        const paymentDate = new Date(payment.paymentDate)
+        return paymentDate.getFullYear() === year && paymentDate.getMonth() === month
+      })
+      .reduce((sum, payment) => sum + Number(payment.amount), 0)
+  }
+
   const activeEmployees = employees.filter(e => e.isActive)
   const todayPresent = activeEmployees.filter(e => {
     const att = getAttendanceForDate(e, selectedDate)
@@ -533,12 +545,53 @@ export default function EmployeesPage() {
             </div>
 
             <div className="hidden print:block">
-              <h1 className="text-3xl font-bold text-center text-black">
-                FEUILLE DE PRÉSENCE DES EMPLOYÉS
+              <h1 className="text-lg font-bold text-center text-black mb-2">
+                FEUILLE DE PRÉSENCE DES EMPLOYÉS - {printMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}
               </h1>
-              <p className="text-center text-lg mt-2 text-black">
-                {printMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}
-              </p>
+              
+              {/* Statistics Bar */}
+              <div className="grid grid-cols-6 gap-2 mb-3 text-xs border-2 border-black p-2 bg-gray-50">
+                <div className="text-center border-r border-gray-400">
+                  <p className="font-semibold">Total Employés</p>
+                  <p className="text-base font-bold">{activeEmployees.length}</p>
+                </div>
+                <div className="text-center border-r border-gray-400">
+                  <p className="font-semibold text-green-700">Total Présents (Tout)</p>
+                  <p className="text-base font-bold text-green-700">
+                    {activeEmployees.reduce((sum, emp) => 
+                      sum + emp.recentAttendance.filter(att => att.status === 'present').length
+                    , 0)}
+                  </p>
+                </div>
+                <div className="text-center border-r border-gray-400">
+                  <p className="font-semibold text-gray-700">Total 1/2 Jours (Tout)</p>
+                  <p className="text-base font-bold text-gray-700">
+                    {activeEmployees.reduce((sum, emp) => 
+                      sum + emp.recentAttendance.filter(att => att.status === 'half_day').length
+                    , 0)}
+                  </p>
+                </div>
+                <div className="text-center border-r border-gray-400">
+                  <p className="font-semibold text-red-700">Total Absents (Tout)</p>
+                  <p className="text-base font-bold text-red-700">
+                    {activeEmployees.reduce((sum, emp) => 
+                      sum + emp.recentAttendance.filter(att => att.status === 'absent').length
+                    , 0)}
+                  </p>
+                </div>
+                <div className="text-center border-r border-gray-400">
+                  <p className="font-semibold text-blue-700">Total Payé (Tout)</p>
+                  <p className="text-base font-bold text-blue-700">
+                    {activeEmployees.reduce((sum, emp) => 
+                      sum + (emp.payments?.reduce((pSum, p) => pSum + Number(p.amount), 0) || 0)
+                    , 0).toFixed(2)} DT
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold">Date d'impression</p>
+                  <p className="text-base font-bold">{new Date().toLocaleDateString('fr-FR')}</p>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-2 mt-4 print:hidden">
@@ -577,12 +630,19 @@ export default function EmployeesPage() {
                     <th className="border-2 border-gray-400 p-2 text-center font-bold bg-red-100 print:bg-gray-200 min-w-[50px]">
                       A
                     </th>
+                    <th className="border-2 border-gray-400 p-2 text-center font-bold bg-blue-100 print:bg-gray-200 min-w-[100px]">
+                      <div className="flex items-center justify-center gap-1">
+                        <Wallet className="w-4 h-4" />
+                        <span className="print:hidden">Avance payé</span>
+                        <span className="hidden print:inline">Avance</span>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {activeEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={getDaysInMonth(printMonth).length + 4} className="border-2 border-gray-400 p-8 text-center text-gray-500">
+                      <td colSpan={getDaysInMonth(printMonth).length + 5} className="border-2 border-gray-400 p-8 text-center text-gray-500">
                         Aucun employé actif
                       </td>
                     </tr>
@@ -611,7 +671,7 @@ export default function EmployeesPage() {
                               <div>
                                 <div className="font-bold">{employee.name}</div>
                                 {employee.position && (
-                                  <div className="text-xs text-gray-500">{employee.position}</div>
+                                  <div className="text-xs text-gray-500 print:hidden">{employee.position}</div>
                                 )}
                               </div>
                             </div>
@@ -648,6 +708,9 @@ export default function EmployeesPage() {
                           <td className="border-2 border-gray-400 p-2 text-center font-bold bg-red-50 text-red-800">
                             {absentCount}
                           </td>
+                          <td className="border-2 border-gray-400 p-2 text-center font-bold bg-blue-50 text-blue-800">
+                            {getTotalPaidAdvancesForMonth(employee, year, month).toFixed(3)} DT
+                          </td>
                         </tr>
                       )
                     })
@@ -656,14 +719,14 @@ export default function EmployeesPage() {
               </table>
             </div>
 
-            <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200 print:border-black print:bg-white print:mt-8">
+            <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200 print:hidden">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-sm text-gray-600 print:text-black">Total Employés</p>
-                  <p className="text-2xl font-bold text-purple-700 print:text-black">{activeEmployees.length}</p>
+                  <p className="text-sm text-gray-600">Total Employés</p>
+                  <p className="text-2xl font-bold text-purple-700">{activeEmployees.length}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 print:text-black">Légende</p>
+                  <p className="text-sm text-gray-600">Légende</p>
                   <div className="flex justify-center gap-2 mt-1 flex-wrap">
                     <Badge className="bg-green-100 text-green-800 border-2 border-green-400">P = Présent</Badge>
                     <Badge className="bg-gray-300 text-gray-800 border-2 border-gray-500">H = 1/2 Jour</Badge>
@@ -671,8 +734,8 @@ export default function EmployeesPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 print:text-black">Date d'impression</p>
-                  <p className="text-lg font-semibold print:text-black">
+                  <p className="text-sm text-gray-600">Date d'impression</p>
+                  <p className="text-lg font-semibold">
                     {new Date().toLocaleDateString('fr-FR')}
                   </p>
                 </div>
@@ -1149,6 +1212,165 @@ export default function EmployeesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Print Styles */}
+      {showPrintView && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            /* Hide everything except the print view */
+            body * {
+              visibility: hidden;
+            }
+            
+            /* Make only the attendance card visible */
+            .border-0.shadow-2xl.overflow-hidden,
+            .border-0.shadow-2xl.overflow-hidden * {
+              visibility: visible;
+            }
+            
+            /* Position print content at the top */
+            .border-0.shadow-2xl.overflow-hidden {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            
+            /* Hide navigation and other UI elements */
+            nav,
+            header,
+            .print\\:hidden {
+              display: none !important;
+            }
+            
+            /* Page setup - LANDSCAPE with minimal margins to maximize space */
+            @page {
+              size: A4 landscape;
+              margin: 8mm;
+            }
+            
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+            
+            /* Readable header */
+            h1 {
+              font-size: 14px !important;
+              margin: 0 0 6px 0 !important;
+              padding: 0 !important;
+              font-weight: bold !important;
+            }
+            
+            /* Statistics bar - readable size */
+            .grid.grid-cols-6 {
+              padding: 4px !important;
+              margin-bottom: 6px !important;
+              gap: 3px !important;
+            }
+            
+            .grid.grid-cols-6 > div {
+              padding: 3px !important;
+            }
+            
+            .grid.grid-cols-6 p {
+              font-size: 8px !important;
+              margin: 1px 0 !important;
+              line-height: 1.3 !important;
+            }
+            
+            .grid.grid-cols-6 .text-base {
+              font-size: 11px !important;
+              font-weight: bold !important;
+            }
+            
+            /* Table styling - READABLE but fitting */
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 0 !important;
+            }
+            
+            th, td {
+              border: 1px solid #444 !important;
+              padding: 3px 2px !important;
+              font-size: 9px !important;
+              line-height: 1.2 !important;
+              text-align: center !important;
+            }
+            
+            th {
+              background: #e0e0e0 !important;
+              font-weight: bold !important;
+              padding: 4px 2px !important;
+              font-size: 9px !important;
+            }
+            
+            /* Employee name column - bigger and readable */
+            td:first-child {
+              font-size: 10px !important;
+              max-width: 110px !important;
+              padding: 4px !important;
+              text-align: left !important;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              font-weight: 600 !important;
+            }
+            
+            th:first-child {
+              font-size: 10px !important;
+              padding: 4px !important;
+              text-align: left !important;
+            }
+            
+            /* Day columns - readable */
+            th:not(:first-child):not(:nth-last-child(-n+4)),
+            td:not(:first-child):not(:nth-last-child(-n+4)) {
+              width: 22px !important;
+              max-width: 22px !important;
+              min-width: 22px !important;
+              padding: 3px 1px !important;
+              font-size: 9px !important;
+              font-weight: bold !important;
+            }
+            
+            /* Summary columns (P, H, A, Avance) - clear and readable */
+            th:nth-last-child(-n+4),
+            td:nth-last-child(-n+4) {
+              font-size: 9px !important;
+              padding: 3px 4px !important;
+              white-space: nowrap;
+              font-weight: bold !important;
+            }
+            
+            /* Last column (Avance payé) */
+            th:last-child,
+            td:last-child {
+              font-size: 8px !important;
+              min-width: 55px !important;
+            }
+            
+            /* Remove shadows */
+            * {
+              box-shadow: none !important;
+            }
+            
+            /* Hide all icons */
+            svg {
+              display: none !important;
+            }
+            
+            /* Card content no padding */
+            .p-6 {
+              padding: 0 !important;
+            }
+          }
+        `}} />
+      )}
     </div>
   )
 }
