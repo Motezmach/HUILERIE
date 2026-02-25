@@ -1053,9 +1053,9 @@ export default function HuileriePage() {
                   <div>
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-[#2C3E50]">
+                  <h3 className="text-lg font-semibold text-[#2C3E50]">
                       Historique des Achats
-                    </h3>
+                  </h3>
                     <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-sm px-3 py-1">
                       {purchases.filter(p => p.safeId === selectedSafe.id && 
                         p.farmerName.toLowerCase().includes(searchSafePurchases.toLowerCase())
@@ -1388,18 +1388,18 @@ export default function HuileriePage() {
                                         <ArrowRightLeft className="w-4 h-4 mr-2" />
                                         Déplacer
                                       </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          handleEditPurchase(purchase)
-                                        }}
-                                        className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                                      >
-                                        <Edit className="w-4 h-4 mr-2" />
-                                        Modifier
-                                      </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleEditPurchase(purchase)
+                                      }}
+                                      className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" />
+                                      Modifier
+                                    </Button>
                                     </div>
                                   </div>
                                 )}
@@ -1422,10 +1422,10 @@ export default function HuileriePage() {
             <CardHeader className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
                   <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <CardTitle className="text-xl flex items-center">
-                    <List className="w-5 h-5 mr-2" />
+                <CardTitle className="text-xl flex items-center">
+                  <List className="w-5 h-5 mr-2" />
                     Tous les Achats
-                  </CardTitle>
+                </CardTitle>
                   <Badge variant="secondary" className="bg-white/20 text-white text-sm px-3 py-1">
                     {purchases.filter(p => 
                       p.farmerName.toLowerCase().includes(searchAllPurchases.toLowerCase())
@@ -1580,29 +1580,29 @@ export default function HuileriePage() {
                               <ArrowRightLeft className="w-4 h-4 mr-2" />
                               Déplacer
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEditPurchase(purchase)
-                                // Switch to safe view to see the edit form
-                                const safe = safes.find(s => s.id === purchase.safeId)
-                                if (safe) {
-                                  setSelectedSafe(safe)
-                                  setShowAllPurchases(false)
-                                  loadPurchases(safe.id)
-                                }
-                              }}
-                              className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEditPurchase(purchase)
+                              // Switch to safe view to see the edit form
+                              const safe = safes.find(s => s.id === purchase.safeId)
+                              if (safe) {
+                                setSelectedSafe(safe)
+                                setShowAllPurchases(false)
+                                loadPurchases(safe.id)
+                              }
+                            }}
+                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
                           >
                             <Edit className="w-4 h-4 mr-2" />
                             Modifier (Recalculer le prix)
                           </Button>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                    </CardContent>
+                  </Card>
                   )
                 })}
                   </div>
@@ -1624,35 +1624,35 @@ export default function HuileriePage() {
                   : 0
                 
                 return (
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h4 className="text-lg font-semibold text-[#2C3E50] mb-4">Résumé Global</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                        <p className="text-sm text-blue-700 mb-1">Total Olives</p>
-                        <p className="text-2xl font-bold text-blue-900">
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h4 className="text-lg font-semibold text-[#2C3E50] mb-4">Résumé Global</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                    <p className="text-sm text-blue-700 mb-1">Total Olives</p>
+                    <p className="text-2xl font-bold text-blue-900">
                           {filteredTotalOlives.toFixed(2)} kg
-                        </p>
-                      </div>
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                        <p className="text-sm text-green-700 mb-1">Total Huile</p>
-                        <p className="text-2xl font-bold text-green-900">
+                    </p>
+                          </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <p className="text-sm text-green-700 mb-1">Total Huile</p>
+                    <p className="text-2xl font-bold text-green-900">
                           {filteredTotalOil.toFixed(2)} kg
-                        </p>
-                      </div>
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-                        <p className="text-sm text-amber-700 mb-1">Investissement</p>
-                        <p className="text-2xl font-bold text-amber-900">
+                    </p>
+                          </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                    <p className="text-sm text-amber-700 mb-1">Investissement</p>
+                    <p className="text-2xl font-bold text-amber-900">
                           {filteredTotalCost.toFixed(2)} DT
-                        </p>
-                      </div>
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
-                        <p className="text-sm text-purple-700 mb-1">Rendement Moyen</p>
-                        <p className="text-2xl font-bold text-purple-900">
+                    </p>
+                        </div>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                    <p className="text-sm text-purple-700 mb-1">Rendement Moyen</p>
+                    <p className="text-2xl font-bold text-purple-900">
                           {filteredAvgYield.toFixed(1)}%
-                        </p>
-                      </div>
+                    </p>
                     </div>
                   </div>
+                </div>
                 )
               })()}
               </CardContent>
@@ -2226,8 +2226,8 @@ export default function HuileriePage() {
                       </p>
                     )}
                   </div>
-                </div>
-              )
+                  </div>
+  )
             })()}
 
             {/* Destination Safe Selection */}
