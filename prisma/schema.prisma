@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,136 +8,285 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  username      String    @unique
-  password      String
-  email         String?   @unique
-  firstName     String?
-  lastName      String?
-  role          UserRole  @default(ADMIN)
-  isActive      Boolean   @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id          String    @id @default(uuid())
+  username    String    @unique
+  password    String
+  email       String?   @unique
+  firstName   String?
+  lastName    String?
+  role        UserRole  @default(ADMIN)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
   @@map("users")
 }
 
 model Farmer {
-  id                   String             @id @default(uuid())
-  name                 String
-  nickname             String?            // Optional nickname field
-  phone                String?
-  type                 FarmerType         @default(SMALL)
-  pricePerKg           Decimal?           // Made nullable - pricing is now per-session
-  farmerNote           String?            @db.Text
-  dateAdded            DateTime           @default(now())
-  totalAmountDue       Decimal            @default(0)
-  totalAmountPaid      Decimal            @default(0)
-  paymentStatus        PaymentStatus      @default(PENDING)
-  lastProcessingDate   DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  // Temporary assignments (current active boxes)
-  currentBoxes         Box[]              @relation("CurrentFarmerBoxes")
-  processingSessions   ProcessingSession[]
-  
+  id                 String              @id @default(uuid())
+  name               String
+  nickname           String?
+  phone              String?
+  type               FarmerType          @default(SMALL)
+  pricePerKg         Decimal?
+  dateAdded          DateTime            @default(now())
+  totalAmountDue     Decimal             @default(0)
+  totalAmountPaid    Decimal             @default(0)
+  paymentStatus      PaymentStatus       @default(PENDING)
+  lastProcessingDate DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  farmerNote         String?
+  currentBoxes       Box[]               @relation("CurrentFarmerBoxes")
+  processingSessions ProcessingSession[]
+
   @@map("farmers")
 }
 
 model Box {
-  id                   String             @id  // Fixed IDs from "1" to "600"
-  type                 BoxType            @default(NORMAL)
-  status               BoxStatus          @default(AVAILABLE)
-  
-  // Current assignment (nullable - box can be unassigned)
-  currentFarmerId      String?
-  currentWeight        Decimal?
-  assignedAt           DateTime?
-  isSelected           Boolean            @default(false)
-  
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  // Relationships
-  currentFarmer        Farmer?            @relation("CurrentFarmerBoxes", fields: [currentFarmerId], references: [id], onDelete: SetNull)
-  sessionBoxes         SessionBox[]
-  
+  id              String       @id
+  type            BoxType      @default(NORMAL)
+  status          BoxStatus    @default(AVAILABLE)
+  currentFarmerId String?
+  currentWeight   Decimal?
+  assignedAt      DateTime?
+  isSelected      Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  currentFarmer   Farmer?      @relation("CurrentFarmerBoxes", fields: [currentFarmerId], references: [id])
+  sessionBoxes    SessionBox[]
+
   @@map("boxes")
 }
 
 model ProcessingSession {
-  id                   String             @id @default(uuid())
-  farmerId             String
-  sessionNumber        String             @unique
-  processingDate       DateTime?
-  oilWeight            Decimal            @default(0)
-  oilUnit              String             @default("kg") // Unit: "kg" or "L" (litre)
-  totalBoxWeight       Decimal
-  boxCount             Int
-  totalPrice           Decimal?           // Made nullable - will be set during payment
-  pricePerKg           Decimal?           // Made nullable - will be set during payment
-  amountPaid           Decimal            @default(0)  // Track partial payments
-  remainingAmount      Decimal            @default(0)  // Track remaining balance
-  processingStatus     ProcessingStatus   @default(PENDING)
-  paymentStatus        PaymentStatus      @default(UNPAID)
-  paymentDate          DateTime?
-  notes                String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  farmer               Farmer             @relation(fields: [farmerId], references: [id], onDelete: Cascade)
-  sessionBoxes         SessionBox[]
-  paymentTransactions  PaymentTransaction[] // New relation for payment history
-  
+  id                  String               @id @default(uuid())
+  farmerId            String
+  sessionNumber       String               @unique
+  processingDate      DateTime?
+  oilWeight           Decimal              @default(0)
+  totalBoxWeight      Decimal
+  boxCount            Int
+  totalPrice          Decimal?
+  pricePerKg          Decimal?
+  amountPaid          Decimal              @default(0)
+  remainingAmount     Decimal              @default(0)
+  processingStatus    ProcessingStatus     @default(PENDING)
+  paymentStatus       PaymentStatus        @default(UNPAID)
+  paymentDate         DateTime?
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  oilUnit             String               @default("kg")
+  paymentTransactions PaymentTransaction[]
+  farmer              Farmer               @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  sessionBoxes        SessionBox[]
+
   @@map("processing_sessions")
 }
 
 model SessionBox {
-  id                   String             @id @default(uuid())
-  sessionId            String
-  boxId                String             // Always populated with actual box ID (1-600)
-  boxWeight            Decimal
-  boxType              BoxType
-  farmerId             String             // Track which farmer used this box
-  createdAt            DateTime           @default(now())
-  
-  session              ProcessingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  box                  Box                @relation(fields: [boxId], references: [id], onDelete: Cascade)
-  
+  id        String            @id @default(uuid())
+  sessionId String
+  boxId     String
+  boxWeight Decimal
+  boxType   BoxType
+  farmerId  String
+  createdAt DateTime          @default(now())
+  box       Box               @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  session   ProcessingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   @@unique([sessionId, boxId])
   @@map("session_boxes")
 }
 
 model PaymentTransaction {
-  id                   String             @id @default(uuid())
-  sessionId            String
-  amount               Decimal            // Amount paid in this transaction
-  paymentDate          DateTime           @default(now())
-  paymentMethod        String?            // Optional: cash, bank, etc.
-  notes                String?            // Optional payment notes
-  createdAt            DateTime           @default(now())
-  
-  session              ProcessingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
+  id            String            @id @default(uuid())
+  sessionId     String
+  amount        Decimal
+  paymentDate   DateTime          @default(now())
+  paymentMethod String?
+  notes         String?
+  createdAt     DateTime          @default(now())
+  session       ProcessingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   @@map("payment_transactions")
 }
 
 model DashboardMetrics {
-  id                   String             @id @default(uuid())
-  metricDate           DateTime           @unique
-  totalFarmers         Int                @default(0)
-  totalBoxes           Int                @default(0)
-  activeBoxes          Int                @default(0)
-  pendingExtractions   Int                @default(0)
-  todayRevenue         Decimal            @default(0)
-  totalRevenue         Decimal            @default(0)
-  averageOilExtraction Decimal            @default(0)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
+  id                   String   @id @default(uuid())
+  metricDate           DateTime @unique
+  totalFarmers         Int      @default(0)
+  totalBoxes           Int      @default(0)
+  activeBoxes          Int      @default(0)
+  pendingExtractions   Int      @default(0)
+  todayRevenue         Decimal  @default(0)
+  totalRevenue         Decimal  @default(0)
+  averageOilExtraction Decimal  @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
   @@map("dashboard_metrics")
+}
+
+model OilSafe {
+  id           String          @id @default(uuid())
+  name         String          @unique
+  capacity     Decimal
+  currentStock Decimal         @default(0)
+  description  String?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  sales        OilSale[]
+  purchases    OlivePurchase[]
+
+  @@map("oil_safes")
+}
+
+model OlivePurchase {
+  id              String   @id @default(uuid())
+  purchaseDate    DateTime @default(now())
+  farmerName      String
+  farmerPhone     String?
+  oliveWeight     Decimal
+  pricePerKg      Decimal
+  totalCost       Decimal
+  oilProduced     Decimal?
+  yieldPercentage Decimal?
+  safeId          String
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  safe            OilSafe  @relation(fields: [safeId], references: [id], onDelete: Cascade)
+
+  @@map("olive_purchases")
+}
+
+model OilSale {
+  id           String   @id @default(uuid())
+  saleDate     DateTime @default(now())
+  safeId       String
+  quantity     Decimal
+  pricePerKg   Decimal
+  totalRevenue Decimal
+  buyer        String?
+  buyerPhone   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  safe         OilSafe  @relation(fields: [safeId], references: [id], onDelete: Cascade)
+
+  @@map("oil_sales")
+}
+
+model Transaction {
+  id              String          @id @default(uuid())
+  type            TransactionType
+  amount          Decimal
+  description     String
+  farmerName      String?
+  farmerId        String?
+  sessionId       String?
+  destination     String?
+  createdBy       String?
+  transactionDate DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("transactions")
+}
+
+model Employee {
+  id         String            @id @default(uuid())
+  name       String
+  phone      String?
+  position   String?
+  hireDate   DateTime          @default(now())
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  attendance Attendance[]
+  payments   EmployeePayment[]
+
+  @@map("employees")
+}
+
+model EmployeePayment {
+  id          String   @id @default(uuid())
+  employeeId  String
+  amount      Decimal
+  paymentDate DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, paymentDate])
+  @@map("employee_payments")
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  employeeId String
+  date       DateTime
+  status     AttendanceStatus
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date], name: "employeeId_date")
+  @@map("attendance")
+}
+
+model CollectorGroup {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  payments    CollectorPayment[]
+  collections DailyCollection[]
+
+  @@map("collector_groups")
+}
+
+model DailyCollection {
+  id                String         @id @default(uuid())
+  groupId           String
+  collectionDate    DateTime
+  location          String
+  clientName        String
+  chakraCount       Int            @default(0)
+  galbaCount        Int            @default(0)
+  nchiraChakraCount Int            @default(0)
+  nchiraGalbaCount  Int            @default(0)
+  totalChakra       Decimal
+  pricePerChakra    Decimal        @default(0)
+  totalAmount       Decimal        @default(0)
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  group             CollectorGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([collectionDate, groupId])
+  @@map("daily_collections")
+}
+
+model CollectorPayment {
+  id          String         @id @default(uuid())
+  groupId     String
+  amount      Decimal
+  paymentDate DateTime       @default(now())
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  group       CollectorGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, paymentDate])
+  @@map("collector_payments")
 }
 
 enum FarmerType {
@@ -155,8 +301,8 @@ enum BoxType {
 }
 
 enum BoxStatus {
-  AVAILABLE       // Box is free and can be assigned to any farmer
-  IN_USE         // Box is currently assigned to a farmer with olives
+  AVAILABLE
+  IN_USE
 }
 
 enum ProcessingStatus {
@@ -165,10 +311,10 @@ enum ProcessingStatus {
 }
 
 enum PaymentStatus {
-  UNPAID     // No payment made
-  PARTIAL    // Partial payment made
-  PAID       // Full payment completed
-  PENDING    // Used for farmer-level status
+  UNPAID
+  PARTIAL
+  PAID
+  PENDING
 }
 
 enum UserRole {
@@ -177,186 +323,14 @@ enum UserRole {
   MANAGER
 }
 
-// ==================== FACTORY STOCK MANAGEMENT ====================
-
-model OilSafe {
-  id                   String             @id @default(uuid())
-  name                 String             @unique
-  capacity             Decimal            // Maximum capacity in liters/kg
-  currentStock         Decimal            @default(0) // Current oil stock in liters/kg
-  description          String?            // Optional description
-  isActive             Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  purchases            OlivePurchase[]
-  sales                OilSale[]
-  
-  @@map("oil_safes")
-}
-
-model OlivePurchase {
-  id                   String             @id @default(uuid())
-  purchaseDate         DateTime           @default(now())
-  farmerName           String             // Name of farmer we bought from
-  farmerPhone          String?            // Optional phone number
-  oliveWeight          Decimal            // Weight of olives purchased in kg
-  pricePerKg           Decimal            // Price per kg paid
-  totalCost            Decimal            // Total cost of purchase
-  oilProduced          Decimal?           // Oil produced from these olives in kg (nullable - pending production)
-  yieldPercentage      Decimal?           // Yield percentage (oil/olives * 100) (nullable - pending production)
-  safeId               String             // Which safe stores this oil
-  notes                String?            // Optional notes
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  safe                 OilSafe            @relation(fields: [safeId], references: [id], onDelete: Cascade)
-  
-  @@map("olive_purchases")
-}
-
-model OilSale {
-  id                   String             @id @default(uuid())
-  saleDate             DateTime           @default(now())
-  safeId               String             // Which safe the oil comes from
-  quantity             Decimal            // Quantity of oil sold in liters/kg
-  pricePerKg           Decimal            // Sale price per kg
-  totalRevenue         Decimal            // Total revenue from sale
-  buyer                String?            // Name of buyer (optional)
-  buyerPhone           String?            // Buyer phone (optional)
-  notes                String?            // Optional notes
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  safe                 OilSafe            @relation(fields: [safeId], references: [id], onDelete: Cascade)
-  
-  @@map("oil_sales")
-}
-
-model Transaction {
-  id                   String             @id @default(uuid())
-  type                 TransactionType    // FARMER_PAYMENT, DEBIT, CREDIT
-  amount               Decimal            // Positive for income, negative for expenses
-  description          String             // Description of transaction
-  farmerName           String?            // Farmer name if type is FARMER_PAYMENT
-  farmerId             String?            // Reference to farmer if applicable
-  sessionId            String?            // Reference to session if applicable
-  destination          String?            // For debits/credits: where money came from/went to
-  createdBy            String?            // Admin who created the transaction
-  transactionDate      DateTime           @default(now())
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  @@map("transactions")
-}
-
 enum TransactionType {
-  FARMER_PAYMENT       // Payment received from farmer
-  DEBIT                // Money added to revenue (income)
-  CREDIT               // Money removed from revenue (expense)
-}
-
-model Employee {
-  id                   String             @id @default(uuid())
-  name                 String             // Employee name
-  phone                String?            // Optional phone number
-  position             String?            // Job position
-  hireDate             DateTime           @default(now())
-  isActive             Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  attendance           Attendance[]       // Employee's attendance records
-  payments             EmployeePayment[]  // Payments made to this employee
-  
-  @@map("employees")
-}
-
-model EmployeePayment {
-  id                   String             @id @default(uuid())
-  employeeId           String             // Which employee received payment
-  amount               Decimal            // Amount paid
-  paymentDate          DateTime           @default(now()) // When payment was made
-  notes                String?            // Optional notes
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  employee             Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  
-  @@index([employeeId, paymentDate])
-  @@map("employee_payments")
-}
-
-model Attendance {
-  id                   String             @id @default(uuid())
-  employeeId           String             // Reference to employee
-  date                 DateTime           // Attendance date
-  status               AttendanceStatus   // PRESENT, ABSENT
-  notes                String?            // Optional notes
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  employee             Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  
-  @@unique([employeeId, date], name: "employeeId_date") // One attendance record per employee per day
-  @@map("attendance")
+  FARMER_PAYMENT
+  DEBIT
+  CREDIT
 }
 
 enum AttendanceStatus {
-  PRESENT              // Employee was present (full day)
-  HALF_DAY             // Employee worked half day
-  ABSENT               // Employee was absent
+  PRESENT
+  HALF_DAY
+  ABSENT
 }
-
-// ==================== OLIVE COLLECTORS MANAGEMENT ====================
-
-model CollectorGroup {
-  id                   String             @id @default(uuid())
-  name                 String             @unique // Group name (e.g., "Groupe A", "Équipe 1")
-  isActive             Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  collections          DailyCollection[]  // Daily collections by this group
-  payments             CollectorPayment[] // Payments made to this group
-  
-  @@map("collector_groups")
-}
-
-model DailyCollection {
-  id                   String             @id @default(uuid())
-  groupId              String             // Which group collected
-  collectionDate       DateTime           // Date of collection
-  location             String             // Where they collected (e.g., "Ferme Ahmed", "Nord Village")
-  clientName           String             // For whom they collected (owner of olives)
-  chakraCount          Int                @default(0) // Number of full chakra
-  galbaCount           Int                @default(0) // Number of galba (5 galba = 1 chakra)
-  nchiraChakraCount    Int                @default(0) // Number of nchira chakra (نشيرة)
-  nchiraGalbaCount     Int                @default(0) // Number of nchira galba (نشيرة)
-  totalChakra          Decimal            // Calculated: chakraCount + (galbaCount / 5) + nchiraChakraCount + (nchiraGalbaCount / 5)
-  pricePerChakra       Decimal            @default(0) // Price per chakra
-  totalAmount          Decimal            @default(0) // Total payment amount (totalChakra * pricePerChakra)
-  notes                String?            // Optional notes
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  group                CollectorGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  @@index([collectionDate, groupId])
-  @@map("daily_collections")
-}
-model CollectorPayment {
-  id                   String             @id @default(uuid())
-  groupId              String             // Which group received payment
-  amount               Decimal            // Amount paid
-  paymentDate          DateTime           @default(now()) // When payment was made
-  notes                String?            // Optional notes
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  
-  group                CollectorGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  
-  @@index([groupId, paymentDate])
-  @@map("collector_payments")
-}
-
