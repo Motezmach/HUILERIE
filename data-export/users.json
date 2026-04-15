@@ -1,0 +1,15 @@
+[
+  {
+    "id": "1acd4745-6638-4bd3-8dd9-6e9503c5f56b",
+    "username": "admin",
+    "password": "$2b$12$5ocy8h/nlidFodKnfXjIzOQZDDzzyvQ54/GLNowHRoSa9WJxfTcu2",
+    "email": "admin@olive-oil.com",
+    "firstName": "Admin",
+    "lastName": "System",
+    "role": "ADMIN",
+    "isActive": true,
+    "lastLoginAt": null,
+    "createdAt": "2025-11-02T02:50:25.600Z",
+    "updatedAt": "2025-11-02T02:50:25.600Z"
+  }
+]

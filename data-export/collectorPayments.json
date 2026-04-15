@@ -1,0 +1,425 @@
+[
+  {
+    "id": "8ee8e3d3-9610-475b-9f39-8d12f603c644",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "450",
+    "paymentDate": "2025-11-28T21:21:42.683Z",
+    "notes": "AVANCE LE 6 NOV 2025",
+    "createdAt": "2025-11-28T21:21:42.794Z",
+    "updatedAt": "2025-11-28T21:21:42.794Z"
+  },
+  {
+    "id": "e46a23ef-6d0e-42e4-953c-0d8d5cd2a65f",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "450",
+    "paymentDate": "2025-11-28T21:22:24.051Z",
+    "notes": "AVANCE LE 12 NOV 2025",
+    "createdAt": "2025-11-28T21:22:24.364Z",
+    "updatedAt": "2025-11-28T21:22:24.364Z"
+  },
+  {
+    "id": "c43d6e66-7f50-4574-8879-e94eb49499d2",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "550",
+    "paymentDate": "2025-11-28T21:23:58.327Z",
+    "notes": "AVANCE LE 19 NOV 2025",
+    "createdAt": "2025-11-28T21:23:58.572Z",
+    "updatedAt": "2025-11-28T21:23:58.572Z"
+  },
+  {
+    "id": "f2587db0-0519-4fd8-b055-1e60ee2dc9c7",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "60",
+    "paymentDate": "2025-11-28T21:24:27.620Z",
+    "notes": "AVANCE  LE 20 NOV 2025",
+    "createdAt": "2025-11-28T21:24:27.727Z",
+    "updatedAt": "2025-11-28T21:24:27.727Z"
+  },
+  {
+    "id": "7bb846c1-c057-4783-8feb-c4d9b9dcf4e9",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "100",
+    "paymentDate": "2025-11-28T21:25:11.146Z",
+    "notes": "AVANCE LE 20 NOV 2025",
+    "createdAt": "2025-11-28T21:25:11.385Z",
+    "updatedAt": "2025-11-28T21:25:11.385Z"
+  },
+  {
+    "id": "5f50931d-6bc5-496f-bfd0-4c72ec980f61",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "420",
+    "paymentDate": "2025-11-28T21:25:35.000Z",
+    "notes": "AVANCE LE 27 NOV 2025",
+    "createdAt": "2025-11-28T21:25:35.106Z",
+    "updatedAt": "2025-11-28T21:25:35.106Z"
+  },
+  {
+    "id": "8a284406-3090-4c44-99c9-40767e74d3de",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "320",
+    "paymentDate": "2025-11-28T21:26:56.593Z",
+    "notes": "AVANCE LE 6 NOV 2025",
+    "createdAt": "2025-11-28T21:26:56.672Z",
+    "updatedAt": "2025-11-28T21:26:56.672Z"
+  },
+  {
+    "id": "3a7576b2-854d-494f-b8d9-399e76d10de4",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "50",
+    "paymentDate": "2025-11-28T21:27:41.141Z",
+    "notes": "AVANCE LE 8 NOV 2025",
+    "createdAt": "2025-11-28T21:27:41.246Z",
+    "updatedAt": "2025-11-28T21:27:41.246Z"
+  },
+  {
+    "id": "bf1a19ee-d894-4ea1-9f91-1abe5237fd4f",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "200",
+    "paymentDate": "2025-11-28T21:28:26.868Z",
+    "notes": "AVANCE LE 11 NOV 2025",
+    "createdAt": "2025-11-28T21:28:26.949Z",
+    "updatedAt": "2025-11-28T21:28:26.949Z"
+  },
+  {
+    "id": "8ad9ec3e-da09-454a-bb8e-de3104681d4d",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "300",
+    "paymentDate": "2025-11-28T21:28:55.061Z",
+    "notes": "AVANCE LE 12 NOV 2025",
+    "createdAt": "2025-11-28T21:28:55.146Z",
+    "updatedAt": "2025-11-28T21:28:55.146Z"
+  },
+  {
+    "id": "fd4f0181-8f85-4da0-b0bb-3db2f3bd0141",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "550",
+    "paymentDate": "2025-11-28T21:29:22.444Z",
+    "notes": "AVANCE LE 19 NOV 2025",
+    "createdAt": "2025-11-28T21:29:22.561Z",
+    "updatedAt": "2025-11-28T21:29:22.561Z"
+  },
+  {
+    "id": "12573c35-68aa-47bf-a36f-ec96b64cf88d",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "60",
+    "paymentDate": "2025-11-28T21:29:43.352Z",
+    "notes": "AVANCE LE 20 NOV 2025",
+    "createdAt": "2025-11-28T21:29:43.452Z",
+    "updatedAt": "2025-11-28T21:29:43.452Z"
+  },
+  {
+    "id": "b86704a2-7cf1-4375-8a20-2bac930d604f",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "600",
+    "paymentDate": "2025-11-28T21:30:06.495Z",
+    "notes": "AVANCE LE 27 NOV 2025",
+    "createdAt": "2025-11-28T21:30:06.616Z",
+    "updatedAt": "2025-11-28T21:30:06.616Z"
+  },
+  {
+    "id": "cc2ee0ba-ed88-4bda-acd9-8fbfeb25598a",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "420",
+    "paymentDate": "2025-12-04T15:35:33.734Z",
+    "notes": "AVANCE",
+    "createdAt": "2025-12-04T15:35:34.064Z",
+    "updatedAt": "2025-12-04T15:35:34.064Z"
+  },
+  {
+    "id": "0dbb3d00-7d1c-41f4-b73e-80b1270516ec",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "550",
+    "paymentDate": "2025-12-04T15:35:44.742Z",
+    "notes": "AVANCE",
+    "createdAt": "2025-12-04T15:35:44.837Z",
+    "updatedAt": "2025-12-04T15:35:44.837Z"
+  },
+  {
+    "id": "ce2a732d-fc61-4031-9f2e-6eff21ec9ee0",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "670",
+    "paymentDate": "2025-12-16T20:51:30.355Z",
+    "notes": "AVANCE LE 10 DEC 2025",
+    "createdAt": "2025-12-16T20:51:30.500Z",
+    "updatedAt": "2025-12-16T20:51:30.500Z"
+  },
+  {
+    "id": "b66383eb-9e30-4147-85d2-8e44763b3c42",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "120",
+    "paymentDate": "2025-12-16T20:52:32.606Z",
+    "notes": "AVANCE LE 11 DEC 2025",
+    "createdAt": "2025-12-16T20:52:32.720Z",
+    "updatedAt": "2025-12-16T20:52:32.720Z"
+  },
+  {
+    "id": "76ed4a20-4f21-4b3c-be03-893fe1d4127c",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "400",
+    "paymentDate": "2025-12-16T20:53:07.288Z",
+    "notes": "AVANCE LE 11 DEC 2025",
+    "createdAt": "2025-12-16T20:53:07.405Z",
+    "updatedAt": "2025-12-16T20:53:07.405Z"
+  },
+  {
+    "id": "cd1a5b90-d2e1-4de4-9479-e1b13cb285e9",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "400",
+    "paymentDate": "2025-12-19T20:43:12.089Z",
+    "notes": "AVANCE 16 DEC 2025",
+    "createdAt": "2025-12-19T20:43:12.245Z",
+    "updatedAt": "2025-12-19T20:43:12.245Z"
+  },
+  {
+    "id": "cd652e13-9852-4599-a7e2-99fd3e73e0b2",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "30",
+    "paymentDate": "2025-12-19T20:43:39.709Z",
+    "notes": "AVANCE LE 17 DEC 2025",
+    "createdAt": "2025-12-19T20:43:39.865Z",
+    "updatedAt": "2025-12-19T20:43:39.865Z"
+  },
+  {
+    "id": "2c3f0f47-e5ab-45dc-abcc-ed4bf3542e4a",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "620",
+    "paymentDate": "2025-12-19T20:44:53.469Z",
+    "notes": "AVANCE LE 18 DEC 2025",
+    "createdAt": "2025-12-19T20:44:53.608Z",
+    "updatedAt": "2025-12-19T20:44:53.608Z"
+  },
+  {
+    "id": "cdd056fd-3095-420a-bc70-58898aaccd5a",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "250",
+    "paymentDate": "2025-12-22T19:30:42.731Z",
+    "notes": "AVANCE LE 21 DEC 2025",
+    "createdAt": "2025-12-22T19:30:42.976Z",
+    "updatedAt": "2025-12-22T19:30:42.976Z"
+  },
+  {
+    "id": "9da00967-5794-459e-8f0f-a9456072a71d",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "50",
+    "paymentDate": "2025-12-22T19:31:22.526Z",
+    "notes": "AVANCE LE 22 DEC 2025",
+    "createdAt": "2025-12-22T19:31:22.651Z",
+    "updatedAt": "2025-12-22T19:31:22.651Z"
+  },
+  {
+    "id": "8408b306-a186-4a91-8632-5dac0512e286",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "30",
+    "paymentDate": "2025-12-26T10:49:57.829Z",
+    "notes": "AVANCE LE 23 DEC 2025",
+    "createdAt": "2025-12-26T10:49:57.919Z",
+    "updatedAt": "2025-12-26T10:49:57.919Z"
+  },
+  {
+    "id": "f37282cd-780c-4bd5-869a-2c42f180c507",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "450",
+    "paymentDate": "2025-12-26T10:50:20.275Z",
+    "notes": "AVANCE LE 25 DEC 2025",
+    "createdAt": "2025-12-26T10:50:20.378Z",
+    "updatedAt": "2025-12-26T10:50:20.378Z"
+  },
+  {
+    "id": "c2bc1931-9539-4a1c-aaf7-2e0294bc9fd5",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "550",
+    "paymentDate": "2025-12-26T10:50:40.515Z",
+    "notes": "AAVANCE LE 25 DEC 2025",
+    "createdAt": "2025-12-26T10:50:40.624Z",
+    "updatedAt": "2025-12-26T10:50:40.624Z"
+  },
+  {
+    "id": "8f74f965-7510-4b38-81b0-a873f5dc2334",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "550",
+    "paymentDate": "2025-12-26T10:51:03.714Z",
+    "notes": "AVANCE LE 25 DEC 2025",
+    "createdAt": "2025-12-26T10:51:03.779Z",
+    "updatedAt": "2025-12-26T10:51:03.779Z"
+  },
+  {
+    "id": "159e1de6-d211-4199-bb32-ef7e52d92df4",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "480",
+    "paymentDate": "2026-01-09T15:13:03.760Z",
+    "notes": "AVANCE LE 7 JANVIER 2026",
+    "createdAt": "2026-01-09T15:13:04.218Z",
+    "updatedAt": "2026-01-09T15:13:04.218Z"
+  },
+  {
+    "id": "8b0bf05d-521a-4cf6-ad71-890bf3ab98ea",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "370",
+    "paymentDate": "2026-01-09T15:13:21.924Z",
+    "notes": "AVANCE LE 7 JANVIER 2026",
+    "createdAt": "2026-01-09T15:13:22.076Z",
+    "updatedAt": "2026-01-09T15:13:22.076Z"
+  },
+  {
+    "id": "95e62926-85d1-4f96-9f3f-ab7a78ed5c5d",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "570",
+    "paymentDate": "2026-01-09T15:13:46.218Z",
+    "notes": "AVANCE LE 7 JANVIER 2026",
+    "createdAt": "2026-01-09T15:13:46.345Z",
+    "updatedAt": "2026-01-09T15:13:46.345Z"
+  },
+  {
+    "id": "2c6eb0cb-ccfe-4118-b905-2e635447beb6",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "600",
+    "paymentDate": "2026-01-15T20:46:28.266Z",
+    "notes": "AVANCE : LE 15 JANVIER 2026",
+    "createdAt": "2026-01-15T20:46:28.771Z",
+    "updatedAt": "2026-01-15T20:46:28.771Z"
+  },
+  {
+    "id": "937dba7a-ee6c-4bcc-a050-0ce80f246d10",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "450",
+    "paymentDate": "2026-01-15T20:47:46.067Z",
+    "notes": "AVANCE : LE 15 JANVIER 2026",
+    "createdAt": "2026-01-15T20:47:46.448Z",
+    "updatedAt": "2026-01-15T20:47:46.448Z"
+  },
+  {
+    "id": "b5f65655-d93f-4b3e-b7fc-8e5001e76bc8",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "600",
+    "paymentDate": "2026-01-15T20:48:26.420Z",
+    "notes": "AVANCE : LE 15 JANVIER 2026",
+    "createdAt": "2026-01-15T20:48:26.593Z",
+    "updatedAt": "2026-01-15T20:48:26.593Z"
+  },
+  {
+    "id": "ba8513f8-cd66-409c-be8b-87fb435b840c",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "150",
+    "paymentDate": "2026-01-18T21:39:24.390Z",
+    "notes": "AVANCE LE  18 JANVIER 2026",
+    "createdAt": "2026-01-18T21:39:24.482Z",
+    "updatedAt": "2026-01-18T21:39:24.482Z"
+  },
+  {
+    "id": "8a4b1fcf-bde3-4a8c-af84-1b96c075e56f",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "670",
+    "paymentDate": "2026-02-01T21:05:27.624Z",
+    "notes": "AVANCE LE : 29 JANVIER 2026",
+    "createdAt": "2026-02-01T21:05:27.762Z",
+    "updatedAt": "2026-02-01T21:05:27.762Z"
+  },
+  {
+    "id": "b0a3fae2-e70d-4ba9-a5b3-23ea3907bacb",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "600",
+    "paymentDate": "2026-02-01T21:05:55.465Z",
+    "notes": "AVANCE : LE  29 JANVIER 2026",
+    "createdAt": "2026-02-01T21:05:55.560Z",
+    "updatedAt": "2026-02-01T21:05:55.560Z"
+  },
+  {
+    "id": "9123c975-42cb-4968-85b5-fce601cd42c8",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "550",
+    "paymentDate": "2026-02-01T21:06:26.235Z",
+    "notes": "AVANCE LE : 269 JANVIER 2026",
+    "createdAt": "2026-02-01T21:06:26.335Z",
+    "updatedAt": "2026-02-01T21:06:26.335Z"
+  },
+  {
+    "id": "a3a7b99c-2b5e-425a-b5c8-ec4e27c39598",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "20",
+    "paymentDate": "2026-02-01T21:06:58.568Z",
+    "notes": "AVANCE LE : 01 FEVRIER 2026",
+    "createdAt": "2026-02-01T21:06:58.682Z",
+    "updatedAt": "2026-02-01T21:06:58.682Z"
+  },
+  {
+    "id": "952d8fe5-f246-4dfd-8173-fbda4b2eb1a8",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "50",
+    "paymentDate": "2026-02-04T20:12:18.019Z",
+    "notes": "AVANCE LE 3 FEVRIER 2026",
+    "createdAt": "2026-02-04T20:12:18.089Z",
+    "updatedAt": "2026-02-04T20:12:18.089Z"
+  },
+  {
+    "id": "37903ac7-660b-492f-9dde-3f88606337c2",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "50",
+    "paymentDate": "2026-02-06T20:53:52.356Z",
+    "notes": "AVANCE LE : 4 FEVRIER 2026",
+    "createdAt": "2026-02-06T20:53:52.720Z",
+    "updatedAt": "2026-02-06T20:53:52.720Z"
+  },
+  {
+    "id": "98ade68b-e587-4fe6-946c-5df1d70dda87",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "550",
+    "paymentDate": "2026-02-06T20:54:47.275Z",
+    "notes": "AVANCE : LE 5 FEVRIER 2026",
+    "createdAt": "2026-02-06T20:54:47.370Z",
+    "updatedAt": "2026-02-06T20:54:47.370Z"
+  },
+  {
+    "id": "534d60b7-93b1-4e97-8b6b-72988e939045",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "400",
+    "paymentDate": "2026-02-06T20:55:21.369Z",
+    "notes": "AVANCE : LE 5 FEVRIER 2026",
+    "createdAt": "2026-02-06T20:55:21.613Z",
+    "updatedAt": "2026-02-06T20:55:21.613Z"
+  },
+  {
+    "id": "245b7c42-28f3-408f-a259-c94e2e897430",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "550",
+    "paymentDate": "2026-02-06T20:55:43.939Z",
+    "notes": "AVANCE : LE 5 FEVRIER 2026",
+    "createdAt": "2026-02-06T20:55:44.044Z",
+    "updatedAt": "2026-02-06T20:55:44.044Z"
+  },
+  {
+    "id": "c3277b83-90dc-487a-b643-28a97a6941f0",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "150",
+    "paymentDate": "2026-02-16T21:44:11.713Z",
+    "notes": "AVANCE LE : 8 FEVRIER 2026",
+    "createdAt": "2026-02-16T21:44:11.825Z",
+    "updatedAt": "2026-02-16T21:44:11.825Z"
+  },
+  {
+    "id": "b9990007-92c5-4bc9-a801-3cd02783ea49",
+    "groupId": "9d3fd0d6-2d45-46ef-8e3e-59bee03a2733",
+    "amount": "800",
+    "paymentDate": "2026-02-16T21:44:45.533Z",
+    "notes": "AVANCE LE : 12 FEVRIER 2026",
+    "createdAt": "2026-02-16T21:44:45.658Z",
+    "updatedAt": "2026-02-16T21:44:45.658Z"
+  },
+  {
+    "id": "9d1abce9-5e2c-4e30-9e18-164e75b9a8dd",
+    "groupId": "d6703e18-36b6-454f-9ffa-e2244f9cc9f9",
+    "amount": "730",
+    "paymentDate": "2026-02-16T21:45:11.960Z",
+    "notes": "AVANCELE : 12 FEVRIER 2026",
+    "createdAt": "2026-02-16T21:45:12.087Z",
+    "updatedAt": "2026-02-16T21:45:12.087Z"
+  },
+  {
+    "id": "29c09271-48d5-4a3e-915b-efb8f031c9ba",
+    "groupId": "d0215fe1-9ba2-42f3-b2d7-76d185eddcc4",
+    "amount": "1250",
+    "paymentDate": "2026-02-16T21:45:36.887Z",
+    "notes": "AVANCE LE : 12 FEVRIER 2026",
+    "createdAt": "2026-02-16T21:45:37.023Z",
+    "updatedAt": "2026-02-16T21:45:37.023Z"
+  }
+]
